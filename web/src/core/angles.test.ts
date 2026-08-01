@@ -6,8 +6,8 @@ import {
   primaryAngle,
   torsoLength,
   trunkLeanDeg,
-} from './angles';
-import { LANDMARK_COUNT, LM, type Landmark } from './types';
+} from './angles.ts';
+import { LANDMARK_COUNT, LM, type Landmark } from './types.ts';
 
 function lm(x: number, y: number, z = 0, visibility = 1): Landmark {
   return { x, y, z, visibility };

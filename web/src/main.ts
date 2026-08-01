@@ -1,6 +1,6 @@
 import './style.css';
-import { registerServiceWorker } from './pwa';
-import { CameraView } from './ui/cameraView';
+import { registerServiceWorker } from './pwa.ts';
+import { CameraView } from './ui/cameraView.ts';
 
 /** Fail loudly at startup rather than with `null` deref deep in the loop. */
 function required<T extends Element>(selector: string): T {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assertNoRawPoseData, summarizeSet, toRepRecord, type RepRecord } from './setSummary';
-import type { RepEvent } from './repCounter';
+import { assertNoRawPoseData, summarizeSet, toRepRecord, type RepRecord } from './setSummary.ts';
+import type { RepEvent } from './repCounter.ts';
 
 function rep(index: number, overrides: Partial<RepRecord> = {}): RepRecord {
   return {

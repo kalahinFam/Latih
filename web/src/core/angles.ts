@@ -19,7 +19,7 @@
  * available (some recorded datasets ship them without the world set).
  */
 
-import { LM, type JointAngles, type Landmark } from './types';
+import { LM, type JointAngles, type Landmark } from './types.ts';
 
 /** Below this MediaPipe visibility, a joint is treated as unobserved. */
 export const DEFAULT_MIN_VISIBILITY = 0.5;

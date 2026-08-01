@@ -13,9 +13,9 @@
  * is what makes coaching feel live rather than delayed.
  */
 
-import type { RepEvent } from './repCounter';
-import type { RuleErrorCode, RuleFinding } from './rules';
-import type { ExerciseKind } from './types';
+import type { RepEvent } from './repCounter.ts';
+import type { RuleErrorCode, RuleFinding } from './rules.ts';
+import type { ExerciseKind } from './types.ts';
 
 /** One rep as the coach sees it. */
 export interface RepRecord {

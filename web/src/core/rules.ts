@@ -33,9 +33,9 @@
  * `rules.test.ts` asserts the ordering against `DEFAULT_CONFIGS` directly.
  */
 
-import type { ExerciseKind, JointAngles } from './types';
-import { bilateralMean } from './angles';
-import { bottomFrames, extremeOf, meanOf, type RepWindow } from './repWindow';
+import type { ExerciseKind, JointAngles } from './types.ts';
+import { bilateralMean } from './angles.ts';
+import { bottomFrames, extremeOf, meanOf, type RepWindow } from './repWindow.ts';
 
 /** Stable identifiers — these are the classes the paper reports P/R/F1 for. */
 export type RuleErrorCode =

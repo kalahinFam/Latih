@@ -12,7 +12,7 @@
  */
 
 import { FilesetResolver, PoseLandmarker, type PoseLandmarkerResult } from '@mediapipe/tasks-vision';
-import type { Landmark, PoseFrame } from '../core/types';
+import type { Landmark, PoseFrame } from '../core/types.ts';
 
 export type ModelVariant = 'lite' | 'full';
 

@@ -8,15 +8,15 @@
  * virtual DOM would make more expensive rather than cheaper.
  */
 
-import { computeJointAngles, primaryAngle } from '../core/angles';
-import { PerfMonitor } from '../core/metrics';
-import { RepCounter } from '../core/repCounter';
-import { RepWindowBuilder } from '../core/repWindow';
-import { evaluateRules, primaryCue } from '../core/rules';
-import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary';
-import type { ExerciseKind } from '../core/types';
-import { PoseSource, type ModelVariant } from '../pose/poseSource';
-import { clearSkeleton, drawSkeleton } from './skeleton';
+import { computeJointAngles, primaryAngle } from '../core/angles.ts';
+import { PerfMonitor } from '../core/metrics.ts';
+import { RepCounter } from '../core/repCounter.ts';
+import { RepWindowBuilder } from '../core/repWindow.ts';
+import { evaluateRules, primaryCue } from '../core/rules.ts';
+import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
+import type { ExerciseKind } from '../core/types.ts';
+import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
+import { clearSkeleton, drawSkeleton } from './skeleton.ts';
 
 /**
  * How long the person may be undetected before we prompt about framing.

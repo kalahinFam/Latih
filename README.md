@@ -22,6 +22,8 @@ belum diimplementasikan.
 | Koreksi form deterministik + cue | ✅ berjalan |
 | Instrumentasi latensi & FPS | ✅ berjalan |
 | PWA installable + offline | ✅ berjalan |
+| Ekstraksi fitur per repetisi | ✅ berjalan |
+| Harness evaluasi rep-count | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ belum |
 | Slow loop (narasi LLM per set) | ⬜ belum |
 | Nutrisi TKPI + verifier grounding | ⬜ belum |
@@ -113,6 +115,7 @@ web/src/
 │   ├── repCounter.ts   state machine histeresis
 │   ├── rules.ts        pemeriksaan form deterministik
 │   ├── repWindow.ts    buffer frame per repetisi
+│   ├── features.ts     window per rep → tensor 32×12 (input klasifier)
 │   ├── setSummary.ts   agregasi per set + kontrak privasi
 │   └── metrics.ts      instrumentasi FPS & latensi
 ├── pose/          ← satu-satunya file yang tahu MediaPipe ada
@@ -123,6 +126,35 @@ web/src/
 yang **sama persis** dengan yang berjalan di aplikasi. Tidak ada duplikasi
 logika, jadi angka yang dilaporkan di paper dijamin berasal dari kode yang benar-
 benar dipakai produk.
+
+Dua hal yang membuat ini bekerja, dan yang akan merusaknya kalau diubah:
+
+- **Setiap import relatif memakai ekstensi `.ts` eksplisit.** Node ESM tidak
+  menebak ekstensi seperti bundler. Menghapusnya membuat skrip evaluasi gagal
+  resolve, meski aplikasi tetap jalan.
+- **`erasableSyntaxOnly` aktif di `tsconfig.json`.** Ini melarang sintaks
+  TypeScript yang menghasilkan kode saat runtime (enum, parameter property),
+  sehingga Node bisa sekadar melucuti tipe tanpa mengompilasi.
+
+---
+
+## Evaluasi
+
+```bash
+node --experimental-strip-types eval/eval_reps.mjs
+```
+
+Flag itu diperlukan di Node 22; sejak Node 23.6 sudah aktif secara bawaan.
+
+Tanpa data terekam, skrip menjalankan **self-check sintetis** dan menandai
+hasilnya sebagai bukan angka akurasi — supaya angka sintetis tidak pernah
+tersalin ke paper sebagai hasil pengukuran. Setelah anotasi tersedia:
+
+```bash
+node --experimental-strip-types eval/eval_reps.mjs --input eval/data
+```
+
+Hasil ditulis ke `eval/results/rep_accuracy.json`.
 
 ---
 

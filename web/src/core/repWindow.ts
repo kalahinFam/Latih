@@ -8,8 +8,8 @@
  * describing the same repetition.
  */
 
-import type { RepEvent } from './repCounter';
-import type { JointAngles } from './types';
+import type { RepEvent } from './repCounter.ts';
+import type { JointAngles } from './types.ts';
 
 export interface RepFrame {
   timestampMs: number;

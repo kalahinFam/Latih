@@ -10,8 +10,8 @@
  * between a viewer seeing the AI work and taking our word for it.
  */
 
-import { POSE_CONNECTIONS } from '../pose/poseSource';
-import type { Landmark } from '../core/types';
+import { POSE_CONNECTIONS } from '../pose/poseSource.ts';
+import type { Landmark } from '../core/types.ts';
 
 const JOINT_COLOR = '#22d3ee';
 const BONE_COLOR = 'rgba(34, 211, 238, 0.85)';

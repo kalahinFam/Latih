@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RepCounter, type RepEvent } from './repCounter';
+import { RepCounter, type RepEvent } from './repCounter.ts';
 
 /**
  * Feed a sequence of angles at a fixed frame interval and collect the reps.

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THRESHOLDS, evaluateRules, primaryCue, type RuleErrorCode } from './rules';
-import { RepWindowBuilder, type RepWindow } from './repWindow';
-import { DEFAULT_CONFIGS, RepCounter, type RepEvent } from './repCounter';
-import type { ExerciseKind, JointAngles } from './types';
+import { DEFAULT_THRESHOLDS, evaluateRules, primaryCue, type RuleErrorCode } from './rules.ts';
+import { RepWindowBuilder, type RepWindow } from './repWindow.ts';
+import { DEFAULT_CONFIGS, RepCounter, type RepEvent } from './repCounter.ts';
+import type { ExerciseKind, JointAngles } from './types.ts';
 
 function angles(overrides: Partial<JointAngles> = {}): JointAngles {
   return {

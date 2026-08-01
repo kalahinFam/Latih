@@ -24,7 +24,7 @@
  *    half a movement as a whole repetition.
  */
 
-import type { ExerciseKind } from './types';
+import type { ExerciseKind } from './types.ts';
 
 export type RepPhase = 'unknown' | 'up' | 'down';
 
