@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1120" />
+    <meta
+      name="description"
+      content="Pelatih kebugaran AI yang mengoreksi form latihan secara real-time langsung di perangkat."
+    />
+
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS ignores the manifest for home-screen installs and reads these. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LATIH" />
+
+    <title>LATIH — Pelatih Pribadi AI</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1 class="app__title">LATIH</h1>
+        <p class="app__perf" id="perf"></p>
+      </header>
+
+      <section class="stage">
+        <!-- `playsinline` stops iOS from forcing the video fullscreen, which
+             would hide the skeleton overlay entirely. -->
+        <video id="video" class="stage__video" playsinline muted></video>
+        <canvas id="canvas" class="stage__overlay"></canvas>
+
+        <div class="hud">
+          <div class="hud__count">
+            <span class="hud__value" id="repCount">0</span>
+            <span class="hud__label">repetisi</span>
+          </div>
+          <div class="hud__phase" id="phase">Bersiap</div>
+        </div>
+
+        <!-- aria-live so the correction is announced by a screen reader at the
+             moment it appears, not only when focus happens to land on it. -->
+        <p class="cue" id="cue" role="status" aria-live="polite" hidden></p>
+        <p class="banner" id="statusBanner" hidden></p>
+      </section>
+
+      <section class="controls">
+        <label class="control">
+          <span class="control__label">Gerakan</span>
+          <select id="exercise" class="control__input">
+            <option value="pushup">Push-up</option>
+            <option value="squat">Squat</option>
+          </select>
+        </label>
+
+        <label class="control">
+          <span class="control__label">Model</span>
+          <select id="model" class="control__input">
+            <option value="lite">Lite (cepat)</option>
+            <option value="full">Full (akurat)</option>
+          </select>
+        </label>
+
+        <button id="start" class="control__button" type="button">Mulai</button>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

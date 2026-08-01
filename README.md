@@ -1,0 +1,192 @@
+# LATIH — Pelatih Pribadi AI
+
+Pelatih kebugaran berbasis AI yang berjalan di browser ponsel. Mengamati latihan
+lewat kamera, menghitung repetisi, dan mengoreksi form secara real-time —
+**seluruh pemrosesan citra terjadi di perangkat.**
+
+Datathon 2026, Ristek Fasilkom UI — University Track. Tim **Kalahin Fam**,
+Universitas Indonesia.
+
+---
+
+## Status saat ini
+
+Fast loop sudah berjalan: kamera → pose estimation → sudut sendi → penghitung
+repetisi → koreksi form. Slow loop (narasi LLM per set) dan modul nutrisi TKPI
+belum diimplementasikan.
+
+| Komponen | Status |
+|---|---|
+| Pose estimation on-device (MediaPipe) | ✅ berjalan |
+| Penghitung repetisi (push-up, squat) | ✅ berjalan |
+| Koreksi form deterministik + cue | ✅ berjalan |
+| Instrumentasi latensi & FPS | ✅ berjalan |
+| PWA installable + offline | ✅ berjalan |
+| Klasifier form (ONNX) | ⬜ belum |
+| Slow loop (narasi LLM per set) | ⬜ belum |
+| Nutrisi TKPI + verifier grounding | ⬜ belum |
+
+---
+
+## Menjalankan
+
+**Prasyarat:** Node.js 20 atau lebih baru.
+
+```bash
+git clone https://github.com/kalahinFam/Latih.git
+cd Latih/web
+npm install
+npm run dev
+```
+
+Buka **http://localhost:5174** (atau port yang ditampilkan), tekan **Mulai**,
+lalu izinkan akses kamera.
+
+`npm install` tidak mengunduh model. Saat `npm run dev` dijalankan pertama kali,
+skrip `setup:assets` otomatis menyalin runtime WASM dari `node_modules` dan
+mengunduh dua model pose (~48 MB total). Ini hanya terjadi sekali — jalankan
+berikutnya akan melewatinya.
+
+### Menguji di ponsel
+
+Kamera hanya bisa diakses lewat **HTTPS**. Membuka alamat LAN seperti
+`http://192.168.x.x:5174` akan ditolak browser. Gunakan tunnel:
+
+```bash
+npx cloudflared tunnel --url http://localhost:5174
+```
+
+Buka URL `https://….trycloudflare.com` yang tercetak di ponsel.
+
+### Menguji instalasi PWA dan mode offline
+
+Service worker sengaja hanya aktif di build produksi — di mode dev ia berkelahi
+dengan hot reload.
+
+```bash
+npm run build
+npm run preview
+```
+
+Lalu arahkan tunnel ke port preview. Di Chrome Android akan muncul prompt
+**"Install app"**. Setelah terpasang, matikan koneksi internet: penghitung
+repetisi dan cue tetap berjalan penuh.
+
+---
+
+## Perintah
+
+| Perintah | Fungsi |
+|---|---|
+| `npm run dev` | Server pengembangan |
+| `npm test` | Unit test (79 tes) |
+| `npm run typecheck` | Pemeriksaan tipe tanpa build |
+| `npm run build` | Build produksi ke `dist/` |
+| `npm run preview` | Menyajikan hasil build (untuk uji PWA) |
+| `npm run setup:assets` | Mengambil ulang model + WASM |
+| `npm run gen:icons` | Membangkitkan ulang ikon PWA |
+
+---
+
+## Arsitektur
+
+```
+┌──────────── BROWSER — on-device, frame tidak pernah keluar ─────────────┐
+│  Kamera → MediaPipe PoseLandmarker (WASM/GPU) → 33 landmark @ ~30fps    │
+│      ↓                                                                  │
+│  FAST LOOP (TypeScript murni, tanpa DOM)                                │
+│    sudut sendi → state machine rep-count → pemeriksaan form → cue       │
+│      ↓ per set selesai: JSON statistik agregat                          │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             │  angka saja — tanpa frame, tanpa koordinat
+                    ┌────────▼─────────┐
+                    │  API (belum ada) │  narasi LLM + nutrisi TKPI
+                    └──────────────────┘
+```
+
+### Struktur direktori
+
+```
+web/src/
+├── core/          ← LOGIKA MURNI. Tanpa DOM, tanpa MediaPipe.
+│   ├── angles.ts       landmark → sudut sendi
+│   ├── repCounter.ts   state machine histeresis
+│   ├── rules.ts        pemeriksaan form deterministik
+│   ├── repWindow.ts    buffer frame per repetisi
+│   ├── setSummary.ts   agregasi per set + kontrak privasi
+│   └── metrics.ts      instrumentasi FPS & latensi
+├── pose/          ← satu-satunya file yang tahu MediaPipe ada
+└── ui/            ← kamera, overlay skeleton, HUD
+```
+
+`core/` sengaja dijaga murni: skrip evaluasi berbasis Node meng-import modul
+yang **sama persis** dengan yang berjalan di aplikasi. Tidak ada duplikasi
+logika, jadi angka yang dilaporkan di paper dijamin berasal dari kode yang benar-
+benar dipakai produk.
+
+---
+
+## Dua keputusan desain yang perlu diketahui sebelum mengubah kode
+
+### 1. Gate counter harus lebih longgar daripada ambang rule
+
+Penghitung repetisi menghitung **percobaan**; rules menilai **kualitasnya**.
+Rules hanya melihat repetisi yang berhasil dihitung counter.
+
+Kalau `downEnter` (gate counter) disamakan dengan `depthMax` (ambang rule),
+setiap repetisi yang terhitung otomatis lolos ambang — dan rule `shallow_depth`
+menjadi kode mati yang tetap terlihat benar saat dibaca sendirian. Bug ini
+pernah terjadi dan lolos unit test, karena tes membangun window sintetis yang
+bisa memuat sudut apa pun.
+
+`rules.test.ts` sekarang memeriksa relasi ini langsung terhadap
+`DEFAULT_CONFIGS`. Jangan longgarkan ambang rule tanpa memeriksa gate counter.
+
+### 2. Sudut dihitung dari world landmarks, bukan koordinat gambar
+
+MediaPipe mengembalikan dua set koordinat. `landmarks` dinormalisasi ke [0,1]
+**secara terpisah** untuk lebar dan tinggi — sehingga langkah yang sama pada x
+dan y bukan jarak fisik yang sama. Menghitung sudut dari sana menghasilkan nilai
+yang salah, dan besar kesalahannya berubah mengikuti rasio aspek kamera.
+
+`worldLandmarks` bersifat metrik dan bebas distorsi itu. Koordinat gambar hanya
+dipakai untuk menggambar overlay.
+
+---
+
+## Klaim privasi — cara memverifikasinya sendiri
+
+Frame kamera tidak pernah meninggalkan perangkat. Ini ditegakkan oleh kode,
+bukan janji:
+
+1. Jalankan aplikasi, lakukan satu set, buka **DevTools → Network**. Tidak ada
+   request yang membawa gambar.
+2. Di Console, jalankan `latih.summarizeCurrentSet()` — itulah **satu-satunya**
+   objek yang akan dikirim keluar. Isinya hanya sudut, durasi, dan kode error.
+3. `assertNoRawPoseData()` di `core/setSummary.ts` menolak payload yang
+   mengandung `landmark`, `image`, `frame`, atau `base64`. Ada unit test yang
+   sengaja menyelundupkan koordinat dan memastikan fungsi itu melempar error.
+4. Matikan koneksi internet — penghitung repetisi dan cue tetap berjalan penuh.
+
+Sebelum deploy, pastikan tidak ada kunci API yang bocor ke bundle:
+
+```bash
+npm run build
+grep -r "sk-" dist/        # harus kosong
+```
+
+---
+
+## Model & dataset
+
+Pose estimation memakai **MediaPipe Pose Landmarker (BlazePose)** dari Google —
+diunduh otomatis oleh `setup:assets`, bukan model latihan kami.
+
+Klasifier form yang kami latih sendiri beserta datasetnya akan dipublikasikan di
+Hugging Face dan ditautkan di sini setelah pelatihan selesai.
+
+---
+
+## Lisensi
+
+Belum ditentukan. Kode ini dibuat untuk penjurian Datathon 2026.
