@@ -7,13 +7,14 @@
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",
     "test": "npm --prefix web run test",
-    "typecheck": "npm --prefix web run typecheck",
+    "typecheck": "tsc --noEmit && npm --prefix web run typecheck",
     "eval:reps": "node --experimental-strip-types eval/eval_reps.mjs"
   },
   "dependencies": {
     "openai": "^6.10.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
     "typescript": "~6.0.2"
   }
 }

@@ -79,13 +79,11 @@ Aturan:
   lebih lambat" lebih baik daripada "eccentricMs naik 480".
 - Pilih SATU hal terpenting untuk dikoreksi. Menyebut tiga kesalahan sekaligus
   membuat tidak ada yang diperbaiki.
-- Kalau tidak ada kesalahan terdeteksi, akui itu dan beri satu hal untuk
-  ditingkatkan — jangan mengarang kesalahan.
 - Jangan pernah menyebut nama field, kode error mentah, atau istilah teknis
   seperti "eccentric" dan "landmark".
-- Kalau trackingQuality di bawah 0.8, sebutkan singkat bahwa sebagian gerakan
-  kurang terbaca kamera, supaya orang tahu penilaian ini mungkin tidak lengkap.
-- Jangan memberi saran medis atau diagnosis cedera.`;
+- Jangan memberi saran medis atau diagnosis cedera.
+- Patuhi setiap baris yang diawali "INSTRUKSI:" pada data yang diberikan.
+  Baris itu dihitung dari angka set ini, bukan tebakan.`;
 
 /** Human-readable names, so the model never sees a raw code to echo back. */
 const ERROR_LABELS: Record<string, string> = {
@@ -100,6 +98,44 @@ const EXERCISE_LABELS: Record<string, string> = {
   pushup: 'push-up',
   squat: 'squat',
 };
+
+/**
+ * Conditions evaluated in code, handed to the model as direct instructions.
+ *
+ * Testing against real sets showed the model would not reliably apply rules of
+ * the form "if trackingQuality is below 0.8, mention it" — it compared the
+ * number and then simply did not act on it. Worse, on a set with no detected
+ * faults it manufactured one, coaching a lifter to fix depth that was already
+ * excellent.
+ *
+ * Both are the same mistake on my side: asking a language model to evaluate a
+ * numeric threshold and remember a conditional. The comparison belongs in code;
+ * what reaches the model is an unconditional instruction it only has to follow.
+ */
+function directivesFor(summary: SetSummaryPayload): string[] {
+  const directives: string[] = [];
+
+  if (Object.keys(summary.errorCounts).length === 0) {
+    directives.push(
+      'INSTRUKSI: Tidak ada satu pun kesalahan terdeteksi di set ini, dan angka ' +
+        'kedalaman serta konsistensinya sudah baik. DILARANG mengarang kekurangan ' +
+        'atau menyuruh memperbaiki hal yang sudah benar. Akui hasilnya, lalu ' +
+        'sarankan satu peningkatan untuk set berikutnya: tambah repetisi, ' +
+        'perlambat fase turun, atau naik ke variasi yang lebih berat.',
+    );
+  }
+
+  if (summary.trackingQuality < 0.8) {
+    directives.push(
+      `INSTRUKSI: Kamera hanya membaca ${(summary.trackingQuality * 100).toFixed(0)}% gerakan. ` +
+        'WAJIB sebutkan dalam satu anak kalimat bahwa sebagian gerakan kurang ' +
+        'terbaca sehingga penilaian ini mungkin tidak lengkap, dan sarankan ' +
+        'memperbaiki posisi kamera.',
+    );
+  }
+
+  return directives;
+}
 
 function describeSet(summary: SetSummaryPayload): string {
   const errors = Object.entries(summary.errorCounts)
@@ -129,7 +165,9 @@ Tempo:
 Kesalahan terdeteksi:
 ${errors || '- tidak ada'}
 
-Kualitas pembacaan kamera: ${(summary.trackingQuality * 100).toFixed(0)}%`;
+Kualitas pembacaan kamera: ${(summary.trackingQuality * 100).toFixed(0)}%${
+    directivesFor(summary).length > 0 ? `\n\n${directivesFor(summary).join('\n\n')}` : ''
+  }`;
 }
 
 /** Reject a payload carrying anything image-shaped, before it reaches the model. */
