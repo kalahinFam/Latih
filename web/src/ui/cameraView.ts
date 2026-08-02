@@ -22,6 +22,8 @@ import { RepWindowBuilder } from '../core/repWindow.ts';
 import { evaluateRules, primaryCue } from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
 import { CoachError, requestCoaching } from '../coach/coachClient.ts';
+import { allCueTexts } from '../core/rules.ts';
+import { Voice } from '../audio/voice.ts';
 import type { ExerciseKind } from '../core/types.ts';
 import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
 import { clearSkeleton, drawSkeleton } from './skeleton.ts';
@@ -73,6 +75,7 @@ export interface CameraViewElements {
 export class CameraView {
   private readonly pose = new PoseSource();
   private readonly perf = new PerfMonitor();
+  private readonly voice = new Voice();
   private readonly ctx: CanvasRenderingContext2D;
 
   private counter: RepCounter;
@@ -105,7 +108,13 @@ export class CameraView {
 
     this.counter = new RepCounter(this.exercise);
 
-    el.startButton.addEventListener('click', () => void this.toggle());
+    el.startButton.addEventListener('click', () => {
+      // Synchronously inside the gesture handler. Awaiting anything first
+      // would spend the user activation and leave the first cue silent.
+      this.voice.unlock();
+      this.voice.preloadCues(allCueTexts());
+      void this.toggle();
+    });
     el.exerciseSelect.addEventListener('change', () => {
       this.exercise = el.exerciseSelect.value as ExerciseKind;
       // Thresholds and rules are per-exercise, so anything measured under the
@@ -144,6 +153,9 @@ export class CameraView {
       const feedback = await requestCoaching(summary);
       this.el.coachNarration.textContent = feedback.narasi;
       this.el.coachFocus.textContent = feedback.fokus_set_berikutnya;
+      // Not awaited: the text is already on screen, and blocking the panel on
+      // audio generation would delay reading it for no benefit.
+      void this.voice.speakNarration(feedback.narasi);
       this.el.coachMeta.textContent =
         feedback.latencyMs && feedback.usage
           ? `${(feedback.latencyMs / 1000).toFixed(1)} s · ${feedback.usage.promptTokens}+${feedback.usage.completionTokens} token · $${feedback.usage.costUsd.toFixed(6)}`
@@ -230,6 +242,8 @@ export class CameraView {
     this.stream?.getTracks().forEach((track) => track.stop());
     this.stream = null;
     this.el.video.srcObject = null;
+    // A cue still playing after the set ended is talking about nothing.
+    this.voice.stop();
 
     clearSkeleton(this.ctx);
     this.el.startButton.textContent = 'Mulai';
@@ -354,6 +368,9 @@ export class CameraView {
     this.el.cue.textContent = cue;
     this.el.cue.hidden = false;
     this.cueUntilMs = nowMs + CUE_VISIBLE_MS;
+    // Pre-rendered clip: plays immediately, no network round trip. A cue that
+    // arrives after the rep it describes is not a late cue, it is a wrong one.
+    this.voice.playCue(cue);
   }
 
   private expireCue(nowMs: number): void {

@@ -100,7 +100,12 @@ export function apiPlugin(): Plugin {
 
           res.statusCode = response.status;
           response.headers.forEach((value, key) => res.setHeader(key, value));
-          res.end(await response.text());
+          // Write raw bytes, never text. `response.text()` decodes the body as
+          // UTF-8, which silently replaces every non-ASCII byte with U+FFFD —
+          // fine for JSON, and total corruption for the MP3 the TTS endpoint
+          // returns. Production returns the Response directly and never hit
+          // this, so it would only ever have broken in development.
+          res.end(Buffer.from(await response.arrayBuffer()));
         } catch (error) {
           // Surface the real error in dev; production goes through the
           // endpoint's own sanitising error handler.

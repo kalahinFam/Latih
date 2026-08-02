@@ -45,6 +45,39 @@ export type RuleErrorCode =
   | 'hip_pike'
   | 'excessive_trunk_lean';
 
+/**
+ * Every corrective phrase the fast loop can speak, keyed `exercise:code`.
+ *
+ * This is a *closed set*, and that is what makes instant audio possible: the
+ * build pre-renders each phrase to an MP3, so a correction plays with zero
+ * network latency. A cue that arrives 800 ms late is not a late cue, it is a
+ * useless one — the repetition it described is already over.
+ *
+ * Single source of truth on purpose. The audio generator imports this map, so
+ * adding a rule adds its clip, and editing a phrase invalidates the stale
+ * recording rather than silently keeping it.
+ */
+export const CUE_TEXT: Record<string, string> = {
+  'pushup:shallow_depth': 'Turunkan dada lebih dalam',
+  'pushup:partial_lockout': 'Luruskan lengan sepenuhnya',
+  'pushup:hip_sag': 'Angkat pinggul, jaga badan lurus',
+  'pushup:hip_pike': 'Turunkan pinggul, jaga badan lurus',
+  'squat:shallow_depth': 'Turun lebih dalam',
+  'squat:partial_lockout': 'Berdiri tegak sepenuhnya',
+  'squat:excessive_trunk_lean': 'Jaga dada tetap tegak',
+};
+
+export function cueFor(exercise: ExerciseKind, code: RuleErrorCode): string {
+  // Falling back to the code would speak "hip_sag" aloud; an empty string is
+  // caught by the generator's completeness test instead.
+  return CUE_TEXT[`${exercise}:${code}`] ?? '';
+}
+
+/** Unique phrases, for the audio generator. */
+export function allCueTexts(): string[] {
+  return [...new Set(Object.values(CUE_TEXT))].sort();
+}
+
 export interface RuleFinding {
   code: RuleErrorCode;
   /** Short corrective phrase, spoken by the fast loop. */
@@ -148,7 +181,7 @@ export function evaluateRules(
   if (primaryAtBottom !== null && primaryAtBottom > t.depthMax) {
     findings.push({
       code: 'shallow_depth',
-      cue: exercise === 'pushup' ? 'Turunkan dada lebih dalam' : 'Turun lebih dalam',
+      cue: cueFor(exercise, 'shallow_depth'),
       value: primaryAtBottom,
       threshold: t.depthMax,
       severity: severityOf(primaryAtBottom, t.depthMax, t.band, 'above'),
@@ -160,7 +193,7 @@ export function evaluateRules(
   if (Number.isFinite(lockout) && lockout < t.lockoutMin) {
     findings.push({
       code: 'partial_lockout',
-      cue: exercise === 'pushup' ? 'Luruskan lengan sepenuhnya' : 'Berdiri tegak sepenuhnya',
+      cue: cueFor(exercise, 'partial_lockout'),
       value: lockout,
       threshold: t.lockoutMin,
       severity: severityOf(lockout, t.lockoutMin, t.band, 'below'),
@@ -173,7 +206,7 @@ export function evaluateRules(
     if (hip !== null && t.hipSagMin !== undefined && hip < t.hipSagMin) {
       findings.push({
         code: 'hip_sag',
-        cue: 'Angkat pinggul, jaga badan lurus',
+        cue: cueFor(exercise, 'hip_sag'),
         value: hip,
         threshold: t.hipSagMin,
         severity: severityOf(hip, t.hipSagMin, t.band, 'below'),
@@ -182,7 +215,7 @@ export function evaluateRules(
     if (hip !== null && t.hipPikeMax !== undefined && hip > t.hipPikeMax) {
       findings.push({
         code: 'hip_pike',
-        cue: 'Turunkan pinggul, jaga badan lurus',
+        cue: cueFor(exercise, 'hip_pike'),
         value: hip,
         threshold: t.hipPikeMax,
         severity: severityOf(hip, t.hipPikeMax, t.band, 'above'),
@@ -193,7 +226,7 @@ export function evaluateRules(
     if (lean !== null && t.trunkLeanMax !== undefined && lean > t.trunkLeanMax) {
       findings.push({
         code: 'excessive_trunk_lean',
-        cue: 'Jaga dada tetap tegak',
+        cue: cueFor(exercise, 'excessive_trunk_lean'),
         value: lean,
         threshold: t.trunkLeanMax,
         severity: severityOf(lean, t.trunkLeanMax, t.band, 'above'),

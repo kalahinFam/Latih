@@ -6,9 +6,10 @@
   "scripts": {
     "setup:assets": "node scripts/setup-assets.mjs",
     "gen:icons": "node scripts/gen-icons.mjs",
-    "predev": "npm run setup:assets",
+    "gen:cues": "node --experimental-strip-types scripts/gen-cues.mjs",
+    "predev": "npm run setup:assets && npm run gen:cues",
     "dev": "vite --host",
-    "prebuild": "npm run setup:assets",
+    "prebuild": "npm run setup:assets && npm run gen:cues",
     "build": "tsc && vite build",
     "preview": "vite preview --host",
     "test": "vitest run",

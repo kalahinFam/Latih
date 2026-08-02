@@ -26,6 +26,7 @@ belum diimplementasikan.
 | Harness evaluasi rep-count | ✅ berjalan |
 | Alat anotasi (video → keypoint berlabel) | ✅ berjalan |
 | Slow loop (narasi LLM per set) | ✅ berjalan |
+| TTS Bahasa Indonesia (cue + narasi) | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ belum |
 | Nutrisi TKPI + verifier grounding | ⬜ belum |
 
@@ -176,6 +177,35 @@ estimasi.
 offline dan timeout 15 detik dilewati dengan pesan; kunci belum diset
 menghasilkan instruksi konkret; set nol repetisi dijawab langsung tanpa
 memanggil model sama sekali.
+
+---
+
+## Suara — dua jalur, dua kendala berbeda
+
+**Cue koreksi: MP3 pra-render.** Himpunan frasa koreksi tertutup — tujuh kalimat,
+terdaftar di `CUE_TEXT` pada `core/rules.ts`. Semuanya dibangkitkan jadi MP3
+saat build oleh `scripts/gen-cues.mjs`, lalu diputar tanpa jaringan sama sekali.
+
+Alasannya: cue yang datang satu detik terlambat **bukan cue yang telat, tapi cue
+yang salah** — repetisi yang dibicarakannya sudah lewat. Memanggil TTS di
+tengah set juga berbiaya tiap repetisi dan langsung bisu saat WiFi lokasi lomba
+bermasalah.
+
+Nama berkasnya mengandung hash dari teksnya. Mengedit sebuah frasa menghasilkan
+nama baru, sehingga rekaman lama berhenti dirujuk — bukan diam-diam terputar
+mengucapkan koreksi yang sudah tidak berlaku.
+
+**Narasi antar-set: TTS runtime.** Teksnya ditulis ulang oleh pelatih AI setiap
+set, jadi tidak bisa dipra-render. Ini diputar saat pengguna beristirahat, di
+mana latensi ~3 detik tidak berbiaya apa-apa.
+
+**Cadangan:** kalau `/api/tts` gagal — offline, kunci belum diset, kuota habis —
+sistem jatuh ke `speechSynthesis` bawaan browser dengan voice `id-ID`. Kualitas
+lebih rendah, tapi demo yang bisu lebih buruk daripada suara yang lebih polos.
+
+Regenerasi manual: `npm run gen:cues` (idempoten, melewati yang sudah ada).
+Tanpa `OPENAI_API_KEY` skrip ini memberi peringatan dan berhenti tanpa
+menggagalkan build — teman tim tetap bisa bekerja dengan suara cadangan.
 
 ---
 
