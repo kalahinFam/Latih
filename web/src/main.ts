@@ -20,6 +20,9 @@ const view = new CameraView({
   startButton: required<HTMLButtonElement>('#start'),
   exerciseSelect: required<HTMLSelectElement>('#exercise'),
   modelSelect: required<HTMLSelectElement>('#model'),
+  guide: required<HTMLDetailsElement>('#guide'),
+  guideList: required('#guideList'),
+  guideNote: required('#guideNote'),
 });
 
 registerServiceWorker();

@@ -65,6 +65,15 @@
 
         <button id="start" class="control__button" type="button">Mulai</button>
       </section>
+
+      <!-- Open by default: placing the camera wrong is the single biggest
+           cause of bad tracking, and it is far cheaper to prevent than to
+           detect and explain afterwards. -->
+      <details class="guide" id="guide" open>
+        <summary class="guide__summary">Posisi kamera</summary>
+        <dl class="guide__list" id="guideList"></dl>
+        <p class="guide__note" id="guideNote"></p>
+      </details>
     </main>
 
     <script type="module" src="/src/main.ts"></script>

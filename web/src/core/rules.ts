@@ -35,7 +35,7 @@
 
 import type { ExerciseKind, JointAngles } from './types.ts';
 import { bilateralMean } from './angles.ts';
-import { bottomFrames, extremeOf, meanOf, type RepWindow } from './repWindow.ts';
+import { bottomFrames, extremeOf, medianOf, type RepWindow } from './repWindow.ts';
 
 /** Stable identifiers — these are the classes the paper reports P/R/F1 for. */
 export type RuleErrorCode =
@@ -135,10 +135,12 @@ export function evaluateRules(
   const bottom = bottomFrames(window);
   const findings: RuleFinding[] = [];
 
+  // Median, not min. `min` over the bottom window is the most optimistic
+  // possible reading of depth — one badly-fitted frame is enough to make a
+  // shallow rep look deep and silence the cue. Field testing showed cues
+  // firing inconsistently, and an outlier-sensitive statistic is one cause.
   const primaryAtBottom =
-    exercise === 'pushup'
-      ? extremeOf(bottom, elbowAngle, 'min')
-      : extremeOf(bottom, kneeAngle, 'min');
+    exercise === 'pushup' ? medianOf(bottom, elbowAngle) : medianOf(bottom, kneeAngle);
 
   // Depth. Uses the frames around the bottom rather than the counter's
   // minAngle so the two agree even if the counter held frames for low
@@ -167,7 +169,7 @@ export function evaluateRules(
 
   if (exercise === 'pushup') {
     // Hip line, judged at the bottom where the plank is hardest to hold.
-    const hip = meanOf(bottom, hipAngle);
+    const hip = medianOf(bottom, hipAngle);
     if (hip !== null && t.hipSagMin !== undefined && hip < t.hipSagMin) {
       findings.push({
         code: 'hip_sag',

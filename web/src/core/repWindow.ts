@@ -9,6 +9,7 @@
  */
 
 import type { RepEvent } from './repCounter.ts';
+import { median } from './smoothing.ts';
 import type { JointAngles } from './types.ts';
 
 export interface RepFrame {
@@ -84,6 +85,22 @@ export function bottomFrames(window: RepWindow, toleranceMs = 150): RepFrame[] {
       : best;
   }, null);
   return closest ? [closest] : [];
+}
+
+/**
+ * Median of the defined values, or null when a joint was never visible.
+ *
+ * Preferred over both mean and extreme for judging a rep: a single badly-fitted
+ * frame at the bottom would drag a mean and would *become* an extreme. Depth
+ * measured by `min` is the most optimistic reading possible, which is exactly
+ * the wrong bias for a rule that decides whether to stay quiet.
+ */
+export function medianOf(
+  frames: RepFrame[],
+  select: (angles: JointAngles) => number | null,
+): number | null {
+  const values = frames.map((frame) => select(frame.angles)).filter((v): v is number => v !== null);
+  return median(values);
 }
 
 /** Mean of the defined values, or null when a joint was never visible. */

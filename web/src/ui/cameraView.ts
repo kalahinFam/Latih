@@ -9,8 +9,15 @@
  */
 
 import { computeJointAngles, primaryAngle } from '../core/angles.ts';
+import {
+  CAMERA_GUIDANCE,
+  checkFraming,
+  framingMessage,
+  type FramingIssue,
+} from '../core/framing.ts';
 import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
+import { MedianFilter } from '../core/smoothing.ts';
 import { RepWindowBuilder } from '../core/repWindow.ts';
 import { evaluateRules, primaryCue } from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
@@ -37,7 +44,7 @@ type Status =
   | { kind: 'idle' }
   | { kind: 'loading'; message: string }
   | { kind: 'running' }
-  | { kind: 'no-pose' }
+  | { kind: 'framing'; message: string }
   | { kind: 'low-confidence' }
   | { kind: 'error'; message: string };
 
@@ -52,6 +59,9 @@ export interface CameraViewElements {
   startButton: HTMLButtonElement;
   exerciseSelect: HTMLSelectElement;
   modelSelect: HTMLSelectElement;
+  guide: HTMLDetailsElement;
+  guideList: HTMLElement;
+  guideNote: HTMLElement;
 }
 
 export class CameraView {
@@ -60,6 +70,12 @@ export class CameraView {
   private readonly ctx: CanvasRenderingContext2D;
 
   private counter: RepCounter;
+  /**
+   * Rejects single-frame tracker glitches before they reach the state machine.
+   * MediaPipe solves the skeleton jointly, so poorly tracked legs destabilise
+   * the elbow too — which showed up in testing as miscounted push-ups.
+   */
+  private smoother = new MedianFilter();
   private readonly windows = new RepWindowBuilder();
   private exercise: ExerciseKind = 'pushup';
   private stream: MediaStream | null = null;
@@ -89,8 +105,11 @@ export class CameraView {
       // Thresholds and rules are per-exercise, so anything measured under the
       // previous movement is meaningless now.
       this.startNewSet();
+      this.renderGuidance();
       this.render();
     });
+
+    this.renderGuidance();
     el.modelSelect.addEventListener('change', () => {
       void this.pose.setVariant(el.modelSelect.value as ModelVariant);
     });
@@ -121,6 +140,7 @@ export class CameraView {
 
   private startNewSet(): void {
     this.counter = new RepCounter(this.exercise);
+    this.smoother = new MedianFilter();
     this.windows.clear();
     this.reps.length = 0;
     this.setStartedMs = performance.now();
@@ -206,18 +226,23 @@ export class CameraView {
       // Hold the counter: a rep counted from a pose we cannot see is worse
       // than no count, because the user sees the error immediately.
       this.counter.update(null, frameStart);
+      this.smoother.push(null);
       this.heldFrames += 1;
       clearSkeleton(this.ctx);
       if (frameStart - this.lastPoseSeenMs > NO_POSE_GRACE_MS) {
-        this.setStatus({ kind: 'no-pose' });
+        this.setStatus({ kind: 'framing', message: framingMessage({ kind: 'no-pose' }, this.exercise) });
       }
     } else {
       this.lastPoseSeenMs = frameStart;
       this.perf.recordPose(detection.inferenceMs);
 
       const fastLoopStart = performance.now();
+      // Framing is judged on image-space landmarks: the question is literally
+      // whether the body is inside the picture, which world coordinates cannot
+      // answer.
+      const framing = checkFraming(detection.normalized, this.exercise);
       const angles = computeJointAngles(detection.frame.landmarks);
-      const angle = primaryAngle(angles, this.exercise);
+      const angle = this.smoother.push(primaryAngle(angles, this.exercise));
       this.windows.push(detection.frame.timestampMs, angles);
       const rep = this.counter.update(angle, detection.frame.timestampMs);
 
@@ -232,7 +257,9 @@ export class CameraView {
       else this.trackedFrames += 1;
 
       drawSkeleton(this.ctx, detection.normalized);
-      this.setStatus(this.counter.status.holding ? { kind: 'low-confidence' } : { kind: 'running' });
+      // Framing outranks low confidence: a cropped body is *why* confidence is
+      // low, and "step back" is something the user can act on.
+      this.setStatus(this.framingOrTrackingStatus(framing.issue));
     }
 
     this.expireCue(frameStart);
@@ -243,6 +270,32 @@ export class CameraView {
 
     this.rafId = requestAnimationFrame(this.loop);
   };
+
+  private renderGuidance(): void {
+    const guidance = CAMERA_GUIDANCE[this.exercise];
+    const rows: [string, string][] = [
+      ['Sudut', guidance.angle],
+      ['Tinggi', guidance.height],
+      ['Jarak', guidance.distance],
+      ['Orientasi', guidance.orientation],
+    ];
+
+    this.el.guideList.innerHTML = '';
+    for (const [term, value] of rows) {
+      const dt = document.createElement('dt');
+      dt.textContent = term;
+      const dd = document.createElement('dd');
+      dd.textContent = value;
+      this.el.guideList.append(dt, dd);
+    }
+    this.el.guideNote.textContent = guidance.note;
+  }
+
+  private framingOrTrackingStatus(issue: FramingIssue | null): Status {
+    if (issue) return { kind: 'framing', message: framingMessage(issue, this.exercise) };
+    if (this.counter.status.holding) return { kind: 'low-confidence' };
+    return { kind: 'running' };
+  }
 
   private setStatus(status: Status): void {
     this.status = status;
@@ -301,7 +354,7 @@ const STATUS_MESSAGE: Record<Status['kind'], (status: Status) => string | null> 
   idle: () => null,
   running: () => null,
   loading: (s) => (s.kind === 'loading' ? s.message : null),
-  'no-pose': () => 'Mundur sedikit agar seluruh badan terlihat kamera.',
+  framing: (s) => (s.kind === 'framing' ? s.message : null),
   'low-confidence': () => 'Pencahayaan kurang — hitungan ditahan sementara.',
   error: (s) => (s.kind === 'error' ? s.message : null),
 };

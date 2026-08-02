@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
+// `import.meta.dirname` rather than `__dirname`: Vite's native config loader
+// does not provide the CommonJS globals, and warns that relying on them will
+// break when it becomes the default.
+const here = import.meta.dirname;
+
 /**
  * Two entry points share one build.
  *
@@ -18,8 +23,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        annotate: resolve(__dirname, 'annotate.html'),
+        main: resolve(here, 'index.html'),
+        annotate: resolve(here, 'annotate.html'),
       },
     },
   },
