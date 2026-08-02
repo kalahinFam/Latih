@@ -21,6 +21,7 @@ import { MedianFilter } from '../core/smoothing.ts';
 import { RepWindowBuilder } from '../core/repWindow.ts';
 import { evaluateRules, primaryCue } from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
+import { CoachError, requestCoaching } from '../coach/coachClient.ts';
 import type { ExerciseKind } from '../core/types.ts';
 import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
 import { clearSkeleton, drawSkeleton } from './skeleton.ts';
@@ -62,6 +63,11 @@ export interface CameraViewElements {
   guide: HTMLDetailsElement;
   guideList: HTMLElement;
   guideNote: HTMLElement;
+  finishSetButton: HTMLButtonElement;
+  coachPanel: HTMLElement;
+  coachNarration: HTMLElement;
+  coachFocus: HTMLElement;
+  coachMeta: HTMLElement;
 }
 
 export class CameraView {
@@ -113,8 +119,42 @@ export class CameraView {
     el.modelSelect.addEventListener('change', () => {
       void this.pose.setVariant(el.modelSelect.value as ModelVariant);
     });
+    el.finishSetButton.addEventListener('click', () => void this.finishSet());
 
     this.render();
+  }
+
+  /**
+   * End the set and ask the slow loop for narrative feedback.
+   *
+   * Counting stops first. Reps performed while the coach is thinking would land
+   * in a set that has already been summarised, and would silently go missing.
+   */
+  private async finishSet(): Promise<void> {
+    if (!this.running) return;
+    const summary = this.summarizeCurrentSet();
+    this.stop();
+
+    this.el.coachPanel.hidden = false;
+    this.el.coachNarration.textContent = 'Menganalisis set…';
+    this.el.coachFocus.textContent = '';
+    this.el.coachMeta.textContent = '';
+
+    try {
+      const feedback = await requestCoaching(summary);
+      this.el.coachNarration.textContent = feedback.narasi;
+      this.el.coachFocus.textContent = feedback.fokus_set_berikutnya;
+      this.el.coachMeta.textContent =
+        feedback.latencyMs && feedback.usage
+          ? `${(feedback.latencyMs / 1000).toFixed(1)} s · ${feedback.usage.promptTokens}+${feedback.usage.completionTokens} token · $${feedback.usage.costUsd.toFixed(6)}`
+          : '';
+    } catch (error) {
+      // The fast loop already did its job on device. Losing the narration is a
+      // degraded set, not a failed one, so say so and let training continue.
+      this.el.coachNarration.textContent =
+        error instanceof CoachError ? error.message : 'Umpan balik pelatih tidak tersedia.';
+      this.el.coachFocus.textContent = `Set tercatat: ${summary.repCount} repetisi.`;
+    }
   }
 
   /** Completed reps for the current set. */
@@ -172,6 +212,8 @@ export class CameraView {
       this.running = true;
       this.lastPoseSeenMs = performance.now();
       this.el.startButton.textContent = 'Berhenti';
+      this.el.finishSetButton.hidden = false;
+      this.el.coachPanel.hidden = true;
       this.setStatus({ kind: 'running' });
       this.loop();
     } catch (error) {
@@ -191,6 +233,7 @@ export class CameraView {
 
     clearSkeleton(this.ctx);
     this.el.startButton.textContent = 'Mulai';
+    this.el.finishSetButton.hidden = true;
     if (this.status.kind !== 'error') this.setStatus({ kind: 'idle' });
   }
 

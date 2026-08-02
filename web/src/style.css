@@ -245,6 +245,63 @@ body {
   outline-offset: 2px;
 }
 
+.control__button--ghost {
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+}
+
+/* Slow-loop feedback, shown between sets. Generous line height because this is
+   read while catching breath, not glanced at mid-rep. */
+.coach {
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+
+.coach__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.coach__narration {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.coach__focus {
+  margin: 0.6rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+.coach__focus:empty {
+  display: none;
+}
+
+/* Latency, tokens and cost. Visible on purpose: these are the numbers the
+   paper reports, and reading them off the running product beats trusting a
+   spreadsheet. */
+.coach__meta {
+  margin: 0.6rem 0 0;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.coach__meta:empty {
+  display: none;
+}
+
 /* Camera setup guidance. Wrong placement is the largest single cause of bad
    tracking, so this is prevention, not documentation. */
 .guide {

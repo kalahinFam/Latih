@@ -25,8 +25,8 @@ belum diimplementasikan.
 | Ekstraksi fitur per repetisi | ✅ berjalan |
 | Harness evaluasi rep-count | ✅ berjalan |
 | Alat anotasi (video → keypoint berlabel) | ✅ berjalan |
+| Slow loop (narasi LLM per set) | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ belum |
-| Slow loop (narasi LLM per set) | ⬜ belum |
 | Nutrisi TKPI + verifier grounding | ⬜ belum |
 
 ---
@@ -37,10 +37,16 @@ belum diimplementasikan.
 
 ```bash
 git clone https://github.com/kalahinFam/Latih.git
-cd Latih/web
-npm install
+cd Latih
+npm install                 # SDK OpenAI untuk serverless function
+cd web && npm install
 npm run dev
 ```
+
+Untuk umpan balik pelatih AI, salin `.env.example` menjadi `.env` di root lalu
+isi `OPENAI_API_KEY`. **Tanpa kunci, fast loop tetap berjalan penuh** —
+penghitung repetisi dan cue koreksi tidak butuh jaringan sama sekali; hanya
+narasi antar-set yang dilewati.
 
 Buka **http://localhost:5174** (atau port yang ditampilkan), tekan **Mulai**,
 lalu izinkan akses kamera.
@@ -136,6 +142,40 @@ Dua hal yang membuat ini bekerja, dan yang akan merusaknya kalau diubah:
 - **`erasableSyntaxOnly` aktif di `tsconfig.json`.** Ini melarang sintaks
   TypeScript yang menghasilkan kode saat runtime (enum, parameter property),
   sehingga Node bisa sekadar melucuti tipe tanpa mengompilasi.
+
+---
+
+## Slow loop — narasi pelatih per set
+
+Tekan **Selesai set** setelah selesai. Klien mengirim ringkasan set ke
+`/api/coach`, yang mengembalikan narasi Bahasa Indonesia dua sampai tiga
+kalimat plus satu fokus untuk set berikutnya.
+
+**Yang keluar dari perangkat hanyalah ringkasan itu:** jumlah repetisi, sudut
+sendi dalam derajat, durasi, dan kode kesalahan. Tidak ada frame, tidak ada
+koordinat landmark. Endpoint menolak payload apa pun yang mengandung data pose
+**sebelum** sampai ke model — pertahanan berlapis, karena klien memang tidak
+bisa menyusun payload seperti itu dari tipe `SetSummary`.
+
+**Mengapa ini loop terpisah, bukan rule yang lebih besar.** Fast loop bisa
+bilang "turunkan dada lebih dalam" saat repetisi sedang berlangsung. Yang tidak
+bisa ia lakukan adalah melihat satu set utuh, menyadari fase turun melambat 400
+ms di paruh kedua, lalu memutuskan bahwa itu lebih penting daripada kedalaman
+kali ini. Penilaian atas konteks agregat itulah alasan model ada di sini.
+
+**Mengapa tidak streaming.** Rencana awal menyebut streaming supaya TTS bisa
+mulai lebih awal. Itu keliru: keluarannya JSON terstruktur, dan JSON separuh
+jadi tidak bisa dibacakan — TTS tetap harus menunggu teks utuh. Streaming hanya
+menambah kerumitan parsing untuk keuntungan yang tidak bisa dipakai.
+
+Setiap respons membawa `usage` dan `latencyMs`, ditampilkan di bawah narasi.
+Angka biaya dan latensi yang masuk paper diambil dari trafik nyata, bukan
+estimasi.
+
+**Jalur kegagalan** (semuanya menurunkan kualitas, tidak mematikan latihan):
+offline dan timeout 15 detik dilewati dengan pesan; kunci belum diset
+menghasilkan instruksi konkret; set nol repetisi dijawab langsung tanpa
+memanggil model sama sekali.
 
 ---
 

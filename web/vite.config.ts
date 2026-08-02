@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
+import { apiPlugin } from './vite-plugin-api.ts';
 
 // `import.meta.dirname` rather than `__dirname`: Vite's native config loader
 // does not provide the CommonJS globals, and warns that relying on them will
@@ -18,6 +19,7 @@ const here = import.meta.dirname;
  * than the shipped product.
  */
 export default defineConfig({
+  plugins: [apiPlugin()],
   server: { port: 5174 },
   preview: { port: 5174 },
   build: {

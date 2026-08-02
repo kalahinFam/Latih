@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm --prefix web install && npm --prefix web run build",
+  "outputDirectory": "web/dist",
+  "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@5",
+      "maxDuration": 30
+    }
+  }
+}
