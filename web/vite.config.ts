@@ -1,0 +1,26 @@
+import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
+
+/**
+ * Two entry points share one build.
+ *
+ * `index.html` is the product. `annotate.html` is the internal tool that turns
+ * recorded video into labelled keypoint data — it deliberately lives in the
+ * same bundle so it imports the *same* `core/` modules and the *same* MediaPipe
+ * runtime the product uses. Extraction parity is not a nicety here: if the
+ * annotation pipeline computed landmarks even slightly differently from the
+ * live app, every accuracy figure in the paper would describe something other
+ * than the shipped product.
+ */
+export default defineConfig({
+  server: { port: 5174 },
+  preview: { port: 5174 },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        annotate: resolve(__dirname, 'annotate.html'),
+      },
+    },
+  },
+});

@@ -72,12 +72,18 @@ async function navigationHandler(request) {
     const response = await fetch(request);
     if (response.ok) {
       const cache = await caches.open(SHELL_CACHE);
-      cache.put('/index.html', response.clone());
+      // Cache under the requested URL, not a fixed path: the build has more
+      // than one HTML entry, and pinning to index.html would serve the wrong
+      // page for any of the others when offline.
+      cache.put(request, response.clone());
     }
     return response;
   } catch {
     const cache = await caches.open(SHELL_CACHE);
-    const cached = (await cache.match('/index.html')) ?? (await cache.match('/'));
+    const cached =
+      (await cache.match(request)) ??
+      (await cache.match('/index.html')) ??
+      (await cache.match('/'));
     if (cached) return cached;
     throw new Error('Offline and no cached shell available');
   }

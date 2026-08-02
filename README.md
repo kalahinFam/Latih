@@ -24,6 +24,7 @@ belum diimplementasikan.
 | PWA installable + offline | ✅ berjalan |
 | Ekstraksi fitur per repetisi | ✅ berjalan |
 | Harness evaluasi rep-count | ✅ berjalan |
+| Alat anotasi (video → keypoint berlabel) | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ belum |
 | Slow loop (narasi LLM per set) | ⬜ belum |
 | Nutrisi TKPI + verifier grounding | ⬜ belum |
@@ -135,6 +136,38 @@ Dua hal yang membuat ini bekerja, dan yang akan merusaknya kalau diubah:
 - **`erasableSyntaxOnly` aktif di `tsconfig.json`.** Ini melarang sintaks
   TypeScript yang menghasilkan kode saat runtime (enum, parameter property),
   sehingga Node bisa sekadar melucuti tipe tanpa mengompilasi.
+
+---
+
+## Alat anotasi
+
+Buka **http://localhost:5174/annotate.html** setelah `npm run dev`.
+
+Alur: pilih video → ekstrak keypoint → periksa segmentasi repetisi → beri label
+kelas kesalahan → unduh JSON.
+
+**Mengapa ekstraksi dilakukan di browser, bukan lewat Python.** Alat ini
+memakai `PoseSource` dan `RepCounter` yang **sama persis** dengan aplikasi.
+MediaPipe Python dan MediaPipe JS adalah jalur implementasi berbeda meski bobot
+modelnya sama; perbedaan numerik sekecil apa pun membuat angka evaluasi
+menggambarkan harness, bukan produk. Dengan cara ini paritas itu mutlak dan
+gratis. Pelatihan tetap di Python — JSON hasil ekspor adalah antarmukanya.
+
+**Dua aturan yang menjaga dataset tetap sahih:**
+
+1. **Label rule tidak pernah dicentang otomatis.** Dugaan dari `rules.ts`
+   ditampilkan sebagai petunjuk di kolom terpisah (`suggested`), tidak pernah
+   disalin ke `labels`. Kalau dataset diunggulkan dari keluaran rule,
+   classifier hanya belajar meniru rule — dan ablation *rule-only* vs
+   *rule+classifier* menjadi membandingkan sesuatu dengan salinannya sendiri.
+2. **Subject ID wajib diisi.** Pemisahan train/test harus per orang. Kalau
+   repetisi dari orang yang sama bocor ke kedua sisi, F1 akan terlihat bagus
+   secara palsu — dan penguji yang teliti akan menemukannya.
+
+Ekspor ditolak jika hitungan tersegmentasi tidak cocok dengan hitungan manual,
+deteksi pose di bawah 60%, atau Subject ID kosong. Selisih antara hitungan
+manual dan hitungan otomatis **adalah** data akurasi rep-count, jadi hitung
+sendiri dari video — jangan menyalin angka segmentasi.
 
 ---
 

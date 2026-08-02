@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1120" />
+    <meta name="robots" content="noindex" />
+    <title>LATIH — Alat Anotasi</title>
+  </head>
+  <body class="tool">
+    <main class="annotate">
+      <header class="annotate__header">
+        <h1 class="annotate__title">Alat Anotasi</h1>
+        <p class="annotate__sub">
+          Video → keypoint → label kelas kesalahan. Memakai model dan logika yang sama persis
+          dengan aplikasi.
+        </p>
+      </header>
+
+      <section class="panel">
+        <h2 class="panel__title">1. Sumber</h2>
+        <div class="field-grid">
+          <label class="field">
+            <span class="field__label">Berkas video</span>
+            <input type="file" id="videoFile" accept="video/*" class="field__input" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Gerakan</span>
+            <select id="exercise" class="field__input">
+              <option value="pushup">Push-up</option>
+              <option value="squat">Squat</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Subject ID</span>
+            <input
+              type="text"
+              id="subjectId"
+              class="field__input"
+              placeholder="mis. S01"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Model</span>
+            <select id="model" class="field__input">
+              <option value="lite">Lite</option>
+              <option value="full">Full</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="hint">
+          Subject ID wajib: pemisahan train/test harus per orang, bukan per repetisi. Kalau
+          repetisi dari orang yang sama bocor ke kedua sisi, F1 akan terlihat bagus secara palsu.
+        </p>
+
+        <button id="extract" class="button" type="button" disabled>Ekstrak keypoint</button>
+        <p class="progress" id="progress" hidden></p>
+      </section>
+
+      <section class="panel" id="reviewPanel" hidden>
+        <h2 class="panel__title">2. Periksa &amp; beri label</h2>
+
+        <div class="stats" id="stats"></div>
+
+        <label class="field field--inline">
+          <span class="field__label">Hitungan manual dari video</span>
+          <input type="number" id="expectedReps" class="field__input" min="0" step="1" />
+        </label>
+        <p class="hint">
+          Hitung sendiri dari video, jangan menyalin angka segmentasi. Selisihnya adalah data
+          akurasi rep-count.
+        </p>
+
+        <div class="reps" id="reps"></div>
+      </section>
+
+      <section class="panel" id="exportPanel" hidden>
+        <h2 class="panel__title">3. Ekspor</h2>
+        <ul class="problems" id="problems"></ul>
+        <button id="export" class="button" type="button">Unduh JSON</button>
+      </section>
+    </main>
+
+    <script type="module" src="/src/annotate/main.ts"></script>
+  </body>
+</html>
