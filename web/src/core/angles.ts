@@ -21,8 +21,28 @@
 
 import { LM, type JointAngles, type Landmark } from './types.ts';
 
-/** Below this MediaPipe visibility, a joint is treated as unobserved. */
+/**
+ * Below this MediaPipe visibility, a joint is treated as unobserved when
+ * *judging* form. Criticising a lifter's depth from a joint we can barely see
+ * produces corrections they cannot act on.
+ */
 export const DEFAULT_MIN_VISIBILITY = 0.5;
+
+/**
+ * The bar for *counting* a repetition, which is a different question.
+ *
+ * Counting asks "is this joint roughly where I think it is"; judging asks "am
+ * I confident enough to criticise". Holding both to the judging bar loses reps
+ * outright — and a missing rep is far more visible to the user than a slightly
+ * noisy angle.
+ *
+ * This matters most for push-ups: viewed obliquely the far arm is partly
+ * occluded, and MediaPipe's visibility for the elbow and wrist sits close to
+ * 0.5. Field testing showed push-up counting that worked at first and then
+ * almost stopped, which is what a threshold sitting right at the signal level
+ * looks like. The median filter absorbs the extra noise this admits.
+ */
+export const COUNTING_MIN_VISIBILITY = 0.3;
 
 /**
  * Angle at vertex `b` formed by the segments b->a and b->c, in degrees (0..180).
@@ -188,4 +208,30 @@ export function primaryAngle(angles: JointAngles, exercise: 'pushup' | 'squat'):
   return exercise === 'pushup'
     ? bilateralMean(angles.elbowLeft, angles.elbowRight)
     : bilateralMean(angles.kneeLeft, angles.kneeRight);
+}
+
+/**
+ * The primary angle computed straight from landmarks at the *counting*
+ * visibility bar.
+ *
+ * Deliberately separate from `primaryAngle(computeJointAngles(...))`, which
+ * inherits the stricter judging threshold. Computing only the two joints the
+ * counter needs also avoids recomputing the whole set at a second threshold on
+ * every frame.
+ */
+export function primaryAngleForCounting(
+  landmarks: Landmark[],
+  exercise: 'pushup' | 'squat',
+  minVisibility = COUNTING_MIN_VISIBILITY,
+): number | null {
+  const g = (a: number, b: number, c: number) => gatedAngle(landmarks, minVisibility, a, b, c);
+  return exercise === 'pushup'
+    ? bilateralMean(
+        g(LM.LEFT_SHOULDER, LM.LEFT_ELBOW, LM.LEFT_WRIST),
+        g(LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST),
+      )
+    : bilateralMean(
+        g(LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
+        g(LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
+      );
 }

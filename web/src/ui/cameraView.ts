@@ -8,7 +8,8 @@
  * virtual DOM would make more expensive rather than cheaper.
  */
 
-import { computeJointAngles, primaryAngle } from '../core/angles.ts';
+import { computeJointAngles, primaryAngleForCounting } from '../core/angles.ts';
+import { LiveDepthCue } from '../core/liveCue.ts';
 import {
   CAMERA_GUIDANCE,
   checkFraming,
@@ -19,7 +20,7 @@ import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
 import { MedianFilter } from '../core/smoothing.ts';
 import { RepWindowBuilder } from '../core/repWindow.ts';
-import { evaluateRules, primaryCue } from '../core/rules.ts';
+import { cueFor, evaluateRules, primaryCue } from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
 import { CoachError, requestCoaching } from '../coach/coachClient.ts';
 import { allCueTexts } from '../core/rules.ts';
@@ -85,6 +86,12 @@ export class CameraView {
    * the elbow too — which showed up in testing as miscounted push-ups.
    */
   private smoother = new MedianFilter();
+  /**
+   * Fires the depth correction at the reversal, not after the rep completes.
+   * Built in the constructor: a field initializer would run before `exercise`
+   * has a value.
+   */
+  private liveCue: LiveDepthCue;
   private readonly windows = new RepWindowBuilder();
   private exercise: ExerciseKind = 'pushup';
   private stream: MediaStream | null = null;
@@ -99,6 +106,19 @@ export class CameraView {
   private trackedFrames = 0;
   private heldFrames = 0;
   private cueUntilMs = 0;
+  /**
+   * Codes already spoken for the repetition in flight, so a correction fired
+   * live at the reversal is not repeated by the post-rep rules a moment later.
+   */
+  private readonly spokenThisRep = new Set<string>();
+  /**
+   * Frames where the counting angle was unavailable.
+   *
+   * Surfaced on screen because "reps are being missed" is not actionable, and
+   * "the joint angle was readable in 61% of frames" points straight at the
+   * camera setup. Turns the next round of feedback into a number.
+   */
+  private nullAngleFrames = 0;
 
   constructor(el: CameraViewElements) {
     this.el = el;
@@ -107,6 +127,7 @@ export class CameraView {
     this.ctx = ctx;
 
     this.counter = new RepCounter(this.exercise);
+    this.liveCue = new LiveDepthCue(this.exercise);
 
     el.startButton.addEventListener('click', () => {
       // Synchronously inside the gesture handler. Awaiting anything first
@@ -193,11 +214,14 @@ export class CameraView {
   private startNewSet(): void {
     this.counter = new RepCounter(this.exercise);
     this.smoother = new MedianFilter();
+    this.liveCue = new LiveDepthCue(this.exercise);
+    this.spokenThisRep.clear();
     this.windows.clear();
     this.reps.length = 0;
     this.setStartedMs = performance.now();
     this.trackedFrames = 0;
     this.heldFrames = 0;
+    this.nullAngleFrames = 0;
     this.cueUntilMs = 0;
     this.el.cue.hidden = true;
   }
@@ -298,17 +322,37 @@ export class CameraView {
       // whether the body is inside the picture, which world coordinates cannot
       // answer.
       const framing = checkFraming(detection.normalized, this.exercise);
+      // Judging angles use the strict visibility bar; the counting angle uses
+      // the lenient one. Same landmarks, two different questions.
       const angles = computeJointAngles(detection.frame.landmarks);
-      const angle = this.smoother.push(primaryAngle(angles, this.exercise));
+      const angle = this.smoother.push(
+        primaryAngleForCounting(detection.frame.landmarks, this.exercise),
+      );
       this.windows.push(detection.frame.timestampMs, angles);
+
+      const phaseBefore = this.counter.status.phase;
       const rep = this.counter.update(angle, detection.frame.timestampMs);
+
+      // Live depth check runs during the descent, so the correction lands as
+      // the lifter starts back up rather than after the rep is already done.
+      if (this.liveCue.update(angle, phaseBefore === 'down')) {
+        this.spokenThisRep.add('shallow_depth');
+        this.showCue(cueFor(this.exercise, 'shallow_depth'), frameStart);
+      }
 
       if (rep) {
         const findings = evaluateRules(this.exercise, this.windows.take(rep));
         this.reps.push(toRepRecord(rep, findings));
-        this.showCue(primaryCue(findings)?.cue ?? null, frameStart);
+
+        // Skip anything already said live for this rep — hearing the same
+        // correction twice makes the coach sound broken.
+        const unspoken = findings.filter((f) => !this.spokenThisRep.has(f.code));
+        this.showCue(primaryCue(unspoken)?.cue ?? null, frameStart);
+        this.spokenThisRep.clear();
       }
       this.perf.recordFastLoop(performance.now() - fastLoopStart);
+
+      if (angle === null) this.nullAngleFrames += 1;
 
       if (this.counter.status.holding) this.heldFrames += 1;
       else this.trackedFrames += 1;
@@ -383,10 +427,14 @@ export class CameraView {
     this.el.phase.textContent = PHASE_LABEL[phase];
 
     const perf = this.perf.snapshot();
+    const seen = this.trackedFrames + this.heldFrames;
+    // Readable-angle share is the number that explains missed reps, so it goes
+    // next to the frame rate rather than into a debug console nobody opens.
+    const readable = seen === 0 ? 0 : Math.round(((seen - this.nullAngleFrames) / seen) * 100);
     this.el.perf.textContent =
       perf.frame.count === 0
         ? ''
-        : `${perf.fps} fps · pose ${perf.pose.meanMs.toFixed(1)} ms · fast loop ${perf.fastLoop.meanMs.toFixed(2)} ms`;
+        : `${perf.fps} fps · pose ${perf.pose.meanMs.toFixed(1)} ms · sudut terbaca ${readable}%`;
 
     this.renderStatus();
   }
