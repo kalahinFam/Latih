@@ -22,6 +22,8 @@ import { MedianFilter } from '../core/smoothing.ts';
 import { RepWindowBuilder } from '../core/repWindow.ts';
 import { cueFor, evaluateRules, primaryCue } from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
+import { explainTarget, type ExerciseTarget } from '../core/sessionLoop.ts';
+import { TrainingHistory, toSetRecord } from '../session/history.ts';
 import { CoachError, requestCoaching } from '../coach/coachClient.ts';
 import { allCueTexts } from '../core/rules.ts';
 import { Voice } from '../audio/voice.ts';
@@ -66,6 +68,7 @@ export interface CameraViewElements {
   guide: HTMLDetailsElement;
   guideList: HTMLElement;
   guideNote: HTMLElement;
+  target: HTMLElement;
   finishSetButton: HTMLButtonElement;
   coachPanel: HTMLElement;
   coachNarration: HTMLElement;
@@ -93,6 +96,9 @@ export class CameraView {
    */
   private liveCue: LiveDepthCue;
   private readonly windows = new RepWindowBuilder();
+  /** Session loop: on-device history, and the target it derives from it. */
+  private readonly history = new TrainingHistory();
+  private target: ExerciseTarget;
   private exercise: ExerciseKind = 'pushup';
   private stream: MediaStream | null = null;
   private rafId: number | null = null;
@@ -128,6 +134,7 @@ export class CameraView {
 
     this.counter = new RepCounter(this.exercise);
     this.liveCue = new LiveDepthCue(this.exercise);
+    this.target = this.history.currentTarget(this.exercise);
 
     el.startButton.addEventListener('click', () => {
       // Synchronously inside the gesture handler. Awaiting anything first
@@ -142,10 +149,12 @@ export class CameraView {
       // previous movement is meaningless now.
       this.startNewSet();
       this.renderGuidance();
+      this.refreshTarget();
       this.render();
     });
 
     this.renderGuidance();
+    this.refreshTarget();
     el.modelSelect.addEventListener('change', () => {
       void this.pose.setVariant(el.modelSelect.value as ModelVariant);
     });
@@ -164,6 +173,23 @@ export class CameraView {
     if (!this.running) return;
     const summary = this.summarizeCurrentSet();
     this.stop();
+
+    // Record before reading the trend, so the deltas compare this session with
+    // the last one rather than the last two — and before the network call, so
+    // history survives a failed or slow coach request.
+    const workedTo = this.target;
+    this.showTarget(this.history.recordSet(toSetRecord(summary)));
+
+    const trend = this.history.trend(this.exercise);
+    if (trend) {
+      summary.session = {
+        targetReps: workedTo.targetReps,
+        targetReason: explainTarget(workedTo),
+        sessions: trend.sessions,
+        repsDelta: trend.repsDelta,
+        depthDeltaDeg: trend.depthDeltaDeg,
+      };
+    }
 
     this.el.coachPanel.hidden = false;
     this.el.coachNarration.textContent = 'Menganalisis set…';
@@ -209,6 +235,31 @@ export class CameraView {
       durationMs: this.setStartedMs === 0 ? 0 : performance.now() - this.setStartedMs,
       trackingQuality: total === 0 ? 0 : this.trackedFrames / total,
     });
+  }
+
+  /**
+   * Show the target for the next set.
+   *
+   * On screen during the set, not only in the summary afterwards: a target you
+   * are told about after finishing is a score, and a target you can see while
+   * working is the thing that actually changes what you do.
+   */
+  private refreshTarget(): void {
+    this.showTarget(this.history.currentTarget(this.exercise));
+  }
+
+  /**
+   * Render a target decision.
+   *
+   * Takes the decision rather than re-reading it, because the reason is only
+   * accurate at the moment it is made: once "progressed" has been stored, a
+   * fresh read of the same history reports the raised target as merely held.
+   */
+  private showTarget(target: ExerciseTarget): void {
+    this.target = target;
+    this.el.target.hidden = false;
+    this.el.target.textContent = `Target ${target.targetReps}`;
+    this.el.target.title = explainTarget(target);
   }
 
   private startNewSet(): void {

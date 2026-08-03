@@ -11,9 +11,9 @@ Universitas Indonesia.
 
 ## Status saat ini
 
-Fast loop sudah berjalan: kamera → pose estimation → sudut sendi → penghitung
-repetisi → koreksi form. Slow loop (narasi LLM per set) dan modul nutrisi TKPI
-belum diimplementasikan.
+Ketiga loop sudah berjalan: fast loop di perangkat (kamera → pose estimation →
+sudut sendi → penghitung repetisi → koreksi form), slow loop (narasi LLM per
+set), dan session loop (adaptasi target dari riwayat latihan).
 
 | Komponen | Status |
 |---|---|
@@ -28,7 +28,15 @@ belum diimplementasikan.
 | Slow loop (narasi LLM per set) | ✅ berjalan |
 | TTS Bahasa Indonesia (cue + narasi) | ✅ berjalan |
 | Nutrisi TKPI + verifier grounding | ✅ berjalan, 1.133 bahan pangan |
-| Klasifier form (ONNX) | ⬜ belum |
+| Session loop (adaptasi target dari riwayat) | ✅ berjalan |
+| Klasifier form (ONNX) | ⬜ tidak dikerjakan (lihat di bawah) |
+
+**Soal klasifier form.** Arsitektur yang diklaim paper untuk fast loop adalah
+sudut sendi → rule deterministik + state machine, dan itulah yang berjalan.
+Klasifier terlatih adalah gagasan tambahan dari rencana implementasi, bukan
+klaim paper, jadi tidak mengerjakannya tidak meninggalkan klaim tanpa kode.
+`core/features.ts` (window per rep → tensor 32×12) tetap ada sebagai jalur
+masuknya kalau nanti dikerjakan.
 
 ---
 
@@ -104,14 +112,20 @@ repetisi dan cue tetap berjalan penuh.
 ┌──────────── BROWSER — on-device, frame tidak pernah keluar ─────────────┐
 │  Kamera → MediaPipe PoseLandmarker (WASM/GPU) → 33 landmark @ ~30fps    │
 │      ↓                                                                  │
-│  FAST LOOP (TypeScript murni, tanpa DOM)                                │
+│  FAST LOOP (TypeScript murni, tanpa DOM) — dalam repetisi               │
 │    sudut sendi → state machine rep-count → pemeriksaan form → cue       │
 │      ↓ per set selesai: JSON statistik agregat                          │
+│                                                                         │
+│  SESSION LOOP — antar sesi                                              │
+│    localStorage riwayat → target repetisi berikutnya + tren             │
+│    (riwayat tidak pernah diunggah; hanya angka turunannya ikut)         │
 └────────────────────────────┬────────────────────────────────────────────┘
                              │  angka saja — tanpa frame, tanpa koordinat
-                    ┌────────▼─────────┐
-                    │  API (belum ada) │  narasi LLM + nutrisi TKPI
-                    └──────────────────┘
+                    ┌────────▼─────────────────────┐
+                    │  SLOW LOOP  /api/coach       │  narasi per set
+                    │  NUTRISI    /api/nutrition   │  TKPI + verifier
+                    │  SUARA      /api/tts         │  narasi → audio
+                    └──────────────────────────────┘
 ```
 
 ### Struktur direktori
@@ -125,7 +139,9 @@ web/src/
 │   ├── repWindow.ts    buffer frame per repetisi
 │   ├── features.ts     window per rep → tensor 32×12 (input klasifier)
 │   ├── setSummary.ts   agregasi per set + kontrak privasi
+│   ├── sessionLoop.ts  adaptasi target dari riwayat antar-sesi
 │   └── metrics.ts      instrumentasi FPS & latensi
+├── session/       ← penyimpanan riwayat di perangkat (localStorage)
 ├── pose/          ← satu-satunya file yang tahu MediaPipe ada
 └── ui/            ← kamera, overlay skeleton, HUD
 ```
@@ -164,6 +180,16 @@ bisa ia lakukan adalah melihat satu set utuh, menyadari fase turun melambat 400
 ms di paruh kedua, lalu memutuskan bahwa itu lebih penting daripada kedalaman
 kali ini. Penilaian atas konteks agregat itulah alasan model ada di sini.
 
+**Perbandingan angka dikerjakan di kode, bukan diserahkan ke model.**
+`directivesFor()` mengevaluasi setiap ambang lalu menyuntikkan baris
+`INSTRUKSI:` tanpa syarat. Alasannya empiris: diberi angka mentah, model
+mengarang kekurangan pada set tanpa cacat, mengabaikan `trackingQuality` yang
+rendah setelah membandingkannya sendiri, mengubah "naik 2 repetisi" menjadi "dua
+kali lipat", dan memuji "kemajuan" pada sesi yang justru kehilangan 4 repetisi
+dan 9° kedalaman. Semuanya kesalahan yang sama: meminta model mengevaluasi
+ambang numerik dan mengingat sebuah kondisional. Yang sampai ke model sekarang
+adalah instruksi tanpa syarat yang tinggal dipatuhi.
+
 **Mengapa tidak streaming.** Rencana awal menyebut streaming supaya TTS bisa
 mulai lebih awal. Itu keliru: keluarannya JSON terstruktur, dan JSON separuh
 jadi tidak bisa dibacakan — TTS tetap harus menunggu teks utuh. Streaming hanya
@@ -177,6 +203,45 @@ estimasi.
 offline dan timeout 15 detik dilewati dengan pesan; kunci belum diset
 menghasilkan instruksi konkret; set nol repetisi dijawab langsung tanpa
 memanggil model sama sekali.
+
+---
+
+## Session loop — target yang menyesuaikan diri
+
+Loop ketiga dan paling lambat. Fast loop bereaksi di dalam satu repetisi, slow
+loop merenungi satu set, session loop melihat lintas sesi dan menentukan apa
+yang diminta berikutnya. `core/sessionLoop.ts` (logika murni, tanpa DOM) +
+`session/history.ts` (penyimpanan).
+
+**Riwayat tidak pernah meninggalkan perangkat.** Disimpan di `localStorage`,
+maksimal 500 set. Yang ikut ke `/api/coach` hanya angka turunannya — target,
+selisih repetisi, selisih kedalaman — bukan lognya. Konsisten dengan klaim yang
+sama untuk frame kamera.
+
+**Tiga aturan yang membentuknya, dan alasannya:**
+
+- **Kualitas menjadi syarat kenaikan, bukan hanya jumlah.** Aturan naif "kemarin
+  dapat lebih banyak, naikkan target" melatih orang mengejar angka dengan
+  memangkas kedalaman — persis kesalahan yang dibangun fast loop untuk
+  menangkapnya. Kalau repetisi tercapai tapi >25% rep kena flag, target ditahan
+  dan narasi diarahkan ke form.
+- **Butuh dua sesi berturut-turut.** Satu sesi bagus itu derau — hari yang segar,
+  sudut kamera yang kebetulan lebih baik. Naik setiap kali ada satu sesi bagus
+  menghasilkan target yang memanjat lebih cepat daripada adaptasi tubuh, lalu
+  serentetan kegagalan.
+- **Dinilai dari set terbaik sesi itu, bukan set terakhir.** Kelelahan membuat
+  set belakangan selalu lebih rendah; menilai dari yang terakhir akan membaca
+  setiap latihan normal sebagai kemunduran.
+
+Sesi dengan `trackingQuality` di bawah 0.7 **dilewati sepenuhnya**, tidak
+dihitung sebagai kegagalan — yang bermasalah kameranya, bukan orangnya. Ini
+alasan yang sama dengan menahan hitungan repetisi saat confidence rendah:
+menghukum orang atas kesalahan sensor merusak kepercayaan lebih cepat daripada
+kehilangan satu sesi data.
+
+Target tampil di HUD selama set berjalan, bukan hanya di ringkasan sesudahnya —
+target yang baru diberitahu setelah selesai itu skor, target yang terlihat sambil
+bekerja itu yang mengubah perilaku.
 
 ---
 

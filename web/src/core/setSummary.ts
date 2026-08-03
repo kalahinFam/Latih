@@ -40,6 +40,17 @@ export interface SetSummary {
   tempo: { meanEccentricMs: number; meanConcentricMs: number; tempoDriftMs: number };
   /** Share of frames the pose was confidently visible, 0..1. */
   trackingQuality: number;
+  /**
+   * Session-loop context. Derived numbers only — the history itself never
+   * leaves the device.
+   */
+  session?: {
+    targetReps: number;
+    targetReason: string;
+    sessions: number;
+    repsDelta: number;
+    depthDeltaDeg: number;
+  };
 }
 
 export function toRepRecord(event: RepEvent, findings: RuleFinding[]): RepRecord {

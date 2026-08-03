@@ -40,6 +40,20 @@ interface SetSummaryPayload {
   depth: { meanDeg: number; bestDeg: number; worstDeg: number; consistencyDeg: number };
   tempo: { meanEccentricMs: number; meanConcentricMs: number; tempoDriftMs: number };
   trackingQuality: number;
+  /**
+   * Session-loop context, when history exists.
+   *
+   * This is what makes the three loops one system rather than three features
+   * side by side: the coach can say "deeper than last session" only because
+   * the session loop remembers the last session.
+   */
+  session?: {
+    targetReps: number;
+    targetReason: string;
+    sessions: number;
+    repsDelta: number;
+    depthDeltaDeg: number;
+  };
 }
 
 interface CoachOutput {
@@ -82,6 +96,10 @@ Aturan:
 - Jangan pernah menyebut nama field, kode error mentah, atau istilah teknis
   seperti "eccentric" dan "landmark".
 - Jangan memberi saran medis atau diagnosis cedera.
+- Kalau ada bagian "Riwayat latihan", kaitkan umpan balikmu dengan perkembangan
+  itu — misalnya menyebut perbaikan dibanding sesi sebelumnya, atau mengingatkan
+  target yang sedang dikejar. Itu yang membedakan pelatih yang mengingat dari
+  aplikasi yang hanya menghitung.
 - Patuhi setiap baris yang diawali "INSTRUKSI:" pada data yang diberikan.
   Baris itu dihitung dari angka set ini, bukan tebakan.`;
 
@@ -125,6 +143,38 @@ function directivesFor(summary: SetSummaryPayload): string[] {
     );
   }
 
+  // Direction of travel, decided in code.
+  //
+  // Given raw deltas the model editorialised in both directions: it turned
+  // "+2 reps" into "twice as many", and it congratulated a session that had
+  // lost 4 reps and 9 degrees of depth on its "progress". Praise that does not
+  // match what happened is worse than no praise — it teaches the user the
+  // feedback is decorative.
+  const s = summary.session;
+  if (s && s.sessions >= 2) {
+    const regressed = s.repsDelta < 0 || s.depthDeltaDeg >= 3;
+    const improved = s.repsDelta > 0 || s.depthDeltaDeg <= -3;
+
+    if (regressed) {
+      directives.push(
+        'INSTRUKSI: Dibanding sesi sebelumnya, hasil sesi ini MENURUN. ' +
+          'DILARANG mengatakan ada kemajuan, peningkatan, atau perkembangan. ' +
+          'Akui penurunannya sekali dengan tenang tanpa menyalahkan, lalu ' +
+          'arahkan ke satu hal yang bisa diperbaiki.',
+      );
+    } else if (improved) {
+      directives.push(
+        'INSTRUKSI: Dibanding sesi sebelumnya, hasil sesi ini MEMBAIK. Akui itu.',
+      );
+    }
+
+    directives.push(
+      'INSTRUKSI: Sebutkan perubahan antar-sesi hanya sebagai selisih apa adanya ' +
+        '(misalnya "dua repetisi lebih banyak"). DILARANG menyatakannya sebagai ' +
+        'kelipatan atau persentase — angka itu tidak diberikan kepadamu.',
+    );
+  }
+
   if (summary.trackingQuality < 0.8) {
     directives.push(
       `INSTRUKSI: Kamera hanya membaca ${(summary.trackingQuality * 100).toFixed(0)}% gerakan. ` +
@@ -165,9 +215,35 @@ Tempo:
 Kesalahan terdeteksi:
 ${errors || '- tidak ada'}
 
-Kualitas pembacaan kamera: ${(summary.trackingQuality * 100).toFixed(0)}%${
+Kualitas pembacaan kamera: ${(summary.trackingQuality * 100).toFixed(0)}%${describeSession(summary)}${
     directivesFor(summary).length > 0 ? `\n\n${directivesFor(summary).join('\n\n')}` : ''
   }`;
+}
+
+/** Progress across sessions, when the session loop has enough history. */
+function describeSession(summary: SetSummaryPayload): string {
+  const s = summary.session;
+  if (!s) return '';
+
+  const lines = [`Target set ini: ${s.targetReps} repetisi (${s.targetReason})`];
+
+  if (s.sessions >= 2) {
+    lines.push(
+      s.repsDelta === 0
+        ? 'Jumlah repetisi sama dengan sesi sebelumnya.'
+        : `Repetisi ${s.repsDelta > 0 ? 'naik' : 'turun'} ${Math.abs(s.repsDelta)} dibanding sesi sebelumnya.`,
+    );
+    // Smaller angle means deeper, so a negative delta is an improvement.
+    if (Math.abs(s.depthDeltaDeg) >= 3) {
+      lines.push(
+        s.depthDeltaDeg < 0
+          ? `Kedalaman membaik sekitar ${Math.abs(s.depthDeltaDeg).toFixed(0)} derajat.`
+          : `Kedalaman berkurang sekitar ${s.depthDeltaDeg.toFixed(0)} derajat.`,
+      );
+    }
+  }
+
+  return `\n\nRiwayat latihan (sesi ke-${s.sessions}):\n${lines.map((l) => `- ${l}`).join('\n')}`;
 }
 
 /** Reject a payload carrying anything image-shaped, before it reaches the model. */

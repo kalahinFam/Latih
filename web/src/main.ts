@@ -24,6 +24,7 @@ const view = new CameraView({
   guide: required<HTMLDetailsElement>('#guide'),
   guideList: required('#guideList'),
   guideNote: required('#guideNote'),
+  target: required('#target'),
   finishSetButton: required<HTMLButtonElement>('#finishSet'),
   coachPanel: required('#coachPanel'),
   coachNarration: required('#coachNarration'),

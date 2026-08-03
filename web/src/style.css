@@ -130,7 +130,8 @@ body {
   color: var(--muted);
 }
 
-.hud__phase {
+.hud__phase,
+.hud__target {
   align-self: flex-start;
   padding: 0.2rem 0.6rem;
   font-size: 0.8rem;
@@ -138,6 +139,12 @@ body {
   background: rgba(11, 17, 32, 0.72);
   border-radius: 999px;
   backdrop-filter: blur(6px);
+}
+
+/* Tinted, not shouted: the target is context for the whole set, while the rep
+   count is what changes and should keep the eye. */
+.hud__target {
+  color: var(--accent);
 }
 
 /*
