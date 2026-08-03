@@ -97,7 +97,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (79 tes) |
+| `npm test` | Unit test (237 tes) |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
 | `npm run preview` | Menyajikan hasil build (untuk uji PWA) |
