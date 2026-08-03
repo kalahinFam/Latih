@@ -483,3 +483,212 @@ body {
     grid-column: auto;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Plan page.
+ *
+ * Read seated, at arm's length, before or after a session — the opposite of
+ * the camera view's constraint. So: denser type, more of it on screen, and no
+ * need for anything to be legible from across the room.
+ * ------------------------------------------------------------------------ */
+
+.app__link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.app__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card {
+  padding: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.card__title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.card__note,
+.card__summary {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.card__summary {
+  margin-top: 0.8rem;
+  color: var(--text);
+}
+
+.card__error {
+  margin: 0.7rem 0 0;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.card__disclaimer {
+  margin: 0.9rem 0 0;
+  padding-top: 0.7rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.control--wide {
+  grid-column: 1 / -1;
+}
+
+/* The week at a glance. Horizontal scroll rather than wrapping: seven days in
+   order reads as a week, and a wrapped grid reads as a list. */
+.week {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(6.5rem, 1fr);
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 0.5rem;
+  font-size: 0.78rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.day--training {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.day--today {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.day--done {
+  opacity: 0.62;
+}
+
+.day__name {
+  font-weight: 650;
+}
+
+.day__rest {
+  color: var(--muted);
+}
+
+.day__exercise {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.day__done {
+  color: var(--muted);
+}
+
+.energy__headline {
+  margin: 0 0 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.energy__stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.9rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.energy__stats dt {
+  color: var(--muted);
+}
+
+.energy__stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.meal {
+  margin-top: 1rem;
+}
+
+.meal__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.meal__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.option {
+  margin-bottom: 0.6rem;
+  padding: 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.option__name {
+  margin: 0 0 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+/* Every portion with the energy it contributes, so the total below can be
+   checked by adding up what is on screen. */
+.option__items {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.option__total {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.option__note {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+@media (min-width: 640px) {
+  .form {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

@@ -217,6 +217,86 @@ export function allowedValuesFor(foods: TkpiFood[]): number[] {
   return values;
 }
 
+/** A quantity of one food, as a meal suggestion states it. */
+export interface Portion {
+  food: TkpiFood;
+  grams: number;
+}
+
+export interface Nutrients {
+  energyKcal: number;
+  proteinG: number;
+  fatG: number;
+  carbG: number;
+}
+
+/**
+ * Scale a row to an actual serving.
+ *
+ * ## Why this is here and not in the prompt
+ *
+ * TKPI states everything per 100 g, and a meal is not 100 g of anything. Asking
+ * the model to do the scaling looked reasonable and failed in exactly the way
+ * arithmetic-by-language-model fails: the figures were confidently wrong, and
+ * because each *component* number was traceable to a real row, the grounding
+ * verifier passed them. A derived number is not covered by a check that only
+ * asks whether a number appears in the source.
+ *
+ * So the model chooses foods and portions — a judgement call, which is what it
+ * is good at — and every figure downstream is computed here.
+ */
+export function scaleToPortion(food: TkpiFood, grams: number): Nutrients {
+  const factor = grams / food.basisG;
+  return {
+    energyKcal: round1(food.energyKcal * factor),
+    proteinG: round1(food.proteinG * factor),
+    fatG: round1(food.fatG * factor),
+    carbG: round1(food.carbG * factor),
+  };
+}
+
+export function sumPortions(portions: Portion[]): Nutrients {
+  return portions.reduce<Nutrients>(
+    (total, portion) => {
+      const scaled = scaleToPortion(portion.food, portion.grams);
+      return {
+        energyKcal: round1(total.energyKcal + scaled.energyKcal),
+        proteinG: round1(total.proteinG + scaled.proteinG),
+        fatG: round1(total.fatG + scaled.fatG),
+        carbG: round1(total.carbG + scaled.carbG),
+      };
+    },
+    { energyKcal: 0, proteinG: 0, fatG: 0, carbG: 0 },
+  );
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/**
+ * Every figure a meal answer may legitimately state.
+ *
+ * Wider than `allowedValuesFor` because a meal has three layers of true
+ * numbers: the per-100 g row, the scaled portion, and the meal total. All three
+ * are computed here, so admitting them costs nothing — what would weaken the
+ * check is admitting numbers the model produced, and none of these are.
+ */
+export function allowedValuesForPortions(portions: Portion[]): number[] {
+  const values = allowedValuesFor(portions.map((p) => p.food));
+
+  for (const portion of portions) {
+    values.push(portion.grams);
+    const scaled = scaleToPortion(portion.food, portion.grams);
+    values.push(scaled.energyKcal, scaled.proteinG, scaled.fatG, scaled.carbG);
+  }
+
+  const total = sumPortions(portions);
+  values.push(total.energyKcal, total.proteinG, total.fatG, total.carbG);
+
+  return values;
+}
+
 /** Compact rendering handed to the model — the only figures it may use. */
 export function formatForPrompt(foods: TkpiFood[]): string {
   return foods
