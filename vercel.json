@@ -8,5 +8,11 @@
       "runtime": "@vercel/node@5",
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-reminders",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

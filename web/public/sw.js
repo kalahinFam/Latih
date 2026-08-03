@@ -109,3 +109,48 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(cacheFirst(request));
   }
 });
+
+/* ---------------------------------------------------------------------------
+ * Workout reminders.
+ *
+ * The push carries no payload. The server sends a bare wake-up, and the text
+ * below is composed here, on the device — so the push service relays a
+ * notification whose content it never sees. That keeps the reminder consistent
+ * with the rest of the product: the schedule is the user's, and it stays on
+ * their phone.
+ * ------------------------------------------------------------------------ */
+
+const REMINDER_TAG = 'latih-reminder';
+
+self.addEventListener('push', (event) => {
+  // `userVisibleOnly: true` was promised at subscribe time: every push must
+  // produce a visible notification or the browser revokes the permission.
+  event.waitUntil(
+    self.registration.showNotification('Waktunya latihan', {
+      body: 'Set hari ini sudah menunggu. Buka LATIH dan mulai.',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      // Same tag every time, so a missed reminder is replaced rather than
+      // stacked into a pile of identical notifications.
+      tag: REMINDER_TAG,
+      renotify: true,
+      data: { url: '/plan.html' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url ?? '/';
+
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      // Focus an open tab rather than opening a second one.
+      for (const client of clients) {
+        if (client.url.includes(target) && 'focus' in client) return client.focus();
+      }
+      return self.clients.openWindow(target);
+    })(),
+  );
+});

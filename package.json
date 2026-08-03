@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit && npm --prefix web run typecheck",
     "eval:reps": "node --experimental-strip-types eval/eval_reps.mjs",
     "eval:grounding": "node --experimental-strip-types eval/eval_grounding.mjs",
+    "gen:vapid": "node scripts/gen-vapid.mjs",
     "check:tkpi": "node --experimental-strip-types scripts/check-tkpi.mjs",
     "fetch:tkpi": "node --experimental-strip-types scripts/fetch-tkpi.mjs",
     "verify:tkpi": "node --experimental-strip-types scripts/verify-tkpi.mjs"

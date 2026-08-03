@@ -36,6 +36,14 @@ import {
   saveProfile,
 } from '../session/profile.ts';
 import { requestMeals, MealsError, type MealOptionView } from '../meals/mealsClient.ts';
+import {
+  ReminderError,
+  disableReminders,
+  enableReminders,
+  fetchServerConfig,
+  reminderSupport,
+  remindersActive,
+} from '../session/reminders.ts';
 
 const SLOT_LABELS: Record<MealSlot, string> = {
   pagi: 'Sarapan',
@@ -50,6 +58,9 @@ export interface PlanViewElements {
   setsPerExercise: HTMLSelectElement;
   planSummary: HTMLElement;
   week: HTMLElement;
+  reminder: HTMLElement;
+  reminderToggle: HTMLButtonElement;
+  reminderStatus: HTMLElement;
 
   profileForm: HTMLFormElement;
   weightKg: HTMLInputElement;
@@ -70,6 +81,7 @@ export class PlanView {
   private readonly history = new TrainingHistory();
   private preferences: PlanPreferences;
   private plan: WeeklyPlan;
+  private remindersOn = false;
 
   constructor(el: PlanViewElements) {
     this.el = el;
@@ -89,6 +101,9 @@ export class PlanView {
       event.preventDefault();
       void this.applyProfile();
     });
+
+    el.reminderToggle.addEventListener('click', () => void this.toggleReminders());
+    void this.initReminders();
 
     // Show the energy panel straight away when a profile already exists, so a
     // returning user sees today's numbers without pressing anything.
@@ -135,6 +150,86 @@ export class PlanView {
     savePreferences(this.preferences);
     this.plan = this.rebuildPlan();
     this.renderPlan();
+
+    // The subscription carries the time and the weekdays, so a schedule change
+    // that did not re-register would leave reminders firing on the old one.
+    if (this.remindersOn) void this.resubscribe();
+  }
+
+  /* ------------------------------------------------------------ reminders */
+
+  private async initReminders(): Promise<void> {
+    const support = reminderSupport();
+    this.el.reminder.hidden = false;
+
+    if (!support.supported) {
+      // Say why, rather than offering a switch that cannot work.
+      this.el.reminderToggle.hidden = true;
+      this.el.reminderStatus.textContent = support.reason;
+      return;
+    }
+
+    try {
+      const config = await fetchServerConfig();
+      if (!config.configured) {
+        this.el.reminderToggle.hidden = true;
+        this.el.reminderStatus.textContent =
+          'Pengingat belum dikonfigurasi di server. Jalankan scripts/gen-vapid.mjs lalu isi VAPID_PUBLIC_KEY dan VAPID_PRIVATE_KEY.';
+        return;
+      }
+
+      this.remindersOn = await remindersActive();
+      this.renderReminderState(
+        config.storage === 'memory'
+          ? 'Server belum punya penyimpanan tetap, jadi pengingat akan hilang saat server di-deploy ulang.'
+          : null,
+      );
+    } catch {
+      this.el.reminderToggle.hidden = true;
+      this.el.reminderStatus.textContent = 'Status pengingat tidak bisa dibaca.';
+    }
+  }
+
+  private renderReminderState(note: string | null): void {
+    this.el.reminderToggle.hidden = false;
+    this.el.reminderToggle.textContent = this.remindersOn ? 'Matikan' : 'Aktifkan';
+    this.el.reminderToggle.classList.toggle('reminder__toggle--on', this.remindersOn);
+
+    const base = this.remindersOn
+      ? `Aktif — ${this.preferences.timeOfDay} pada hari latihan.`
+      : 'Belum aktif.';
+    this.el.reminderStatus.textContent = note ? `${base} ${note}` : base;
+  }
+
+  private async toggleReminders(): Promise<void> {
+    this.el.reminderToggle.disabled = true;
+    try {
+      if (this.remindersOn) {
+        await disableReminders();
+        this.remindersOn = false;
+      } else {
+        await enableReminders(this.preferences);
+        this.remindersOn = true;
+      }
+      this.renderReminderState(null);
+    } catch (error) {
+      this.el.reminderStatus.textContent =
+        error instanceof ReminderError ? error.message : 'Pengingat gagal diubah.';
+    } finally {
+      this.el.reminderToggle.disabled = false;
+    }
+  }
+
+  private async resubscribe(): Promise<void> {
+    try {
+      await enableReminders(this.preferences);
+      this.renderReminderState(null);
+    } catch {
+      // The old subscription is still live, so the user keeps a reminder —
+      // just on the previous schedule. Saying so beats silence.
+      this.el.reminderStatus.textContent =
+        'Jadwal tersimpan, tapi pengingat masih memakai jadwal lama. Matikan lalu aktifkan lagi.';
+    }
   }
 
   private renderPlan(): void {

@@ -58,6 +58,16 @@
 
         <p class="card__summary" id="planSummary"></p>
         <div class="week" id="week"></div>
+
+        <!-- Reminders sit with the schedule, not in a settings page: the time
+             above is meaningless without something that acts on it. -->
+        <div class="reminder" id="reminder" hidden>
+          <div class="reminder__row">
+            <span class="reminder__label">Pengingat di jam latihan</span>
+            <button type="button" class="reminder__toggle" id="reminderToggle">Aktifkan</button>
+          </div>
+          <p class="reminder__status" id="reminderStatus"></p>
+        </div>
       </section>
 
       <section class="card">

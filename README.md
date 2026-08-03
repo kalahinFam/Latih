@@ -29,6 +29,9 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 | TTS Bahasa Indonesia (cue + narasi) | ✅ berjalan |
 | Nutrisi TKPI + verifier grounding | ✅ berjalan, 1.133 bahan pangan |
 | Session loop (adaptasi target dari riwayat) | ✅ berjalan |
+| Rencana latihan mingguan | ✅ berjalan |
+| Target kalori + saran menu dari TKPI | ✅ berjalan |
+| Pengingat jam latihan (Web Push) | ✅ berjalan, butuh kunci VAPID |
 | Klasifier form (ONNX) | ⬜ tidak dikerjakan (lihat di bawah) |
 
 **Soal klasifier form.** Arsitektur yang diklaim paper untuk fast loop adalah
@@ -97,7 +100,8 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (237 tes) |
+| `npm test` | Unit test (313 tes) |
+| `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
 | `npm run preview` | Menyajikan hasil build (untuk uji PWA) |
@@ -118,14 +122,27 @@ repetisi dan cue tetap berjalan penuh.
 │                                                                         │
 │  SESSION LOOP — antar sesi                                              │
 │    localStorage riwayat → target repetisi berikutnya + tren             │
-│    (riwayat tidak pernah diunggah; hanya angka turunannya ikut)         │
+│    → rencana mingguan (hari, gerakan, set × repetisi)                   │
+│                                                                         │
+│  Profil tubuh → Mifflin-St Jeor → target kalori harian                  │
+│    (riwayat & ukuran tubuh tidak pernah diunggah;                       │
+│     yang keluar hanya angka turunannya)                                 │
 └────────────────────────────┬────────────────────────────────────────────┘
-                             │  angka saja — tanpa frame, tanpa koordinat
+                             │  angka saja — tanpa frame, tanpa koordinat,
+                             │  tanpa berat/tinggi/usia
                     ┌────────▼─────────────────────┐
                     │  SLOW LOOP  /api/coach       │  narasi per set
                     │  NUTRISI    /api/nutrition   │  TKPI + verifier
+                    │  MENU       /api/meals       │  opsi menu, total di kode
                     │  SUARA      /api/tts         │  narasi → audio
-                    └──────────────────────────────┘
+                    │  PENGINGAT  /api/push        │  langganan Web Push
+                    └────────────────────────────┬─┘
+                                                 │  cron tiap 15 menit
+                                    ┌────────────▼──────────────┐
+                                    │  /api/cron-reminders      │
+                                    │  push tanpa payload →     │
+                                    │  teks disusun di device   │
+                                    └───────────────────────────┘
 ```
 
 ### Struktur direktori
@@ -140,10 +157,17 @@ web/src/
 │   ├── features.ts     window per rep → tensor 32×12 (input klasifier)
 │   ├── setSummary.ts   agregasi per set + kontrak privasi
 │   ├── sessionLoop.ts  adaptasi target dari riwayat antar-sesi
+│   ├── plan.ts         rencana mingguan dari target + preferensi
+│   ├── energy.ts       Mifflin-St Jeor → target kalori & protein
+│   ├── pantry.ts       bahan pangan terkurasi, per kode TKPI
+│   ├── meals.ts        validasi opsi menu + perhitungan total
 │   └── metrics.ts      instrumentasi FPS & latensi
-├── session/       ← penyimpanan riwayat di perangkat (localStorage)
+├── session/       ← penyimpanan di perangkat: riwayat, profil, pengingat
 ├── pose/          ← satu-satunya file yang tahu MediaPipe ada
-└── ui/            ← kamera, overlay skeleton, HUD
+└── ui/            ← kamera, overlay skeleton, HUD, halaman rencana
+
+web/test/          ← tes integrasi terhadap data & kode server nyata.
+                     Di luar src/ supaya src/ tetap murni kode browser.
 ```
 
 `core/` sengaja dijaga murni: skrip evaluasi berbasis Node meng-import modul
@@ -242,6 +266,117 @@ kehilangan satu sesi data.
 Target tampil di HUD selama set berjalan, bukan hanya di ringkasan sesudahnya —
 target yang baru diberitahu setelah selesai itu skor, target yang terlihat sambil
 bekerja itu yang mengubah perilaku.
+
+---
+
+## Rencana mingguan
+
+Halaman `/plan.html`. Session loop memutuskan **berapa repetisi**; ini
+memutuskan **kapan menagihnya**, dan mengubah satu angka di HUD menjadi sesuatu
+yang berbentuk rencana.
+
+**Satu sumbu progresi.** Set tetap, hanya target repetisi yang bergerak.
+Menaikkan set dan repetisi sekaligus membuat beban berubah tak terduga — dua
+sesi bisa berbeda 30% total volume tanpa satu angka pun terlihat ganjil — dan
+membuat adaptasinya tidak bisa dijelaskan ke pengguna dalam satu kalimat.
+Repetisi adalah sumbu yang benar-benar diukur fast loop, jadi repetisi yang
+bergerak.
+
+**Hari disebar, bukan digumpalkan.** Tiga sesi di Jumat–Sabtu–Minggu secara
+nominal sama frekuensinya dengan Senin–Rabu–Jumat, dan nyatanya minggu yang
+jauh lebih buruk: pemulihan terjadi di antara sesi, bukan menumpuk di akhir.
+
+---
+
+## Target kalori — persamaan, bukan tebakan model
+
+`core/energy.ts`, Mifflin-St Jeor (1990), dihitung **di perangkat**. Ukuran
+tubuh tidak pernah dikirim ke mana pun; yang keluar hanya anggaran kalori per
+waktu makan. `MealsRequest` memang tidak punya tempat untuk berat atau usia —
+cara yang sama dengan `SetSummary` yang tidak punya tempat untuk frame video.
+
+Tiga hal yang membuatnya bisa dipertanggungjawabkan:
+
+- **Rentang, bukan satu angka.** Persamaan ini akurat dalam 10% untuk sekitar
+  70% orang. Menampilkan "2.340 kkal" tanpa rentang mengklaim presisi yang tidak
+  dimiliki persamaannya.
+- **Dua batas bawah.** App tidak akan pernah menyarankan asupan di bawah
+  metabolisme basal, kombinasi input apa pun yang diketik pengguna. Di situlah
+  target penurunan berat berhenti jadi diet.
+- **Input di luar rentang ditolak, bukan diekstrapolasi.** Di luar rentang itu
+  persamaannya tidak pernah divalidasi, dan angka yang tetap dikeluarkan akan
+  terlihat sama meyakinkannya dengan angka yang benar.
+
+---
+
+## Saran menu — di mana verifier lama tidak cukup
+
+Ini kasus yang tidak bisa ditangkap verifier grounding yang sudah ada. Verifier
+itu memeriksa apakah sebuah angka **muncul** di baris hasil retrieval. Total
+sebuah menu tidak muncul di baris mana pun, karena ia **turunan** — dan total
+yang salah, dirakit dari bahan-bahan yang setiap angkanya asli dari TKPI, akan
+lolos.
+
+Jadi pembagian kerjanya digeser: **model memilih bahan dan porsi**, dan setiap
+angka setelah itu dihitung di `core/meals.ts` dari baris TKPI yang kodenya
+merujuk.
+
+**Retrieval per kata kunci juga salah tempat di sini.** Tidak ada pertanyaan
+untuk dicari, dan mencari "ayam" di tabel mengembalikan ayam goreng tiga
+jaringan restoran sebelum sampai ke ayam biasa, sementara "tempe" tidak
+mengembalikan apa pun selain keripik. Perencana menu yang dibangun di atas itu
+akan diam-diam menyarankan makanan ringan. Pantry-nya dikurasi **per kode
+TKPI**, dan ada tes yang memastikan setiap kode merujuk ke baris nyata yang
+tidak ditandai `suspect` — salah ketik satu kode menggagalkan build, bukan
+menyusutkan menu tanpa ketahuan.
+
+**Yang terukur.** Diuji ke `gpt-4o-mini` atas dua belas waktu makan: lima opsi
+ditolak karena totalnya meleset, **selalu karena kurang**, dan melesetnya
+membesar seiring target. Satu opsi lain mengarang kode TKPI yang tidak ada —
+ditangkap pemeriksaan pantry. Menambahkan petunjuk aritmetika di prompt dan
+meminta opsi keempat menurunkan penolakan dari **42% ke 29%**. Sisanya adalah
+ongkos jujur meminta model bahasa memenuhi kendala aritmetika; ia diserap, bukan
+disembunyikan — yang sampai ke pengguna hanya yang lolos validasi.
+
+---
+
+## Pengingat jam latihan
+
+Web Push sungguhan: server membangunkan service worker pada jam yang dipilih,
+terlepas dari apakah aplikasinya sedang dibuka. Pengingat yang hanya berbunyi
+saat aplikasi terbuka bukan pengingat.
+
+**Push tanpa payload.** Server mengirim bangunan kosong; teksnya disusun di
+service worker, di perangkat. Layanan push — Google atau Mozilla, tergantung
+browser — merelai notifikasi yang isinya tidak pernah ia lihat. Ini juga yang
+membuat VAPID bisa ditulis sendiri tanpa dependensi: yang tersisa cuma JWT
+ES256, dan Node menandatanganinya secara native dengan `dsaEncoding:
+'ieee-p1363'` — format mentah yang diminta JWS, tanpa perlu membongkar DER.
+Paket `web-push` sebagian besar ada untuk mengenkripsi payload, yang di sini
+tidak dipakai.
+
+**Yang dibutuhkan sebelum ini hidup:**
+
+```bash
+npm run gen:vapid          # → VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+```
+
+Isikan keduanya ke `.env` dan ke Environment Variables di Vercel. Tanpa itu,
+tombol pengingat otomatis disembunyikan dan sisa aplikasi berjalan normal.
+
+**Penyimpanan langganan.** Serverless tidak punya state, jadi langganan disimpan
+di Upstash Redis lewat REST API-nya dengan `fetch` biasa — tanpa SDK tambahan.
+Kalau `UPSTASH_REDIS_REST_URL` belum diisi, penyimpanan jatuh ke memori: cukup
+untuk mencoba di lokal, hilang setiap kali server di-deploy ulang, dan halaman
+Rencana mengatakannya apa adanya.
+
+**Batasnya, dinyatakan di UI bukan disembunyikan.** Di iPhone, push hanya sampai
+ke PWA yang sudah ditambahkan ke Layar Utama — tidak pernah ke tab biasa.
+`reminderSupport()` melaporkan alasannya, karena memberi tahu itu lebih berguna
+daripada tombol yang diam-diam tidak melakukan apa-apa. Zona waktu dikirim
+sebagai offset UTC, bukan nama zona: tepat untuk Indonesia yang tidak memakai
+DST, dan bisa meleset satu jam di tempat yang memakainya sampai klien
+mendaftar ulang.
 
 ---
 

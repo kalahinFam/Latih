@@ -16,6 +16,9 @@ new PlanView({
   setsPerExercise: required<HTMLSelectElement>('#setsPerExercise'),
   planSummary: required('#planSummary'),
   week: required('#week'),
+  reminder: required('#reminder'),
+  reminderToggle: required<HTMLButtonElement>('#reminderToggle'),
+  reminderStatus: required('#reminderStatus'),
 
   profileForm: required<HTMLFormElement>('#profileForm'),
   weightKg: required<HTMLInputElement>('#weightKg'),

@@ -692,3 +692,57 @@ body {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Reminder toggle, sitting with the schedule it acts on. */
+.reminder {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.reminder__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.reminder__label {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.reminder__toggle {
+  min-height: 40px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.reminder__toggle--on {
+  color: #04222a;
+  background: var(--accent);
+}
+
+.reminder__toggle:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.reminder__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reminder__status {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
