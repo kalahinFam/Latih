@@ -1,0 +1,135 @@
+{
+  "meta": {
+    "source": "PLACEHOLDER — belum diverifikasi terhadap TKPI resmi",
+    "note": "Data contoh untuk menguji pipeline retrieval dan verifier grounding. Setiap baris verified:false dan aplikasi memberi peringatan ke pengguna. WAJIB diganti dengan angka dari panganku.org atau buku TKPI Kemenkes sebelum dipakai di paper, demo yang dinilai, atau video. Lihat data/tkpi/README.md.",
+    "retrievedAt": "1970-01-01"
+  },
+  "foods": [
+    {
+      "code": "PLACEHOLDER-01",
+      "name": "Tempe kedelai murni",
+      "aliases": ["tempe"],
+      "basisG": 100,
+      "energyKcal": 201,
+      "proteinG": 20.8,
+      "fatG": 8.8,
+      "carbG": 13.5,
+      "fiberG": 1.4,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-02",
+      "name": "Tahu",
+      "aliases": ["tahu putih"],
+      "basisG": 100,
+      "energyKcal": 80,
+      "proteinG": 10.9,
+      "fatG": 4.7,
+      "carbG": 0.8,
+      "fiberG": 0.1,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-03",
+      "name": "Telur ayam",
+      "aliases": ["telur", "telor ayam"],
+      "basisG": 100,
+      "energyKcal": 154,
+      "proteinG": 12.4,
+      "fatG": 10.8,
+      "carbG": 0.7,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-04",
+      "name": "Dada ayam tanpa kulit",
+      "aliases": ["dada ayam", "ayam dada"],
+      "basisG": 100,
+      "energyKcal": 165,
+      "proteinG": 31.0,
+      "fatG": 3.6,
+      "carbG": 0.0,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-05",
+      "name": "Beras putih giling, nasi",
+      "aliases": ["nasi", "nasi putih"],
+      "basisG": 100,
+      "energyKcal": 130,
+      "proteinG": 2.7,
+      "fatG": 0.3,
+      "carbG": 28.2,
+      "fiberG": 0.4,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-06",
+      "name": "Ikan lele segar",
+      "aliases": ["lele"],
+      "basisG": 100,
+      "energyKcal": 105,
+      "proteinG": 17.7,
+      "fatG": 3.4,
+      "carbG": 0.0,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-07",
+      "name": "Pisang ambon",
+      "aliases": ["pisang"],
+      "basisG": 100,
+      "energyKcal": 92,
+      "proteinG": 1.0,
+      "fatG": 0.5,
+      "carbG": 23.4,
+      "fiberG": 2.6,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-08",
+      "name": "Bayam segar",
+      "aliases": ["bayam"],
+      "basisG": 100,
+      "energyKcal": 23,
+      "proteinG": 2.9,
+      "fatG": 0.4,
+      "carbG": 3.6,
+      "fiberG": 2.2,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-09",
+      "name": "Kacang tanah kupas",
+      "aliases": ["kacang tanah", "kacang"],
+      "basisG": 100,
+      "energyKcal": 567,
+      "proteinG": 25.8,
+      "fatG": 49.2,
+      "carbG": 16.1,
+      "fiberG": 8.5,
+      "source": "placeholder",
+      "verified": false
+    },
+    {
+      "code": "PLACEHOLDER-10",
+      "name": "Susu sapi segar",
+      "aliases": ["susu"],
+      "basisG": 100,
+      "energyKcal": 61,
+      "proteinG": 3.2,
+      "fatG": 3.5,
+      "carbG": 4.3,
+      "source": "placeholder",
+      "verified": false
+    }
+  ]
+}

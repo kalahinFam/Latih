@@ -76,6 +76,29 @@
         <p class="coach__meta" id="coachMeta"></p>
       </section>
 
+      <section class="nutrition">
+        <h2 class="nutrition__title">Tanya gizi</h2>
+        <form class="nutrition__form" id="nutritionForm">
+          <input
+            type="text"
+            id="nutritionQuestion"
+            class="nutrition__input"
+            placeholder="Berapa protein tempe?"
+            maxlength="300"
+            autocomplete="off"
+          />
+          <button type="submit" class="nutrition__submit">Tanya</button>
+        </form>
+
+        <p class="nutrition__answer" id="nutritionAnswer" hidden></p>
+        <p class="nutrition__warning" id="nutritionWarning" hidden></p>
+
+        <!-- The cited rows are shown in full so the answer can be checked
+             against the source without leaving the page. -->
+        <div class="nutrition__citations" id="nutritionCitations" hidden></div>
+        <p class="nutrition__verify" id="nutritionVerify" hidden></p>
+      </section>
+
       <!-- Open by default: placing the camera wrong is the single biggest
            cause of bad tracking, and it is far cheaper to prevent than to
            detect and explain afterwards. -->

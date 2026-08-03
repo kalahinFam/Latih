@@ -27,8 +27,8 @@ belum diimplementasikan.
 | Alat anotasi (video → keypoint berlabel) | ✅ berjalan |
 | Slow loop (narasi LLM per set) | ✅ berjalan |
 | TTS Bahasa Indonesia (cue + narasi) | ✅ berjalan |
+| Nutrisi TKPI + verifier grounding | ✅ mesin jalan, ⚠️ **data placeholder** |
 | Klasifier form (ONNX) | ⬜ belum |
-| Nutrisi TKPI + verifier grounding | ⬜ belum |
 
 ---
 
@@ -177,6 +177,72 @@ estimasi.
 offline dan timeout 15 detik dilewati dengan pesan; kunci belum diset
 menghasilkan instruksi konkret; set nol repetisi dijawab langsung tanpa
 memanggil model sama sekali.
+
+---
+
+## Nutrisi TKPI — grounding yang bisa diperiksa, bukan diklaim
+
+> ⚠️ **`data/tkpi/tkpi.json` masih berisi data placeholder yang belum
+> diverifikasi.** Mesinnya lengkap dan teruji; datanya belum. Jangan dipakai di
+> paper, demo yang dinilai, atau video sebelum diganti. Lihat
+> [`data/tkpi/README.md`](data/tkpi/README.md).
+
+Ketik pertanyaan di panel **Tanya gizi**. Jawabannya muncul **beserta baris
+TKPI yang dipakai**, lengkap dengan angka dan sumbernya, supaya siapa pun —
+termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
+
+**Alur, dan kenapa tiap langkahnya ada:**
+
+1. **Retrieval** mencari bahan yang disebut pertanyaan. Kalau tidak ada yang
+   cocok, model **tidak dipanggil sama sekali** — tanpa baris data, tidak ada
+   yang bisa menjadi dasar jawaban, dan bertanya tetap adalah persis cara
+   sebuah angka karangan diproduksi.
+2. **Model hanya menerima baris hasil retrieval**, dengan larangan eksplisit
+   menghitung, mengalikan, atau memakai pengetahuannya sendiri.
+3. **Verifier memeriksa setiap angka** di jawaban terhadap baris tersebut.
+4. **Gagal → tulis ulang sekali** dengan instruksi lebih ketat.
+5. **Gagal lagi → narasi dibuang**, tabel mentah tetap ditampilkan.
+
+Langkah terakhir itu intinya. Asisten gizi yang sesekali mengarang angka masuk
+akal lebih buruk daripada yang kadang menolak menulis prosa, karena pengguna
+tidak bisa membedakan keduanya. Menolak adalah kegagalan yang jujur.
+
+**Yang diperiksa hanya angka berunit.** Klaim gizi selalu punya satuan —
+"20,8 gram protein", "201 kkal". Angka telanjang adalah hitungan dan urutan
+("dua bahan"), bukan klaim komposisi. Memeriksanya juga akan menolak jawaban
+benar karena menyebut "dua", dan tim akan mematikan verifier-nya.
+
+Angka Indonesia dibaca sesuai konvensinya: koma desimal, titik ribuan. Membaca
+"20,8" ala Inggris menghasilkan 208 dan membuat setiap pemeriksaan gagal.
+
+### Mengukurnya
+
+```bash
+npm run dev                    # di terminal lain
+npm run eval:grounding
+```
+
+Baterainya sengaja memuat pertanyaan yang **memancing** model mengarang: bahan
+yang tidak ada di tabel, aritmetika yang dilarang, dan klaim kesehatan. Skor
+grounding yang hanya diukur pada pertanyaan mudah tidak berarti apa-apa.
+
+Hasil pengukuran terakhir (tabel placeholder 10 baris, 12 pertanyaan, 28 angka
+diperiksa): **100% jawaban ter-grounding, 0% perlu tulis ulang, 100% bahan tak
+tersedia ditangani tanpa mengarang, latensi median 1.346 ms.**
+
+Angka itu diukur pada tabel 10 baris. Dengan 250 baris, retrieval menghadapi
+lebih banyak kandidat mirip dan skornya bisa turun — **ukur ulang setelah data
+asli masuk**, jangan salin angka ini ke paper.
+
+### Validasi data
+
+```bash
+npm run check:tkpi
+```
+
+Memeriksa kode duplikat, basis bukan 100 g, dan konsistensi Atwater
+(protein×4 + karbo×4 + lemak×9 ≈ energi). Baris yang meleset jauh hampir selalu
+salah salin.
 
 ---
 

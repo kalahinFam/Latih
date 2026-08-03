@@ -302,6 +302,132 @@ body {
   display: none;
 }
 
+/* Nutrition panel. The cited rows are shown at full size rather than tucked
+   behind a disclosure, because being able to check the answer against its
+   source is the feature, not a footnote. */
+.nutrition {
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.nutrition__title {
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.nutrition__form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nutrition__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.nutrition__submit {
+  padding: 0.6rem 1rem;
+  font: inherit;
+  font-weight: 650;
+  color: #04222a;
+  background: var(--accent);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.nutrition__submit:disabled {
+  color: var(--muted);
+  background: var(--surface-2, #182342);
+  cursor: not-allowed;
+}
+
+.nutrition__answer {
+  margin: 0.8rem 0 0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.nutrition__warning {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--warn);
+}
+
+.nutrition__citations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.citation {
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.citation__name {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.citation__values {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.7rem;
+  margin: 0;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.citation__values dt {
+  color: var(--muted);
+}
+
+.citation__values dd {
+  margin: 0;
+}
+
+.citation__source {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Reported whether it passed or failed — "verified" only means something to a
+   reader who has seen the failure case reported too. */
+.nutrition__verify {
+  margin: 0.7rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.nutrition__verify[data-passed='true'] {
+  color: var(--accent);
+}
+
+.nutrition__verify[data-passed='false'] {
+  color: var(--danger);
+}
+
 /* Camera setup guidance. Wrong placement is the largest single cause of bad
    tracking, so this is prevention, not documentation. */
 .guide {
