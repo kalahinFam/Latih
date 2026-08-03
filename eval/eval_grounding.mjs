@@ -114,7 +114,11 @@ const withClaims = answered.filter((r) => r.checkedNumbers > 0);
 const grounded = answered.filter((r) => r.passed);
 const refused = answered.filter((r) => !r.passed);
 const noDataQuestions = answered.filter((r) => r.expect === 'no-data');
-const noDataHandled = noDataQuestions.filter((r) => r.citedRows === 0);
+// Handled means "asserted no figures about a food we do not have". An earlier
+// version counted citations instead, and marked a correct refusal as a failure
+// because retrieval had surfaced some unrelated rows alongside it — measuring
+// retrieval noise while claiming to measure fabrication.
+const noDataHandled = noDataQuestions.filter((r) => r.checkedNumbers === 0);
 
 const summary = {
   questions: rows.length,
@@ -125,8 +129,12 @@ const summary = {
   groundedAnswerRate: answered.length === 0 ? 0 : grounded.length / answered.length,
   regeneratedRate: answered.length === 0 ? 0 : answered.filter((r) => r.regenerated).length / answered.length,
   refusedRate: answered.length === 0 ? 0 : refused.length / answered.length,
-  // Absent foods must produce no citations rather than an invented figure.
+  // Absent foods must produce no numeric claim rather than an invented figure.
   absentFoodHandledRate: noDataQuestions.length === 0 ? 1 : noDataHandled.length / noDataQuestions.length,
+  // Retrieval precision on absent foods, tracked separately: citing unrelated
+  // rows is a usability problem, not a grounding failure, and conflating the
+  // two hides both.
+  absentFoodSpuriousCitations: noDataQuestions.reduce((sum, r) => sum + (r.citedRows ?? 0), 0),
   medianLatencyMs: (() => {
     const values = answered.map((r) => r.wallMs).sort((a, b) => a - b);
     return values.length === 0 ? 0 : values[Math.floor(values.length / 2)];
@@ -140,6 +148,7 @@ console.log(`  jawaban ter-grounding  ${(summary.groundedAnswerRate * 100).toFix
 console.log(`  perlu tulis ulang      ${(summary.regeneratedRate * 100).toFixed(1)}%`);
 console.log(`  narasi ditahan         ${(summary.refusedRate * 100).toFixed(1)}%`);
 console.log(`  bahan tak ada ditangani ${(summary.absentFoodHandledRate * 100).toFixed(1)}%`);
+console.log(`  sitiran nyasar         ${summary.absentFoodSpuriousCitations}`);
 console.log(`  latensi median         ${summary.medianLatencyMs} ms`);
 
 await mkdir(RESULTS_DIR, { recursive: true });

@@ -24,9 +24,18 @@ const report = auditTable(table);
 console.log(`Berkas : ${DATA}`);
 console.log(`Baris  : ${report.total}`);
 console.log(`Terverifikasi : ${report.verified} / ${report.total}`);
+console.log(`Bisa disitir  : ${report.usable} (sisanya ditandai suspect)`);
 console.log(`Median energi : ${medianEnergy(table)?.toFixed(0) ?? '-'} kkal per 100 g`);
 
 let failed = false;
+
+if (report.acknowledged.length > 0) {
+  // Known errors in the published TKPI, already excluded from retrieval.
+  // Reported for the record, not treated as a failure — otherwise the check
+  // would be red forever and the team would stop reading it.
+  console.log(`\nBaris tidak konsisten di sumber, dikecualikan (${report.acknowledged.length}):`);
+  for (const row of report.acknowledged) console.log(`  ${row.code}: ${row.reason}`);
+}
 
 if (report.duplicateCodes.length > 0) {
   failed = true;
@@ -35,20 +44,26 @@ if (report.duplicateCodes.length > 0) {
 }
 
 if (report.implausible.length > 0) {
+  // Not yet acknowledged: either new source rows or a regression in the
+  // extraction. Either way it needs a human before shipping.
   failed = true;
-  console.error(`\nBaris mencurigakan (${report.implausible.length}):`);
+  console.error(`\nBaris tidak konsisten dan BELUM ditandai (${report.implausible.length}):`);
   for (const row of report.implausible) console.error(`  ${row.code}: ${row.reason}`);
+  console.error('  Jalankan npm run verify:tkpi untuk menandai, setelah memeriksa penyebabnya.');
 }
 
-if (report.verified < report.total) {
-  // A warning, not a failure: the pipeline is meant to be testable before the
-  // data is final. It has to be loud, because shipping placeholder nutrition
-  // figures under a grounding claim is the worst outcome available here.
+const unverified = report.usable - report.verified;
+if (unverified > 0) {
   console.warn(
-    `\n⚠️  ${report.total - report.verified} baris belum diverifikasi terhadap TKPI resmi.\n` +
-      '   Aplikasi akan memperingatkan pengguna selama flag ini false.\n' +
-      '   JANGAN pakai data ini di paper, demo yang dinilai, atau video.\n' +
-      '   Lihat data/tkpi/README.md untuk cara menggantinya.',
+    `\n⚠️  ${unverified} baris yang bisa disitir belum diverifikasi.\n` +
+      '   Aplikasi memperingatkan pengguna selama flag ini false.\n' +
+      '   Lihat data/tkpi/README.md.',
+  );
+} else if (table.meta.verification) {
+  const v = table.meta.verification;
+  console.log(
+    `\nVerifikasi : ${v.checkedBy}, ${v.checkedAt}` +
+      (v.sampleSize ? `, sampel ${v.sampleSize} baris` : ', ukuran sampel tidak dicatat'),
   );
 }
 

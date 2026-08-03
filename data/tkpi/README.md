@@ -1,53 +1,75 @@
 # Data TKPI
 
-## ⚠️ Status: PLACEHOLDER — belum diverifikasi
+`tkpi.json` berisi **1.144 bahan pangan** hasil ekstraksi otomatis dari
+[panganku.org](https://www.panganku.org/id-ID/view), basis data resmi Tabel
+Komposisi Pangan Indonesia. Setiap baris mencantumkan kode pangan resminya,
+sehingga tiap angka bisa ditelusuri balik ke sumbernya.
 
-`tkpi.json` saat ini berisi **data contoh yang belum diverifikasi terhadap
-Tabel Komposisi Pangan Indonesia resmi.** Setiap baris punya `"verified": false`,
-dan aplikasi menampilkan peringatan eksplisit kepada pengguna selama flag itu
-masih false.
+| | |
+|---|---|
+| Total baris | 1.144 |
+| Bisa disitir | 1.133 |
+| Dikecualikan (`suspect`) | 11 |
+| Median energi | 143 kkal per 100 g |
 
-**Data ini tidak boleh dipakai di paper, demo yang dinilai, atau video** sebelum
-diganti dengan angka dari sumber resmi. Angka gizi yang salah dalam produk yang
-mengklaim "grounded pada TKPI" adalah masalah kredibilitas yang jauh lebih besar
-daripada modul nutrisi yang cakupannya kecil.
+## Apa arti `verified: true`
 
-Alasan status ini ada: mesin retrieval, verifier grounding, dan endpoint-nya
-bisa dibangun dan diuji penuh tanpa data final. Memisahkan keduanya membuat
-pekerjaan berjalan paralel — bukan berarti datanya boleh dilewat.
+**Bukan** "manusia membaca 1.144 baris satu per satu." Artinya: seseorang
+membandingkan **sampel acak** terhadap halaman sumber, menemukan ekstraksinya
+setia, lalu menerima tabelnya.
 
-## Cara mengganti dengan data resmi
+Bedanya penting karena paper mendeskripsikan proses ini. Metode dan ukuran
+sampelnya tercatat di `meta.verification` di dalam berkasnya sendiri, bukan di
+ingatan seseorang.
 
-**Sumber:**
-- [panganku.org](https://www.panganku.org/id-ID/view) — basis data resmi,
-  1.146 entri, satu halaman per bahan
-- [Repository Kemenkes](https://repository.kemkes.go.id/book/668) — buku TKPI
+## Sebelas baris yang dikecualikan
 
-**Target realistis: 100–250 bahan pangan umum Indonesia.** Bukan 1.146. Pilih
-yang benar-benar muncul dalam pertanyaan pengguna: beras, tempe, tahu, telur,
-ayam, ikan, sayuran umum, buah umum.
+Pemeriksaan Atwater — protein×4 + karbo×4 + lemak×9 seharusnya kira-kira sama
+dengan energi tercatat — menemukan 11 baris yang **angkanya bertentangan dengan
+dirinya sendiri**. Contoh:
 
-Untuk setiap baris, isi:
+| Kode | Bahan | Masalah |
+|---|---|---|
+| `DR004` | Andewi (endive), sayuran daun segar | Energi 226 kkal, makro hanya menghasilkan 29 kkal |
+| `BR033` | Umbi Uwi segar | Karbohidrat 82,3 g, tapi energi tercatat 120 kkal — karbonya saja sudah 329 kkal |
+| `GP071` | Jukku pallu kaloa | Energi 15 kkal, makro menghasilkan 135 — kemungkinan digit hilang |
+
+**Sudah dicocokkan langsung ke halaman sumber: angkanya memang begitu di
+panganku.org.** Ini kesalahan pada data yang dipublikasikan, bukan pada
+ekstraksi kami.
+
+Baris-baris itu **tetap disimpan** demi provenance, tapi ditandai `suspect` dan
+**dikecualikan dari retrieval**. Menghapus data resmi diam-diam akan lebih
+buruk; menyitir angka yang sudah kami tahu bertentangan dengan dirinya sendiri
+juga tidak bisa diterima.
+
+Sekitar 1% basis data resmi tidak konsisten secara internal. Itu temuan yang
+layak masuk subbagian Responsible AI di paper — sistem yang grounded pada
+sumber eksternal tetap harus memvalidasi sumbernya.
+
+## Perintah
+
+```bash
+npm run fetch:tkpi                        # ambil ulang dari panganku.org (±6 menit)
+npm run fetch:tkpi -- --limit 50          # sampel kecil untuk uji coba
+npm run check:tkpi                        # validasi struktur + Atwater
+npm run verify:tkpi -- --sample 15 --by "Nama"   # tandai terverifikasi
+```
+
+`fetch:tkpi` bersifat sopan: satu permintaan pada satu waktu dengan jeda 250 ms.
+Ini layanan publik Kemenkes, dan seluruh tabel hanya butuh beberapa menit — tidak
+ada alasan membebaninya.
+
+## Skema per baris
 
 | Field | Isi |
 |---|---|
-| `code` | Kode pangan resmi TKPI |
+| `code` | Kode pangan resmi TKPI, mis. `DR001` |
 | `name` | Nama sesuai TKPI |
 | `aliases` | Nama sehari-hari yang mungkin diketik pengguna |
-| `basisG` | Selalu `100` — TKPI menyatakan semuanya per 100 g |
-| `energyKcal`, `proteinG`, `fatG`, `carbG`, `fiberG` | Angka dari tabel |
-| `source` | Sumber persis + halaman, mis. `"TKPI 2017 hal. 42"` |
-| `verified` | `true` **hanya** setelah seseorang mencocokkan barisnya dengan sumber |
-
-## Validasi
-
-```bash
-npm run check:tkpi
-```
-
-Memeriksa: kode duplikat, basis bukan 100 g, dan **konsistensi Atwater** —
-apakah protein×4 + karbo×4 + lemak×9 kira-kira sama dengan energi yang
-tercatat. Baris yang meleset jauh hampir selalu salah salin, dan menemukannya
-di sini jauh lebih murah daripada menemukannya di jawaban yang sedang dinilai.
-
-Skrip ini juga melaporkan berapa baris yang masih `verified: false`.
+| `basisG` | Selalu `100` |
+| `energyKcal`, `proteinG`, `fatG`, `carbG`, `fiberG` | Angka per 100 g |
+| `group` | Kelompok pangan |
+| `source` | `panganku.org TKPI, kode <kode>` |
+| `verified` | Sudah diterima lewat pemeriksaan sampel |
+| `suspect` | Angka sumber tidak konsisten — dikecualikan dari retrieval |

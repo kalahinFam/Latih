@@ -27,7 +27,7 @@ belum diimplementasikan.
 | Alat anotasi (video → keypoint berlabel) | ✅ berjalan |
 | Slow loop (narasi LLM per set) | ✅ berjalan |
 | TTS Bahasa Indonesia (cue + narasi) | ✅ berjalan |
-| Nutrisi TKPI + verifier grounding | ✅ mesin jalan, ⚠️ **data placeholder** |
+| Nutrisi TKPI + verifier grounding | ✅ berjalan, 1.133 bahan pangan |
 | Klasifier form (ONNX) | ⬜ belum |
 
 ---
@@ -182,10 +182,10 @@ memanggil model sama sekali.
 
 ## Nutrisi TKPI — grounding yang bisa diperiksa, bukan diklaim
 
-> ⚠️ **`data/tkpi/tkpi.json` masih berisi data placeholder yang belum
-> diverifikasi.** Mesinnya lengkap dan teruji; datanya belum. Jangan dipakai di
-> paper, demo yang dinilai, atau video sebelum diganti. Lihat
-> [`data/tkpi/README.md`](data/tkpi/README.md).
+**1.144 bahan pangan**, diekstrak otomatis dari
+[panganku.org](https://www.panganku.org/id-ID/view) — basis data resmi TKPI.
+1.133 bisa disitir; 11 dikecualikan karena angkanya tidak konsisten **di
+sumbernya sendiri** (lihat [`data/tkpi/README.md`](data/tkpi/README.md)).
 
 Ketik pertanyaan di panel **Tanya gizi**. Jawabannya muncul **beserta baris
 TKPI yang dipakai**, lengkap dengan angka dan sumbernya, supaya siapa pun —
@@ -226,13 +226,32 @@ Baterainya sengaja memuat pertanyaan yang **memancing** model mengarang: bahan
 yang tidak ada di tabel, aritmetika yang dilarang, dan klaim kesehatan. Skor
 grounding yang hanya diukur pada pertanyaan mudah tidak berarti apa-apa.
 
-Hasil pengukuran terakhir (tabel placeholder 10 baris, 12 pertanyaan, 28 angka
-diperiksa): **100% jawaban ter-grounding, 0% perlu tulis ulang, 100% bahan tak
-tersedia ditangani tanpa mengarang, latensi median 1.346 ms.**
+Hasil pada tabel penuh 1.133 baris — 12 pertanyaan, 35 angka diperiksa:
 
-Angka itu diukur pada tabel 10 baris. Dengan 250 baris, retrieval menghadapi
-lebih banyak kandidat mirip dan skornya bisa turun — **ukur ulang setelah data
-asli masuk**, jangan salin angka ini ke paper.
+| Metrik | Hasil |
+|---|---|
+| Jawaban ter-grounding | **100%** |
+| Perlu tulis ulang | 0% |
+| Narasi ditahan | 0% |
+| Bahan tak tersedia ditangani tanpa mengarang | **100%** |
+| Sitiran nyasar | **0** |
+| Latensi median | 1.492 ms |
+
+### Retrieval memakai kekhasan kata, bukan sekadar kecocokan
+
+Ini muncul dari pengukuran, bukan dari desain awal. Pada tabel 10 baris semua
+metrik hijau; begitu tabel penuh masuk, pertanyaan *"berapa protein daging
+unta"* menyitir empat baris daging — karena "daging" cocok dengan ratusan nama
+sementara "unta" tidak cocok dengan apa pun. Jawabannya tetap benar ("data
+tidak tersedia"), tapi empat bahan tak relevan tampil sebagai sumbernya.
+
+Perbaikannya: sebuah kecocokan hanya diterima kalau setidaknya satu kata yang
+cocok **cukup khas** — muncul di ≤3% nama pangan, dengan batas absolut agar
+aturan ini tetap berlaku di tabel kecil.
+
+Percobaan pertama saya salah: mensyaratkan kecocokan menjelaskan sebagian besar
+pertanyaan. Aturan itu menolak *"tempe tahu telur ayam"* mentah-mentah — empat
+bahan disebut, jadi tidak ada satu baris pun yang bisa menjelaskan mayoritasnya.
 
 ### Validasi data
 
@@ -241,8 +260,14 @@ npm run check:tkpi
 ```
 
 Memeriksa kode duplikat, basis bukan 100 g, dan konsistensi Atwater
-(protein×4 + karbo×4 + lemak×9 ≈ energi). Baris yang meleset jauh hampir selalu
-salah salin.
+(protein×4 + karbo×4 + lemak×9 ≈ energi).
+
+Pemeriksaan ini menemukan **11 baris (0,96%) yang angkanya bertentangan dengan
+dirinya sendiri di data resmi TKPI** — sudah dicocokkan langsung ke halaman
+sumber. Baris itu disimpan demi provenance, ditandai `suspect`, dan
+dikecualikan dari retrieval. Sistem yang grounded pada sumber eksternal tetap
+harus memvalidasi sumbernya; itu temuan yang layak masuk subbagian Responsible
+AI.
 
 ---
 

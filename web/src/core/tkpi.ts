@@ -29,6 +29,19 @@ export interface TkpiFood {
    * Answers built from unverified rows must say so.
    */
   verified: boolean;
+  /**
+   * The row's own macronutrients do not reconstruct its stated energy.
+   *
+   * Around 1% of the official TKPI database is internally inconsistent this
+   * way — a leafy vegetable listed at 226 kcal whose macros give 29, a tuber
+   * whose carbohydrates alone exceed its stated energy. Verified against the
+   * source: these are errors in the published data, not in our extraction.
+   *
+   * Such rows are kept for provenance but excluded from retrieval. Quietly
+   * deleting official data would be worse, and so would citing a figure we
+   * already know contradicts itself.
+   */
+  suspect?: boolean;
 }
 
 export interface TkpiTable {
@@ -64,6 +77,60 @@ export function tokenize(text: string): string[] {
 export interface Match {
   food: TkpiFood;
   score: number;
+  /** At least one matched word is specific enough to identify a food. */
+  distinctive: boolean;
+}
+
+/**
+ * A word appearing in more than this share of food names is too common to
+ * identify anything on its own.
+ *
+ * With 1,133 foods, a single generic word carries a match by itself: "daging
+ * unta" hits every "Sapi, daging …" row because "daging" matches, though camel
+ * appears nowhere in the table. The answer stayed correct — the model said the
+ * data was unavailable — but four unrelated meats were shown to the user as
+ * its sources, reading as though the system had found something.
+ *
+ * Requiring one *distinctive* matched word fixes that without breaking
+ * multi-food questions. An earlier attempt demanded the match explain most of
+ * the query, which rejected "tempe tahu telur ayam" outright: four foods are
+ * named, so no single row can account for most of it.
+ */
+const MAX_COMMON_TOKEN_SHARE = 0.03;
+
+/**
+ * Absolute floor, so the rule survives a small table.
+ *
+ * A share alone breaks down when there are few foods: in a four-row fixture a
+ * word appearing in one food is 25% of the table and would be judged common,
+ * rejecting every match. A word in three or fewer foods identifies something
+ * regardless of how large the table is.
+ */
+const ALWAYS_DISTINCTIVE_BELOW = 3;
+
+/**
+ * Token -> how many foods contain it. Cached per table: recomputing it on every
+ * request would tokenize a thousand names for each question.
+ */
+const frequencyCache = new WeakMap<TkpiTable, Map<string, number>>();
+
+function documentFrequency(table: TkpiTable): Map<string, number> {
+  const cached = frequencyCache.get(table);
+  if (cached) return cached;
+
+  const counts = new Map<string, number>();
+  for (const food of table.foods) {
+    const seen = new Set(tokenize([food.name, ...(food.aliases ?? [])].join(' ')));
+    for (const token of seen) counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+  frequencyCache.set(table, counts);
+  return counts;
+}
+
+function isDistinctive(token: string, frequency: Map<string, number>, total: number): boolean {
+  const count = frequency.get(token) ?? 0;
+  if (count === 0) return false;
+  return count <= Math.max(ALWAYS_DISTINCTIVE_BELOW, total * MAX_COMMON_TOKEN_SHARE);
 }
 
 /**
@@ -72,26 +139,36 @@ export interface Match {
  * Exact token hits dominate; a prefix hit counts for less so that "tempe"
  * finds "tempe kedelai murni" without "te" matching everything.
  */
-function scoreFood(food: TkpiFood, queryTokens: string[]): number {
+function scoreFood(
+  food: TkpiFood,
+  queryTokens: string[],
+  frequency: Map<string, number>,
+  total: number,
+): { score: number; distinctive: boolean } {
   const names = [food.name, ...(food.aliases ?? [])];
-  let best = 0;
+  let best = { score: 0, distinctive: false };
 
   for (const name of names) {
     const nameTokens = tokenize(name);
     if (nameTokens.length === 0) continue;
 
     let score = 0;
+    let distinctive = false;
     for (const query of queryTokens) {
-      if (nameTokens.includes(query)) {
-        score += 1;
-      } else if (nameTokens.some((token) => token.startsWith(query) && query.length >= 4)) {
-        score += 0.5;
-      }
+      const exact = nameTokens.includes(query);
+      const prefix =
+        !exact && nameTokens.some((token) => token.startsWith(query) && query.length >= 4);
+      if (!exact && !prefix) continue;
+
+      score += exact ? 1 : 0.5;
+      if (isDistinctive(query, frequency, total)) distinctive = true;
     }
+
     // Normalise by name length so a long name does not win on breadth alone,
     // but keep some credit for matching more of the query.
     if (score > 0) {
-      best = Math.max(best, score / Math.sqrt(nameTokens.length));
+      const normalized = score / Math.sqrt(nameTokens.length);
+      if (normalized > best.score) best = { score: normalized, distinctive };
     }
   }
 
@@ -109,9 +186,16 @@ export function findFoods(table: TkpiTable, question: string, limit = 4): Match[
   const queryTokens = tokenize(question);
   if (queryTokens.length === 0) return [];
 
+  const frequency = documentFrequency(table);
+  const total = table.foods.length;
+
   return table.foods
-    .map((food) => ({ food, score: scoreFood(food, queryTokens) }))
-    .filter((match) => match.score > 0)
+    // Rows whose own figures contradict each other are never cited. The
+    // grounding guarantee is that a number traces to the table; it is worth
+    // nothing if the table entry is self-inconsistent.
+    .filter((food) => !food.suspect)
+    .map((food) => ({ food, ...scoreFood(food, queryTokens, frequency, total) }))
+    .filter((match) => match.score > 0 && match.distinctive)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
@@ -157,24 +241,32 @@ export function hasUnverified(foods: TkpiFood[]): boolean {
 export function auditTable(table: TkpiTable): {
   total: number;
   verified: number;
+  usable: number;
   duplicateCodes: string[];
+  /** Inconsistent rows already marked `suspect` — acknowledged, not new. */
+  acknowledged: { code: string; reason: string }[];
+  /** Inconsistent rows NOT yet marked. These fail the check. */
   implausible: { code: string; reason: string }[];
 } {
   const seen = new Map<string, number>();
   const implausible: { code: string; reason: string }[] = [];
+  const acknowledged: { code: string; reason: string }[] = [];
 
   for (const food of table.foods) {
     seen.set(food.code, (seen.get(food.code) ?? 0) + 1);
 
     // Atwater check: macronutrients should roughly reconstruct the energy
-    // figure. A row that fails this badly is a transcription error, and
-    // catching it here is far cheaper than discovering it in a judged answer.
+    // figure. Rows already marked `suspect` are reported separately — those
+    // are known errors in the published TKPI, not regressions in our
+    // extraction, and failing the build on them forever would only teach the
+    // team to ignore the check.
     const derived = food.proteinG * 4 + food.carbG * 4 + food.fatG * 9;
     if (food.energyKcal > 0 && Math.abs(derived - food.energyKcal) > food.energyKcal * 0.35 + 25) {
-      implausible.push({
+      const finding = {
         code: food.code,
         reason: `energi ${food.energyKcal} kkal vs perhitungan makro ${derived.toFixed(0)} kkal`,
-      });
+      };
+      (food.suspect ? acknowledged : implausible).push(finding);
     }
     if (food.basisG !== 100) {
       implausible.push({ code: food.code, reason: `basis ${food.basisG} g, TKPI memakai 100 g` });
@@ -184,9 +276,30 @@ export function auditTable(table: TkpiTable): {
   return {
     total: table.foods.length,
     verified: table.foods.filter((f) => f.verified).length,
+    // What retrieval can actually cite.
+    usable: table.foods.filter((f) => !f.suspect).length,
     duplicateCodes: [...seen.entries()].filter(([, n]) => n > 1).map(([code]) => code),
+    acknowledged,
     implausible,
   };
+}
+
+/**
+ * Mark rows whose own figures contradict each other.
+ *
+ * Run after fetching, so the audit can separate known source errors from new
+ * extraction bugs. Returns the codes marked.
+ */
+export function markSuspectRows(table: TkpiTable): string[] {
+  const marked: string[] = [];
+  for (const food of table.foods) {
+    const derived = food.proteinG * 4 + food.carbG * 4 + food.fatG * 9;
+    if (food.energyKcal > 0 && Math.abs(derived - food.energyKcal) > food.energyKcal * 0.35 + 25) {
+      food.suspect = true;
+      marked.push(food.code);
+    }
+  }
+  return marked;
 }
 
 /** Median energy across the table — a quick smell test for unit mix-ups. */

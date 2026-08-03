@@ -5,6 +5,7 @@ import {
   findFoods,
   formatForPrompt,
   hasUnverified,
+  markSuspectRows,
   normalizeName,
   tokenize,
   type TkpiFood,
@@ -123,6 +124,109 @@ describe('hasUnverified', () => {
   it('flags rows that no human has checked', () => {
     expect(hasUnverified([food({ verified: false })])).toBe(true);
     expect(hasUnverified([food({ verified: true })])).toBe(false);
+  });
+});
+
+describe('distinctiveness gate', () => {
+  /** A table where "daging" is generic and "unta" appears nowhere. */
+  const meats: TkpiTable = {
+    ...table,
+    foods: [
+      food({ code: 'M1', name: 'Sapi, daging, gemuk, segar', aliases: [] }),
+      food({ code: 'M2', name: 'Sapi, daging, kurus, segar', aliases: [] }),
+      food({ code: 'M3', name: 'Kambing, daging, segar', aliases: [] }),
+      food({ code: 'M4', name: 'Ayam, daging, segar', aliases: [] }),
+      food({ code: 'M5', name: 'Domba, daging, segar', aliases: [] }),
+      food({ code: 'M6', name: 'Kerbau, daging, segar', aliases: [] }),
+      food({ code: 'M7', name: 'Babi, daging, segar', aliases: [] }),
+      food({ code: 'M8', name: 'Kuda, daging, segar', aliases: [] }),
+      food({ code: 'T1', name: 'Tempe kedelai murni', aliases: ['tempe'] }),
+    ],
+  };
+
+  it('does not match on a generic word alone', () => {
+    // "daging unta" hit every meat row because "daging" matched, presenting
+    // eight unrelated meats as sources for an answer about camel.
+    expect(findFoods(meats, 'berapa protein daging unta')).toHaveLength(0);
+  });
+
+  it('still matches when a distinctive word is present', () => {
+    expect(findFoods(meats, 'berapa protein daging kambing')[0].food.code).toBe('M3');
+  });
+
+  it('handles a question naming several foods', () => {
+    // An earlier rule required a match to explain most of the query, which
+    // rejected this outright: four foods are named, so no single row can.
+    const found = findFoods(table, 'tempe tahu telur ayam', 4);
+    expect(found.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('treats a rare word as distinctive even in a tiny table', () => {
+    // A share-only rule breaks here: one food out of four is 25% of the table.
+    expect(findFoods(table, 'tempe')).toHaveLength(1);
+  });
+
+  it('marks whether the match rested on a distinctive word', () => {
+    expect(findFoods(meats, 'daging kambing')[0].distinctive).toBe(true);
+  });
+});
+
+describe('suspect rows', () => {
+  const withSuspect: TkpiTable = {
+    ...table,
+    foods: [
+      ...table.foods,
+      // Real shape of the problem: ~1% of the published TKPI is internally
+      // inconsistent. Verified against panganku.org — the source says this.
+      food({
+        code: 'BAD-01',
+        name: 'Andewi segar',
+        aliases: ['andewi'],
+        energyKcal: 226,
+        proteinG: 1.6,
+        fatG: 0.2,
+        carbG: 5.3,
+        suspect: true,
+      }),
+    ],
+  };
+
+  it('never returns a suspect row from retrieval', () => {
+    // Grounding guarantees a number traces to the table. That is worth nothing
+    // if the table entry contradicts itself.
+    expect(findFoods(withSuspect, 'berapa kalori andewi')).toHaveLength(0);
+  });
+
+  it('still counts suspect rows in the total, for provenance', () => {
+    const report = auditTable(withSuspect);
+    expect(report.total).toBe(5);
+    expect(report.usable).toBe(4);
+  });
+
+  it('reports a marked inconsistency as acknowledged, not as a failure', () => {
+    const report = auditTable(withSuspect);
+    expect(report.acknowledged.map((r) => r.code)).toContain('BAD-01');
+    expect(report.implausible.map((r) => r.code)).not.toContain('BAD-01');
+  });
+
+  it('fails an unmarked inconsistency, so extraction regressions surface', () => {
+    const unmarked: TkpiTable = {
+      ...table,
+      foods: [food({ code: 'NEW', energyKcal: 226, proteinG: 1.6, fatG: 0.2, carbG: 5.3 })],
+    };
+    expect(auditTable(unmarked).implausible.map((r) => r.code)).toContain('NEW');
+  });
+
+  it('markSuspectRows flags exactly the inconsistent rows', () => {
+    const fresh: TkpiTable = {
+      ...table,
+      foods: [
+        food({ code: 'OK' }),
+        food({ code: 'BAD', energyKcal: 226, proteinG: 1.6, fatG: 0.2, carbG: 5.3 }),
+      ],
+    };
+    expect(markSuspectRows(fresh)).toEqual(['BAD']);
+    expect(fresh.foods.find((f) => f.code === 'OK')?.suspect).toBeUndefined();
   });
 });
 
