@@ -9,6 +9,16 @@
       content="Pelatih kebugaran AI yang mengoreksi form latihan secara real-time langsung di perangkat."
     />
 
+    <!-- Design typeface. Deliberately not preloaded and not cached by the
+         service worker: offline it falls back to the system stack and every
+         size in the stylesheet is explicit, so nothing shifts. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <!-- iOS ignores the manifest for home-screen installs and reads these. -->
@@ -33,18 +43,35 @@
         <video id="video" class="stage__video" playsinline muted></video>
         <canvas id="canvas" class="stage__overlay"></canvas>
 
-        <div class="hud">
-          <div class="hud__count">
-            <span class="hud__value" id="repCount">0</span>
-            <span class="hud__label">repetisi</span>
+        <!-- Tints the lower half sage or amber. Behind the HUD, in front of the
+             video, so the number below always has contrast to sit on. -->
+        <div class="hud__wash" id="hudWash"></div>
+
+        <div class="hud" data-state="good" id="hud">
+          <div class="hud__top">
+            <span class="hud__movement" id="movementLabel">PUSH-UP</span>
+            <span class="hud__voice">
+              <span class="hud__dot" aria-hidden="true"></span>
+              <span>SUARA</span>
+            </span>
           </div>
-          <div class="hud__phase" id="phase">Bersiap</div>
-          <div class="hud__target" id="target" hidden></div>
+
+          <!-- Set progress read by length, not by reading. One strip per rep of
+               the target; done reps are long and coloured. -->
+          <div class="hud__strips" id="repStrips" aria-hidden="true"></div>
+
+          <div class="hud__readout">
+            <!-- The number is the signal. It changes colour itself, so knowing
+                 the form status costs no eye movement away from the count. -->
+            <div class="hud__count" id="repCount">0</div>
+            <!-- Doubles as the correction slot: aria-live so a screen reader
+                 announces the cue the moment it replaces the caption. -->
+            <p class="hud__caption" id="repCaption" role="status" aria-live="polite">
+              BERSIAP
+            </p>
+          </div>
         </div>
 
-        <!-- aria-live so the correction is announced by a screen reader at the
-             moment it appears, not only when focus happens to land on it. -->
-        <p class="cue" id="cue" role="status" aria-live="polite" hidden></p>
         <p class="banner" id="statusBanner" hidden></p>
       </section>
 

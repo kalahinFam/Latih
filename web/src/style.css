@@ -7,13 +7,27 @@
  */
 
 :root {
-  --bg: #0b1120;
+  /*
+   * Palette from the LATIH design document.
+   *
+   * Two signal colours and nothing else: sage means the form is right, amber
+   * means there is a correction. Everything not carrying that signal is ink,
+   * white, or a grey — so when a colour appears it means something, which is
+   * the whole point at two metres.
+   */
+  --ink: #151d28;
+  --bg: #0d1218;
   --surface: #131c31;
   --border: #24304d;
   --text: #e8eefc;
   --muted: #93a3c4;
-  --accent: #22d3ee;
-  --warn: #fbbf24;
+  --sage: #549c89;
+  --sage-deep: #3f7b6b;
+  --amber: #e0952b;
+
+  /* Legacy aliases, so existing panels keep working while the design lands. */
+  --accent: var(--sage);
+  --warn: var(--amber);
   --danger: #f87171;
 
   color-scheme: dark;
@@ -32,7 +46,14 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /*
+   * Plus Jakarta Sans per the design, with a system stack behind it. The link
+   * in the document head is not blocking and not cached by the service worker:
+   * offline, the layout renders identically in the fallback because every size
+   * here is explicit. A webfont must never be on the path to the rep counter
+   * working.
+   */
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -109,86 +130,208 @@ body {
   transform: scaleX(-1);
 }
 
+/* ---------------------------------------------------------------------------
+ * Active workout HUD.
+ *
+ * Read from ~2 m, from floor level, while moving. Three consequences drive
+ * every rule below:
+ *
+ * 1. One large number and nothing else competing with it.
+ * 2. Colour is the signal, not text — sage means the form is right, amber means
+ *    there is a correction. The *number itself* carries the colour, so knowing
+ *    the status costs no eye movement away from the thing being looked at.
+ * 3. The number sits in the lower third. Mid push-up the gaze falls to the
+ *    bottom of the screen, not the middle, so the count is put where the eyes
+ *    already are.
+ * ------------------------------------------------------------------------ */
+
+/* Tints the lower half so the readout always has contrast, whatever the room
+   behind it looks like. Colour comes from the HUD's state. */
+.hud__wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(84, 156, 137, 0.42) 0%,
+    rgba(84, 156, 137, 0.08) 32%,
+    transparent 52%
+  );
+  transition: background 180ms linear;
+}
+
 .hud {
   position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  inset: 0;
   pointer-events: none;
 }
 
-.hud__count {
+.hud__top {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  padding: 0.35rem 0.7rem;
-  background: rgba(11, 17, 32, 0.72);
-  border-radius: 10px;
-  /* Blur keeps the number readable over a visually busy room. */
-  backdrop-filter: blur(6px);
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.6rem 1.6rem 0;
 }
 
-.hud__value {
-  font-size: 2.75rem;
+.hud__movement {
+  font-size: 0.81rem;
   font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  letter-spacing: 0.16em;
+  color: rgb(255 255 255 / 62%);
 }
 
-.hud__label {
-  font-size: 0.8rem;
-  color: var(--muted);
+.hud__voice {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgb(255 255 255 / 50%);
 }
 
-.hud__phase,
-.hud__target {
-  align-self: flex-start;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-  background: rgba(11, 17, 32, 0.72);
-  border-radius: 999px;
-  backdrop-filter: blur(6px);
+.hud__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sage);
+  animation: hud-pulse 1.9s ease-in-out infinite;
 }
 
-/* Tinted, not shouted: the target is context for the whole set, while the rep
-   count is what changes and should keep the eye. */
-.hud__target {
-  color: var(--accent);
+@keyframes hud-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Rep progress as a column of strips: done reps are long and coloured,
+   remaining ones short and faint. Read by length, without reading. */
+.hud__strips {
+  position: absolute;
+  top: 7.5rem;
+  right: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-items: flex-end;
+}
+
+.hud__strip {
+  width: 18px;
+  height: 7px;
+  background: rgb(255 255 255 / 22%);
+  border-radius: 4px;
+  transition:
+    width 140ms ease-out,
+    background 180ms linear;
+}
+
+.hud__strip--done {
+  width: 34px;
+  background: var(--sage);
+}
+
+.hud__readout {
+  position: absolute;
+  right: 1.6rem;
+  bottom: 2.1rem;
+  left: 1.6rem;
 }
 
 /*
- * The corrective cue. Sized and centred to be readable from across a room,
- * because it is read mid-repetition with the phone several metres away — and
- * because it is the single most legible sign on camera that the AI is working.
+ * The count. Sized against the stage rather than the viewport, because the
+ * stage is what it has to fill; capped so a desktop window does not produce a
+ * number taller than the camera view.
  */
-.cue {
-  position: absolute;
-  top: 50%;
-  right: 1rem;
-  left: 1rem;
-  margin: 0;
-  padding: 0.7rem 1rem;
-  font-size: clamp(1.1rem, 5vw, 1.6rem);
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: center;
-  text-wrap: balance;
-  color: #04222a;
-  background: var(--warn);
-  border-radius: 12px;
-  transform: translateY(-50%);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+.hud__count {
+  margin: 0 0 2px -0.9rem;
+  font-size: clamp(84px, 52vw, 260px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.06em;
+  color: var(--sage);
+  transition: color 180ms linear;
 }
 
+@supports (container-type: inline-size) {
+  .stage {
+    container-type: inline-size;
+  }
+
+  .hud__count {
+    font-size: clamp(84px, 66cqw, 260px);
+  }
+
+  .hud[data-state='correction'] .hud__caption {
+    font-size: clamp(1.4rem, 8.7cqw, 2.13rem);
+  }
+}
+
+/*
+ * Caption and correction share one slot.
+ *
+ * The cue replaces the caption rather than appearing beside it: at this
+ * distance two lines of text is one too many, and the correction is the only
+ * thing worth reading while it is up.
+ */
+.hud__caption {
+  margin: 0;
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgb(255 255 255 / 45%);
+  text-wrap: balance;
+}
+
+.hud[data-state='correction'] .hud__caption {
+  font-size: clamp(1.4rem, 7vw, 2.13rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.hud[data-state='correction'] .hud__count {
+  color: var(--amber);
+}
+
+.hud[data-state='correction'] .hud__strip--done {
+  background: var(--amber);
+}
+
+.hud__wash--correction {
+  background: linear-gradient(
+    to top,
+    rgba(224, 149, 43, 0.52) 0%,
+    rgba(224, 149, 43, 0.12) 34%,
+    transparent 54%
+  );
+}
+
+
+/*
+ * Setup and tracking warnings.
+ *
+ * Moved to the top of the stage: the lower third belongs to the count, and a
+ * banner sharing it would sit directly on the one number the screen exists to
+ * show. This is also the honest place for it — a framing warning is about the
+ * camera, and the camera's own status line is already up there.
+ */
 .banner {
   position: absolute;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  left: 0.75rem;
+  top: 4.2rem;
+  right: 0.9rem;
+  left: 0.9rem;
   margin: 0;
   padding: 0.6rem 0.8rem;
   font-size: 0.9rem;

@@ -100,7 +100,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (337 tes) |
+| `npm test` | Unit test (351 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -266,6 +266,30 @@ kehilangan satu sesi data.
 Target tampil di HUD selama set berjalan, bukan hanya di ringkasan sesudahnya —
 target yang baru diberitahu setelah selesai itu skor, target yang terlihat sambil
 bekerja itu yang mengubah perilaku.
+
+---
+
+## Layar latihan — tiga aturan dari desain
+
+Mengikuti opsi **1b** dari dokumen desain. Batasannya: dibaca dari ±2 m, dari
+ketinggian lantai, sambil badan bergerak. Tiga konsekuensinya, dan semuanya
+terlihat di `style.css`:
+
+- **Satu angka besar, sisanya kecil dan di tepi.** Tidak ada elemen lain yang
+  minta dibaca dengan tenang.
+- **Angkanya sendiri yang berubah warna.** Sage berarti form benar, amber
+  berarti ada koreksi. Sinyal dan benda yang dilihat adalah objek yang sama,
+  jadi mengetahui status tidak memerlukan perpindahan pandangan. Skeleton
+  dibiarkan putih justru karena itu — kalau ikut berwarna, layar mengatakan hal
+  yang sama dua kali, dan sorot amber di sendi kehilangan artinya sebagai
+  penunjuk **di mana** masalahnya.
+- **Angka ditaruh di sepertiga bawah.** Dari lantai, sambil push-up, arah
+  pandang jatuh ke bawah layar, bukan ke tengah.
+
+Kemajuan set ditampilkan sebagai deret strip di tepi kanan — terbaca lewat
+panjang, tanpa satu pun angka tambahan. Koreksi menggantikan kapsi di bawah
+angka, tidak muncul di sebelahnya: pada jarak itu dua baris teks sudah satu
+baris terlalu banyak.
 
 ---
 

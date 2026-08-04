@@ -28,12 +28,13 @@ import { cueFor, evaluateRules, primaryCue } from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
 import { explainTarget, type ExerciseTarget } from '../core/sessionLoop.ts';
 import { TrainingHistory, toSetRecord } from '../session/history.ts';
+import { loadPreferences } from '../session/profile.ts';
 import { CoachError, requestCoaching } from '../coach/coachClient.ts';
 import { allCueTexts } from '../core/rules.ts';
 import { Voice } from '../audio/voice.ts';
 import type { ExerciseKind } from '../core/types.ts';
 import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
-import { clearSkeleton, drawSkeleton } from './skeleton.ts';
+import { DEFAULT_SKELETON_STYLE, clearSkeleton, drawSkeleton, highlightFor } from './skeleton.ts';
 
 /**
  * How long the person may be undetected before we prompt about framing.
@@ -68,6 +69,18 @@ const FRAMING_SPEECH_INTERVAL_MS = 8000;
  */
 const READY_HOLD_MS = 1200;
 
+/**
+ * Above this target, the strip column stops being readable at a glance and
+ * becomes a texture. The caption already states the number, so the strips are
+ * simply omitted rather than crammed.
+ */
+const MAX_STRIPS = 20;
+
+const MOVEMENT_LABEL: Record<ExerciseKind, string> = {
+  pushup: 'PUSH-UP',
+  squat: 'SQUAT',
+};
+
 type Status =
   | { kind: 'idle' }
   | { kind: 'loading'; message: string }
@@ -81,9 +94,12 @@ type Status =
 export interface CameraViewElements {
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
+  hud: HTMLElement;
+  hudWash: HTMLElement;
+  movementLabel: HTMLElement;
+  repStrips: HTMLElement;
   repCount: HTMLElement;
-  phase: HTMLElement;
-  cue: HTMLElement;
+  repCaption: HTMLElement;
   statusBanner: HTMLElement;
   perf: HTMLElement;
   startButton: HTMLButtonElement;
@@ -92,7 +108,6 @@ export interface CameraViewElements {
   guide: HTMLDetailsElement;
   guideList: HTMLElement;
   guideNote: HTMLElement;
-  target: HTMLElement;
   finishSetButton: HTMLButtonElement;
   coachPanel: HTMLElement;
   coachNarration: HTMLElement;
@@ -169,6 +184,15 @@ export class CameraView {
    */
   private armed = false;
   private goodFramingSinceMs: number | null = null;
+  /**
+   * Joints the visible correction refers to, drawn amber on the overlay.
+   * Cleared with the cue, so the highlight and the text always agree.
+   */
+  private highlightJoints: readonly number[] = [];
+  /** Sets finished in this session, for the "SET 2/3" label. */
+  private setsDone = 0;
+  /** Rep count the strips were last rendered for, so the loop can skip work. */
+  private strippedDone = -1;
 
   constructor(el: CameraViewElements) {
     this.el = el;
@@ -222,6 +246,7 @@ export class CameraView {
     // the last one rather than the last two — and before the network call, so
     // history survives a failed or slow coach request.
     const workedTo = this.target;
+    this.setsDone += 1;
     this.showTarget(this.history.recordSet(toSetRecord(summary)));
 
     const trend = this.history.trend(this.exercise);
@@ -299,11 +324,28 @@ export class CameraView {
    * accurate at the moment it is made: once "progressed" has been stored, a
    * fresh read of the same history reports the raised target as merely held.
    */
+  /**
+   * Adopt a target decision.
+   *
+   * Nothing on the workout screen states the target as its own number — the
+   * caption says what the count is out of, and the strips show it as length.
+   * Per the design, the target and its reasoning belong on the home screen,
+   * where they can be read at arm's length rather than glanced at from the
+   * floor.
+   */
   private showTarget(target: ExerciseTarget): void {
     this.target = target;
-    this.el.target.hidden = false;
-    this.el.target.textContent = `Target ${target.targetReps}`;
-    this.el.target.title = explainTarget(target);
+    // The strip count is derived from the target, so a changed target has to
+    // rebuild them.
+    this.strippedDone = -1;
+    this.renderMovementLabel();
+  }
+
+  /** "PUSH-UP · SET 2/3" — movement and position in the session, in one line. */
+  private renderMovementLabel(): void {
+    const total = loadPreferences().setsPerExercise;
+    const current = Math.min(this.setsDone + 1, total);
+    this.el.movementLabel.textContent = `${MOVEMENT_LABEL[this.exercise]} · SET ${current}/${total}`;
   }
 
   private startNewSet(): void {
@@ -323,7 +365,9 @@ export class CameraView {
     this.framingSpokenUntilMs = 0;
     this.armed = false;
     this.goodFramingSinceMs = null;
-    this.el.cue.hidden = true;
+    this.strippedDone = -1;
+    this.clearCue();
+    this.renderMovementLabel();
   }
 
   private async toggle(): Promise<void> {
@@ -453,7 +497,7 @@ export class CameraView {
       // the lifter starts back up rather than after the rep is already done.
       if (this.liveCue.update(angle, phaseBefore === 'down')) {
         this.spokenThisRep.add('shallow_depth');
-        this.showCue(cueFor(this.exercise, 'shallow_depth'), frameStart);
+        this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
       }
 
       if (rep) {
@@ -463,7 +507,8 @@ export class CameraView {
         // Skip anything already said live for this rep — hearing the same
         // correction twice makes the coach sound broken.
         const unspoken = findings.filter((f) => !this.spokenThisRep.has(f.code));
-        this.showCue(primaryCue(unspoken)?.cue ?? null, frameStart);
+        const cue = primaryCue(unspoken);
+        this.showCue(cue?.code ?? null, cue?.cue ?? null, frameStart);
         this.spokenThisRep.clear();
       }
       this.perf.recordFastLoop(performance.now() - fastLoopStart);
@@ -473,7 +518,10 @@ export class CameraView {
       if (this.counter.status.holding) this.heldFrames += 1;
       else this.trackedFrames += 1;
 
-      drawSkeleton(this.ctx, detection.normalized);
+      drawSkeleton(this.ctx, detection.normalized, {
+        ...DEFAULT_SKELETON_STYLE,
+        highlight: this.highlightJoints,
+      });
       // Framing outranks low confidence: a cropped body is *why* confidence is
       // low, and "step back" is something the user can act on.
       this.setStatus(this.framingOrTrackingStatus(framing.issue, posture.issue));
@@ -575,27 +623,88 @@ export class CameraView {
   }
 
   /**
-   * Show a correction. Placeholder for the pre-generated audio cue: the text
-   * lands now, the MP3 playback hooks into the same call site later.
+   * Show a correction.
+   *
+   * Three things move together and must never disagree: the caption text, the
+   * colour of the count, and the amber joint on the overlay. They are set here
+   * and cleared in one place, so a cue can never be showing while the skeleton
+   * still points at the previous fault.
+   *
+   * @param code Rule that fired, used to pick the joint to highlight.
    */
-  private showCue(cue: string | null, nowMs: number): void {
+  private showCue(code: string | null, cue: string | null, nowMs: number): void {
     if (cue === null) return;
-    this.el.cue.textContent = cue;
-    this.el.cue.hidden = false;
+
+    this.el.repCaption.textContent = cue;
+    this.el.hud.dataset.state = 'correction';
+    this.el.hudWash.classList.add('hud__wash--correction');
+    this.highlightJoints = highlightFor(this.exercise, code);
     this.cueUntilMs = nowMs + CUE_VISIBLE_MS;
+
     // Pre-rendered clip: plays immediately, no network round trip. A cue that
     // arrives after the rep it describes is not a late cue, it is a wrong one.
     this.voice.playCue(cue);
   }
 
   private expireCue(nowMs: number): void {
-    if (!this.el.cue.hidden && nowMs > this.cueUntilMs) this.el.cue.hidden = true;
+    if (this.el.hud.dataset.state !== 'correction' || nowMs <= this.cueUntilMs) return;
+    this.clearCue();
+  }
+
+  private clearCue(): void {
+    this.el.hud.dataset.state = 'good';
+    this.el.hudWash.classList.remove('hud__wash--correction');
+    this.highlightJoints = [];
+    this.el.repCaption.textContent = this.captionText();
+  }
+
+  /** The resting caption: what the count is out of. */
+  private captionText(): string {
+    if (!this.armed) return 'BERSIAP';
+    return `DARI ${this.target.targetReps} REPETISI`;
+  }
+
+  /**
+   * One strip per rep of the target, done ones long and coloured.
+   *
+   * Rebuilt only when the count or the target changes — this runs inside the
+   * render loop, and rebuilding a dozen nodes at 30 fps for no visual change is
+   * the kind of waste that shows up as dropped frames on a mid-range phone.
+   */
+  private renderStrips(done: number): void {
+    const total = this.target.targetReps;
+    // Beyond this the strips stop being readable at a glance and start being a
+    // texture; the caption already carries the number.
+    const show = total <= MAX_STRIPS ? total : 0;
+
+    if (this.el.repStrips.childElementCount !== show) {
+      this.el.repStrips.replaceChildren();
+      for (let i = 0; i < show; i += 1) {
+        const strip = document.createElement('span');
+        strip.className = 'hud__strip';
+        this.el.repStrips.append(strip);
+      }
+      this.strippedDone = -1;
+    }
+
+    if (this.strippedDone === done) return;
+    this.strippedDone = done;
+
+    const strips = this.el.repStrips.children;
+    for (let i = 0; i < strips.length; i += 1) {
+      strips[i].classList.toggle('hud__strip--done', i < done);
+    }
   }
 
   private render(): void {
-    const { repCount, phase } = this.counter.status;
+    const { repCount } = this.counter.status;
     this.el.repCount.textContent = String(repCount);
-    this.el.phase.textContent = PHASE_LABEL[phase];
+    this.renderStrips(repCount);
+
+    // The caption is owned by the cue while one is showing.
+    if (this.el.hud.dataset.state !== 'correction') {
+      this.el.repCaption.textContent = this.captionText();
+    }
 
     const perf = this.perf.snapshot();
     const seen = this.trackedFrames + this.heldFrames;
@@ -618,12 +727,6 @@ export class CameraView {
     banner.hidden = message === null;
   }
 }
-
-const PHASE_LABEL: Record<string, string> = {
-  unknown: 'Bersiap',
-  up: 'Atas',
-  down: 'Bawah',
-};
 
 /**
  * Every failure the user can actually hit gets a message that says what to do,
