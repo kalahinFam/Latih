@@ -8,6 +8,7 @@ import {
 } from './features.ts';
 import { RepWindowBuilder, type RepWindow } from './repWindow.ts';
 import type { JointAngles } from './types.ts';
+import { equalConfidence } from './angles.ts';
 
 function angles(overrides: Partial<JointAngles> = {}): JointAngles {
   return {
@@ -20,6 +21,8 @@ function angles(overrides: Partial<JointAngles> = {}): JointAngles {
     kneeLeft: null,
     kneeRight: null,
     trunkLean: null,
+    // Both sides equally seen: side selection is not what these test.
+    confidence: equalConfidence(),
     ...overrides,
   };
 }

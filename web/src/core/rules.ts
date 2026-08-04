@@ -34,7 +34,7 @@
  */
 
 import type { ExerciseKind, JointAngles } from './types.ts';
-import { bilateralMean } from './angles.ts';
+import { reliableMean } from './angles.ts';
 import { bottomFrames, extremeOf, medianOf, type RepWindow } from './repWindow.ts';
 
 /** Stable identifiers — these are the classes the paper reports P/R/F1 for. */
@@ -140,16 +140,22 @@ function severityOf(value: number, threshold: number, band: number, direction: '
   return Math.min(1, Math.max(0, excess / band));
 }
 
+// All three prefer the better-observed side. Averaging a measured limb with an
+// occluded one is what let partial squats read as deep enough to pass — see
+// `reliableMean`.
 function hipAngle(angles: JointAngles): number | null {
-  return bilateralMean(angles.hipLeft, angles.hipRight);
+  const c = angles.confidence;
+  return reliableMean(angles.hipLeft, angles.hipRight, c.hipLeft, c.hipRight);
 }
 
 function kneeAngle(angles: JointAngles): number | null {
-  return bilateralMean(angles.kneeLeft, angles.kneeRight);
+  const c = angles.confidence;
+  return reliableMean(angles.kneeLeft, angles.kneeRight, c.kneeLeft, c.kneeRight);
 }
 
 function elbowAngle(angles: JointAngles): number | null {
-  return bilateralMean(angles.elbowLeft, angles.elbowRight);
+  const c = angles.confidence;
+  return reliableMean(angles.elbowLeft, angles.elbowRight, c.elbowLeft, c.elbowRight);
 }
 
 /**
@@ -238,6 +244,27 @@ export function evaluateRules(
 }
 
 /**
+ * Which correction matters most, when several fired.
+ *
+ * Severity alone is the wrong ordering, and field testing showed why. A partial
+ * squat usually fails depth *and* lockout together — someone pumping half reps
+ * rarely stands fully upright between them — and once both are normalised by
+ * the same band, the lockout miss can score higher. Users were told "berdiri
+ * tegak sepenuhnya" while doing quarter squats, which is technically true,
+ * useless, and reads as the app not understanding the movement.
+ *
+ * Range of motion comes first because it is the point of the repetition;
+ * everything else is a refinement of a rep that was worth doing.
+ */
+const CUE_PRIORITY: RuleErrorCode[] = [
+  'shallow_depth',
+  'hip_sag',
+  'hip_pike',
+  'excessive_trunk_lean',
+  'partial_lockout',
+];
+
+/**
  * The single cue to speak for a rep.
  *
  * One cue, not a list: the user is mid-set and can act on exactly one
@@ -245,5 +272,11 @@ export function evaluateRules(
  * none, and the audio would still be playing when the next rep began.
  */
 export function primaryCue(findings: RuleFinding[]): RuleFinding | null {
-  return findings.length > 0 ? findings[0] : null;
+  if (findings.length === 0) return null;
+
+  return [...findings].sort((a, b) => {
+    const rank = CUE_PRIORITY.indexOf(a.code) - CUE_PRIORITY.indexOf(b.code);
+    // Severity still breaks ties within a priority tier.
+    return rank !== 0 ? rank : b.severity - a.severity;
+  })[0];
 }

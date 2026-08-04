@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
 import { allCueTexts } from '../src/core/rules.ts';
+import { allSetupSpeech } from '../src/core/framing.ts';
 import { cueFileName } from '../src/audio/cueId.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -60,7 +61,10 @@ async function exists(path) {
   }
 }
 
-const texts = allCueTexts();
+// Corrective cues and setup instructions alike. Both are spoken mid-session
+// with the phone across the room, so both need the pre-rendered voice rather
+// than the browser's fallback synthesiser.
+const texts = [...new Set([...allCueTexts(), ...allSetupSpeech()])].sort();
 await mkdir(OUT_DIR, { recursive: true });
 
 const wanted = new Map(texts.map((text) => [cueFileName(text), text]));

@@ -100,7 +100,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (313 tes) |
+| `npm test` | Unit test (337 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -552,7 +552,45 @@ Hasil ditulis ke `eval/results/rep_accuracy.json`.
 
 ---
 
-## Dua keputusan desain yang perlu diketahui sebelum mengubah kode
+## Empat keputusan desain yang perlu diketahui sebelum mengubah kode
+
+### 0. Jangan rata-ratakan sisi kiri dan kanan begitu saja
+
+`reliableMean` di `core/angles.ts`, dan ini perbaikan terpenting yang lahir dari
+uji lapangan.
+
+MediaPipe **tidak menghilangkan** anggota badan yang tertutup — ia menebaknya,
+dan melaporkan visibility yang tetap di atas ambang mana pun yang masuk akal
+dipasang. Merata-ratakan tebakan itu dengan pembacaan yang bagus menghasilkan
+angka yang lebih buruk daripada keduanya.
+
+Ongkosnya nyata dan terukur. Dari sudut serong, push-up di posisi bawah
+menyembunyikan lengan jauh di balik badan, dan MediaPipe cenderung menebaknya
+hampir lurus. Siku dekat terbaca ~95°, yang jauh ~170°, rata-ratanya ~132° —
+tepat di bawah gate 135 pada frame bagus dan di atasnya pada frame jelek.
+Hasilnya penghitung yang bekerja selama lengan terbuka dan berhenti persis saat
+gerakannya jadi berarti: dilaporkan sebagai push-up "hampir gapernah" terhitung,
+sementara lambaian tangan acak terhitung mulus.
+
+Mekanisme yang sama membuat squat terbaca lebih dalam daripada nyatanya, jadi
+rep separuh lolos ambang kedalaman dan penggunanya malah disuruh berdiri lebih
+tegak alih-alih turun lebih dalam.
+
+Rata-rata tetap dipakai kalau kedua sisi sama-sama terlihat baik — di situ ia
+memang meredam jitter. Di luar itu, ambil sisi yang terlihat.
+
+### 0b. Sudut sendi tidak bisa menjawab "apakah gerakan ini sedang terjadi"
+
+`core/posture.ts`. Lutut yang menekuk lalu lurus terbaca identik entah orangnya
+berdiri atau berbaring — dilaporkan sebagai "kayak knee crunch dihitung asal
+kaki ditekuk trus dilurusin". Yang membedakan adalah orientasi badan, dan itu
+tidak ada di sudut sendi.
+
+Ambangnya sengaja jauh lebih longgar daripada form yang baik. Ini **bukan** rule
+form dan tidak boleh menolak repetisi nyata: squat dalam mencondongkan badan
+jauh ke depan, dan push-up dari sudut serong tidak seterbaca "datar". Yang
+ditolak hanya kasus yang tidak ambigu — orang berbaring, duduk, atau berdiri
+diam. Kalau tidak bisa memastikan, ia mengizinkan.
 
 ### 1. Gate counter harus lebih longgar daripada ambang rule
 

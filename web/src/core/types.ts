@@ -64,6 +64,24 @@ export interface JointAngles {
   kneeRight: number | null;
   /** Torso deviation from vertical, degrees. 0 = upright. */
   trunkLean: number | null;
+  /**
+   * How well each side was observed, 0..1.
+   *
+   * Carried alongside the angles because visibility is not a pass/fail gate:
+   * an occluded limb is still *reported*, just badly, and combining it with a
+   * well-seen one on equal terms corrupts the result. See `reliableMean`.
+   */
+  confidence: SideConfidence;
+}
+
+/** Mean landmark visibility for each side's joint chain. */
+export interface SideConfidence {
+  elbowLeft: number;
+  elbowRight: number;
+  hipLeft: number;
+  hipRight: number;
+  kneeLeft: number;
+  kneeRight: number;
 }
 
 /** One frame of pose data plus its capture time. */

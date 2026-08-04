@@ -69,10 +69,23 @@ body {
   color: var(--muted);
 }
 
+/*
+ * The camera, given the room it needs.
+ *
+ * It was sized as one section among several and read as a preview thumbnail —
+ * reported as "layar kamera terlalu kecil". It is not a preview: it is where
+ * the user checks their own framing from across the room, and every other
+ * control on the page is used once per set at most. So it takes what is left
+ * of the viewport, with a floor that survives a short landscape phone.
+ *
+ * `dvh` rather than `vh`: mobile browsers collapse and expand their toolbars,
+ * and `vh` is measured against the largest state, which pushes the controls
+ * below the fold exactly when the address bar is showing.
+ */
 .stage {
   position: relative;
   flex: 1;
-  min-height: 320px;
+  min-height: min(62dvh, 640px);
   overflow: hidden;
   background: #000;
   border: 1px solid var(--border);

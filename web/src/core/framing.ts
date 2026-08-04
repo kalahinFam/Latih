@@ -20,19 +20,25 @@ import { LM, type ExerciseKind, type Landmark } from './types.ts';
 
 /** Landmarks that must be present for the whole-body solve to be trustworthy. */
 const REQUIRED: Record<ExerciseKind, number[]> = {
-  // The full kinetic chain. Ankles matter even though no push-up rule reads
-  // them, because their absence degrades the shoulders and elbows.
+  /**
+   * Arms and torso. Ankles were required here on the theory that losing them
+   * destabilises the whole solve — plausible, and wrong in practice.
+   *
+   * In a real push-up the far leg is occluded by the near one essentially all
+   * the time, so the requirement never held. It did not fail loudly; it failed
+   * by leaving "telapak kaki terpotong" on screen through every set, until the
+   * banner meant nothing and the genuine framing problems it also reports were
+   * ignored with it.
+   *
+   * No push-up rule reads an ankle. Only one side of each arm chain is required
+   * for the same reason: obliquely, the far arm is a guess, and demanding it be
+   * visible is demanding a camera angle that makes the elbow unreadable.
+   */
   pushup: [
     LM.LEFT_SHOULDER,
     LM.RIGHT_SHOULDER,
-    LM.LEFT_ELBOW,
-    LM.RIGHT_ELBOW,
-    LM.LEFT_WRIST,
-    LM.RIGHT_WRIST,
     LM.LEFT_HIP,
     LM.RIGHT_HIP,
-    LM.LEFT_ANKLE,
-    LM.RIGHT_ANKLE,
   ],
   squat: [
     LM.LEFT_SHOULDER,
@@ -44,6 +50,21 @@ const REQUIRED: Record<ExerciseKind, number[]> = {
     LM.LEFT_ANKLE,
     LM.RIGHT_ANKLE,
   ],
+};
+
+/**
+ * Groups where *one* member is enough.
+ *
+ * Bilateral joints under an oblique camera are the whole reason this exists:
+ * the near arm is measured and the far one is inferred, so requiring both is
+ * requiring a viewpoint that makes the joint itself unreadable.
+ */
+const ANY_OF: Record<ExerciseKind, number[][]> = {
+  pushup: [
+    [LM.LEFT_ELBOW, LM.RIGHT_ELBOW],
+    [LM.LEFT_WRIST, LM.RIGHT_WRIST],
+  ],
+  squat: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
 };
 
 /** Below this, treat the landmark as not meaningfully observed. */
@@ -106,6 +127,12 @@ export function checkFraming(
 
   const missing = REQUIRED[exercise].filter((i) => !isUsable(landmarks[i]));
 
+  // A group counts as missing only when neither side is usable. Reported by its
+  // first member, which is enough to classify the region.
+  for (const group of ANY_OF[exercise]) {
+    if (group.every((i) => !isUsable(landmarks[i]))) missing.push(group[0]);
+  }
+
   const ys = landmarks.filter((lm) => lm.visibility >= MIN_VISIBILITY).map((lm) => lm.y);
   const bodyFill = ys.length >= 2 ? Math.max(...ys) - Math.min(...ys) : 0;
 
@@ -117,6 +144,62 @@ export function checkFraming(
   }
 
   return { ok: true, issue: null, bodyFill };
+}
+
+/**
+ * A short spoken version of the framing problem.
+ *
+ * The written banner is unreadable in the situation that produces it: the
+ * phone is propped several metres away and the user is face-down on the floor
+ * or mid-squat. Reported directly — "harusnya juga ada cue kamera yang pake
+ * suara, soalnya tulisan..." — and the sentence trailing off is the point.
+ *
+ * Deliberately terser than `framingMessage`. Spoken instructions are heard
+ * once, cannot be re-read, and compete with the room.
+ */
+export function framingSpeech(issue: FramingIssue, exercise: ExerciseKind): string {
+  switch (issue.kind) {
+    case 'no-pose':
+      return 'Kamu tidak terlihat kamera';
+    case 'too-small':
+      return 'Terlalu jauh, maju sedikit';
+    case 'out-of-frame':
+      switch (issue.missing) {
+        case 'feet':
+          return exercise === 'pushup' ? 'Geser kamera, kaki terpotong' : 'Mundur, kaki terpotong';
+        case 'hands':
+          return 'Tangan terpotong frame';
+        default:
+          return 'Badan terpotong, atur ulang kamera';
+      }
+  }
+}
+
+/** Spoken when the camera has held a good view and the set may begin. */
+export const READY_CUE = 'Posisi siap, mulai';
+
+/**
+ * Every setup phrase the app can speak, for the audio generator.
+ *
+ * Enumerated rather than derived from `framingSpeech` because the issue type is
+ * a union of shapes, not a list — and a phrase without a pre-rendered clip
+ * silently degrades to the browser's synthesiser, which is exactly the quality
+ * drop the demo video would capture.
+ */
+export function allSetupSpeech(): string[] {
+  const issues: FramingIssue[] = [
+    { kind: 'no-pose' },
+    { kind: 'too-small' },
+    { kind: 'out-of-frame', missing: 'feet' },
+    { kind: 'out-of-frame', missing: 'hands' },
+    { kind: 'out-of-frame', missing: 'body' },
+  ];
+
+  const phrases = new Set<string>([READY_CUE]);
+  for (const exercise of ['pushup', 'squat'] as ExerciseKind[]) {
+    for (const issue of issues) phrases.add(framingSpeech(issue, exercise));
+  }
+  return [...phrases].sort();
 }
 
 /** Actionable Indonesian message — what to do, not what is wrong internally. */

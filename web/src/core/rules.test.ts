@@ -3,6 +3,7 @@ import { DEFAULT_THRESHOLDS, evaluateRules, primaryCue, type RuleErrorCode } fro
 import { RepWindowBuilder, type RepWindow } from './repWindow.ts';
 import { DEFAULT_CONFIGS, RepCounter, type RepEvent } from './repCounter.ts';
 import type { ExerciseKind, JointAngles } from './types.ts';
+import { equalConfidence } from './angles.ts';
 
 function angles(overrides: Partial<JointAngles> = {}): JointAngles {
   return {
@@ -15,6 +16,8 @@ function angles(overrides: Partial<JointAngles> = {}): JointAngles {
     kneeLeft: null,
     kneeRight: null,
     trunkLean: null,
+    // Both sides equally seen: side selection is not what these test.
+    confidence: equalConfidence(),
     ...overrides,
   };
 }
@@ -213,9 +216,28 @@ describe('evaluateRules — squat', () => {
 });
 
 describe('primaryCue', () => {
-  it('returns the most severe finding', () => {
+  it('returns the most severe finding within a priority tier', () => {
     const w = windowAt({ elbowLeft: 105, elbowRight: 105, hipLeft: 120, hipRight: 120 });
     expect(primaryCue(evaluateRules('pushup', w))?.code).toBe('hip_sag');
+  });
+
+  it('puts range of motion ahead of lockout', () => {
+    // The reported failure: a quarter squat counted, and the user was told
+    // "berdiri tegak sepenuhnya". True, useless, and it reads as the app not
+    // understanding the movement. Half reps usually fail both rules at once,
+    // and normalised by the same band the lockout miss can score higher.
+    const findings = [
+      { code: 'partial_lockout' as const, cue: 'x', value: 150, threshold: 172, severity: 0.9 },
+      { code: 'shallow_depth' as const, cue: 'y', value: 128, threshold: 110, severity: 0.7 },
+    ];
+    expect(primaryCue(findings)?.code).toBe('shallow_depth');
+  });
+
+  it('still speaks lockout when it is the only fault', () => {
+    const findings = [
+      { code: 'partial_lockout' as const, cue: 'x', value: 150, threshold: 172, severity: 0.9 },
+    ];
+    expect(primaryCue(findings)?.code).toBe('partial_lockout');
   });
 
   it('returns null for a clean rep', () => {

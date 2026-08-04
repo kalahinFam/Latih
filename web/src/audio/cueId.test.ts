@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cueFileName, cueHash, cueUrl } from './cueId.ts';
 import { allCueTexts, CUE_TEXT, cueFor } from '../core/rules.ts';
 import type { ExerciseKind, JointAngles } from '../core/types.ts';
+import { equalConfidence } from '../core/angles.ts';
 
 describe('cueHash', () => {
   it('is stable for the same text', () => {
@@ -101,6 +102,7 @@ describe('rule findings carry speakable text', () => {
       kneeLeft: null,
       kneeRight: null,
       trunkLean: null,
+      confidence: equalConfidence(),
     };
 
     const builder = new RepWindowBuilder();

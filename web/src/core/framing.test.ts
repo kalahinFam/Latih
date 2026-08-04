@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CAMERA_GUIDANCE, checkFraming, framingMessage } from './framing.ts';
+import {
+  CAMERA_GUIDANCE,
+  READY_CUE,
+  allSetupSpeech,
+  checkFraming,
+  framingMessage,
+  framingSpeech,
+} from './framing.ts';
 import { LANDMARK_COUNT, LM, type Landmark } from './types.ts';
 
 function lm(x: number, y: number, visibility = 1): Landmark {
@@ -42,7 +49,7 @@ describe('checkFraming', () => {
     body[LM.LEFT_ANKLE] = lm(0.47, 1.2);
     body[LM.RIGHT_ANKLE] = lm(0.53, 1.25);
 
-    const status = checkFraming(body, 'pushup');
+    const status = checkFraming(body, 'squat');
     expect(status.ok).toBe(false);
     expect(status.issue).toEqual({ kind: 'out-of-frame', missing: 'feet' });
   });
@@ -51,16 +58,32 @@ describe('checkFraming', () => {
     const body = framedBody();
     body[LM.LEFT_ANKLE] = lm(0.47, 0.9, 0.1);
     body[LM.RIGHT_ANKLE] = lm(0.53, 0.9, 0.1);
-    expect(checkFraming(body, 'pushup').issue).toMatchObject({ missing: 'feet' });
+    expect(checkFraming(body, 'squat').issue).toMatchObject({ missing: 'feet' });
   });
 
   it('reports feet before hands when both are missing', () => {
     // Cropped feet degrade the whole-body solve most, so it is the more useful
     // instruction to give first.
     const body = framedBody();
-    body[LM.LEFT_ANKLE] = lm(0.47, 1.3);
-    body[LM.LEFT_WRIST] = lm(-0.3, 0.5);
-    expect(checkFraming(body, 'pushup').issue).toMatchObject({ missing: 'feet' });
+    for (const i of [LM.LEFT_ANKLE, LM.RIGHT_ANKLE]) body[i] = lm(0.5, 1.3);
+    for (const i of [LM.LEFT_WRIST, LM.RIGHT_WRIST]) body[i] = lm(-0.3, 0.5);
+    expect(checkFraming(body, 'squat').issue).toMatchObject({ missing: 'feet' });
+  });
+
+  it('tolerates one occluded side of a bilateral pair', () => {
+    // Under the oblique camera the guidance asks for, the far limb is always
+    // partly hidden. Requiring both sides would mean requiring a viewpoint
+    // that makes the joint itself unreadable.
+    const body = framedBody();
+    body[LM.RIGHT_ELBOW] = lm(0.6, 0.35, 0.1);
+    body[LM.RIGHT_WRIST] = lm(0.62, 0.5, 0.1);
+    expect(checkFraming(body, 'pushup').ok).toBe(true);
+  });
+
+  it('still reports hands when neither is visible', () => {
+    const body = framedBody();
+    for (const i of [LM.LEFT_WRIST, LM.RIGHT_WRIST]) body[i] = lm(0.5, 0.5, 0.1);
+    expect(checkFraming(body, 'pushup').issue).toMatchObject({ missing: 'hands' });
   });
 
   it('detects a person too far from the camera', () => {
@@ -80,13 +103,55 @@ describe('checkFraming', () => {
     expect(checkFraming(body, 'squat').ok).toBe(true);
   });
 
-  it('requires ankles for a push-up even though no push-up rule reads them', () => {
-    // MediaPipe solves the skeleton jointly, so missing ankles corrupt the
-    // elbow estimate the rep counter depends on.
+  it('does not require ankles for a push-up', () => {
+    // They were required on the theory that losing them destabilises the whole
+    // solve. In practice the far leg is occluded by the near one throughout a
+    // real push-up, so the requirement never held — it just left "telapak kaki
+    // terpotong" on screen through every set until the banner meant nothing.
     const body = framedBody();
     body[LM.LEFT_ANKLE] = lm(0.47, 1.4);
     body[LM.RIGHT_ANKLE] = lm(0.53, 1.4);
-    expect(checkFraming(body, 'pushup').ok).toBe(false);
+    expect(checkFraming(body, 'pushup').ok).toBe(true);
+  });
+
+  it('still requires ankles for a squat, which is judged from the knee', () => {
+    const body = framedBody();
+    body[LM.LEFT_ANKLE] = lm(0.47, 1.4);
+    body[LM.RIGHT_ANKLE] = lm(0.53, 1.4);
+    expect(checkFraming(body, 'squat').ok).toBe(false);
+  });
+});
+
+describe('framingSpeech', () => {
+  it('is shorter than the written message it mirrors', () => {
+    // Heard once, cannot be re-read, and competing with the room.
+    for (const issue of [
+      { kind: 'no-pose' } as const,
+      { kind: 'too-small' } as const,
+      { kind: 'out-of-frame', missing: 'feet' } as const,
+    ]) {
+      expect(framingSpeech(issue, 'pushup').length).toBeLessThan(
+        framingMessage(issue, 'pushup').length,
+      );
+    }
+  });
+
+  it('enumerates every phrase the generator must render', () => {
+    const phrases = allSetupSpeech();
+    expect(phrases).toContain(READY_CUE);
+    // A phrase without a pre-rendered clip degrades to the browser's
+    // synthesiser, which is exactly the quality drop the demo video captures.
+    for (const exercise of ['pushup', 'squat'] as const) {
+      for (const issue of [
+        { kind: 'no-pose' } as const,
+        { kind: 'too-small' } as const,
+        { kind: 'out-of-frame', missing: 'feet' } as const,
+        { kind: 'out-of-frame', missing: 'hands' } as const,
+        { kind: 'out-of-frame', missing: 'body' } as const,
+      ]) {
+        expect(phrases).toContain(framingSpeech(issue, exercise));
+      }
+    }
   });
 });
 

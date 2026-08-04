@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   bilateralMean,
   computeJointAngles,
+  equalConfidence,
   jointAngleDeg,
   primaryAngle,
+  reliableMean,
   torsoLength,
   trunkLeanDeg,
 } from './angles.ts';
@@ -151,6 +153,7 @@ describe('primaryAngle', () => {
     kneeLeft: 70,
     kneeRight: 80,
     trunkLean: null,
+    confidence: equalConfidence(),
   };
 
   it('tracks the elbow for push-ups', () => {
@@ -159,5 +162,43 @@ describe('primaryAngle', () => {
 
   it('tracks the knee for squats', () => {
     expect(primaryAngle(angles, 'squat')).toBe(75);
+  });
+});
+
+describe('reliableMean', () => {
+  it('averages two comparably-seen sides', () => {
+    // The original benefit is kept: two readings of the same joint cancel
+    // each other's jitter.
+    expect(reliableMean(90, 100, 0.9, 0.85)).toBe(95);
+  });
+
+  it('drops a side that is much less visible than the other', () => {
+    // This is the push-up failure. Obliquely, the far arm is hidden behind the
+    // torso and MediaPipe guesses it near-straight; averaging 95 with 170 gives
+    // 132, which sits under the 135 counting gate on a good frame and over it
+    // on a bad one — so real push-ups stopped counting at the bottom.
+    expect(reliableMean(95, 170, 0.85, 0.35)).toBe(95);
+    expect(reliableMean(170, 95, 0.35, 0.85)).toBe(95);
+  });
+
+  it('falls back to whichever side exists', () => {
+    expect(reliableMean(120, null, 0.9, 0.1)).toBe(120);
+    expect(reliableMean(null, 120, 0.9, 0.1)).toBe(120);
+    expect(reliableMean(null, null, 0.9, 0.9)).toBeNull();
+  });
+
+  it('keeps a badly-seen side when the other is no better', () => {
+    // Both poor is not the same as one poor. With nothing to prefer, averaging
+    // is still the least-bad estimate.
+    expect(reliableMean(80, 100, 0.3, 0.28)).toBe(90);
+  });
+
+  it('would have let the squat depth error through under plain averaging', () => {
+    // Reported as: a shallow squat counted, and the cue said "berdiri tegak
+    // sepenuhnya" instead of "turun lebih dalam". The near knee reads 128 —
+    // above the 110 depth threshold, so shallow_depth should fire. Averaged
+    // with an occluded far knee guessed at 92, it reads 110 and passes.
+    expect(bilateralMean(128, 92)).toBe(110);
+    expect(reliableMean(128, 92, 0.88, 0.32)).toBe(128);
   });
 });

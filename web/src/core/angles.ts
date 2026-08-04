@@ -19,7 +19,7 @@
  * available (some recorded datasets ship them without the world set).
  */
 
-import { LM, type JointAngles, type Landmark } from './types.ts';
+import { LM, type JointAngles, type Landmark, type SideConfidence } from './types.ts';
 
 /**
  * Below this MediaPipe visibility, a joint is treated as unobserved when
@@ -167,6 +167,40 @@ export function torsoLength(
   return len < 1e-6 ? null : len;
 }
 
+/**
+ * Confidence with both sides equal, so `reliableMean` averages them.
+ *
+ * For synthetic angle sequences — tests and the eval harness — where there is
+ * no occlusion to model and side selection is not what is under test.
+ */
+export function equalConfidence(value = 1): SideConfidence {
+  return {
+    elbowLeft: value,
+    elbowRight: value,
+    hipLeft: value,
+    hipRight: value,
+    kneeLeft: value,
+    kneeRight: value,
+  };
+}
+
+/** Mean visibility across the three landmarks forming one side's angle. */
+function chainConfidence(landmarks: Landmark[], a: number, b: number, c: number): number {
+  const values = [a, b, c].map((i) => landmarks[i]?.visibility ?? 0);
+  return (values[0] + values[1] + values[2]) / 3;
+}
+
+function confidenceOf(landmarks: Landmark[]): SideConfidence {
+  return {
+    elbowLeft: chainConfidence(landmarks, LM.LEFT_SHOULDER, LM.LEFT_ELBOW, LM.LEFT_WRIST),
+    elbowRight: chainConfidence(landmarks, LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST),
+    hipLeft: chainConfidence(landmarks, LM.LEFT_SHOULDER, LM.LEFT_HIP, LM.LEFT_KNEE),
+    hipRight: chainConfidence(landmarks, LM.RIGHT_SHOULDER, LM.RIGHT_HIP, LM.RIGHT_KNEE),
+    kneeLeft: chainConfidence(landmarks, LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
+    kneeRight: chainConfidence(landmarks, LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
+  };
+}
+
 /** All joint angles the fast loop uses, for one frame. */
 export function computeJointAngles(
   landmarks: Landmark[],
@@ -183,19 +217,63 @@ export function computeJointAngles(
     kneeLeft: g(LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
     kneeRight: g(LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
     trunkLean: trunkLeanDeg(landmarks, minVisibility),
+    confidence: confidenceOf(landmarks),
   };
 }
 
 /**
  * Mean of the two sides, or the single visible side, or null if neither.
  *
- * Averaging when both sides are visible suppresses per-joint tracker jitter;
- * falling back to one side keeps the app usable when the camera sees the body
- * from an angle, which is the common case for a phone propped against a wall.
+ * Prefer `reliableMean` for anything the product depends on. This remains for
+ * callers that genuinely have no confidence information.
  */
 export function bilateralMean(left: number | null, right: number | null): number | null {
   if (left !== null && right !== null) return (left + right) / 2;
   return left ?? right;
+}
+
+/**
+ * How far apart two sides' confidences may be before they stop being peers.
+ *
+ * Within the band, averaging still earns its keep: two comparable readings of
+ * the same joint cancel each other's jitter. Beyond it, the sides are not two
+ * measurements of one thing — one is a measurement and the other is a guess.
+ */
+export const CONFIDENCE_TIE_BAND = 0.15;
+
+/**
+ * Combine two sides, weighting by how well each was actually seen.
+ *
+ * ## The failure this exists to stop
+ *
+ * MediaPipe does not omit an occluded limb; it extrapolates one, and reports a
+ * visibility that stays well above any threshold worth setting. Averaging that
+ * guess with a good reading gives an answer worse than either.
+ *
+ * Field testing made the cost concrete. Viewed obliquely, a push-up at the
+ * bottom has the far arm hidden behind the torso, and MediaPipe tends to guess
+ * it near-straight. The near elbow reads ~95 degrees, the far one ~170, and the
+ * mean lands around 132 — a hair under the 135 gate on a good frame and above
+ * it on a bad one. The result is a rep counter that works while the arms are
+ * apart and stops exactly when the movement gets interesting: reported as
+ * push-ups "hampir gapernah" counting, while random arm waving counted fine.
+ *
+ * The same mechanism made squats read deeper than they were, so a partial rep
+ * passed the depth rule and the user was told to stand up straighter instead of
+ * to squat lower.
+ */
+export function reliableMean(
+  left: number | null,
+  right: number | null,
+  confLeft: number,
+  confRight: number,
+  tieBand = CONFIDENCE_TIE_BAND,
+): number | null {
+  if (left === null) return right;
+  if (right === null) return left;
+
+  if (Math.abs(confLeft - confRight) <= tieBand) return (left + right) / 2;
+  return confLeft > confRight ? left : right;
 }
 
 /**
@@ -205,9 +283,10 @@ export function bilateralMean(left: number | null, right: number | null): number
  * has the largest, most reliable range of motion through the movement.
  */
 export function primaryAngle(angles: JointAngles, exercise: 'pushup' | 'squat'): number | null {
+  const c = angles.confidence;
   return exercise === 'pushup'
-    ? bilateralMean(angles.elbowLeft, angles.elbowRight)
-    : bilateralMean(angles.kneeLeft, angles.kneeRight);
+    ? reliableMean(angles.elbowLeft, angles.elbowRight, c.elbowLeft, c.elbowRight)
+    : reliableMean(angles.kneeLeft, angles.kneeRight, c.kneeLeft, c.kneeRight);
 }
 
 /**
@@ -225,13 +304,19 @@ export function primaryAngleForCounting(
   minVisibility = COUNTING_MIN_VISIBILITY,
 ): number | null {
   const g = (a: number, b: number, c: number) => gatedAngle(landmarks, minVisibility, a, b, c);
+  const conf = (a: number, b: number, c: number) => chainConfidence(landmarks, a, b, c);
+
   return exercise === 'pushup'
-    ? bilateralMean(
+    ? reliableMean(
         g(LM.LEFT_SHOULDER, LM.LEFT_ELBOW, LM.LEFT_WRIST),
         g(LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST),
+        conf(LM.LEFT_SHOULDER, LM.LEFT_ELBOW, LM.LEFT_WRIST),
+        conf(LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST),
       )
-    : bilateralMean(
+    : reliableMean(
         g(LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
         g(LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
+        conf(LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
+        conf(LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
       );
 }

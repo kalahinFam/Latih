@@ -12,10 +12,14 @@ import { computeJointAngles, primaryAngleForCounting } from '../core/angles.ts';
 import { LiveDepthCue } from '../core/liveCue.ts';
 import {
   CAMERA_GUIDANCE,
+  READY_CUE,
+  allSetupSpeech,
   checkFraming,
   framingMessage,
+  framingSpeech,
   type FramingIssue,
 } from '../core/framing.ts';
+import { checkPosture, handsPlanted, postureMessage, type PostureIssue } from '../core/posture.ts';
 import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
 import { MedianFilter } from '../core/smoothing.ts';
@@ -46,11 +50,31 @@ const NO_POSE_GRACE_MS = 700;
  */
 const CUE_VISIBLE_MS = 2200;
 
+/**
+ * How often the same framing problem may be spoken again.
+ *
+ * Long enough not to nag, short enough that someone who was mid-repetition the
+ * first time still hears it.
+ */
+const FRAMING_SPEECH_INTERVAL_MS = 8000;
+
+/**
+ * How long framing must stay good before counting begins.
+ *
+ * A set that starts the instant the camera glimpses a body starts while the
+ * user is still walking into position, and the first "repetition" is them
+ * lying down. Holding for a moment also gives them time to see that the
+ * skeleton has locked on, which is the only feedback that the setup worked.
+ */
+const READY_HOLD_MS = 1200;
+
 type Status =
   | { kind: 'idle' }
   | { kind: 'loading'; message: string }
   | { kind: 'running' }
   | { kind: 'framing'; message: string }
+  | { kind: 'posture'; message: string }
+  | { kind: 'arming' }
   | { kind: 'low-confidence' }
   | { kind: 'error'; message: string };
 
@@ -125,6 +149,26 @@ export class CameraView {
    * camera setup. Turns the next round of feedback into a number.
    */
   private nullAngleFrames = 0;
+  /**
+   * Frames rejected because the body was not in the movement. Surfaced with the
+   * other counters so "why did nothing count" has a number behind it.
+   */
+  private implausibleFrames = 0;
+  /**
+   * When the framing problem currently on screen may next be spoken.
+   *
+   * Repeating it every frame would be unusable, and saying it once would miss
+   * the user who was mid-rep and did not hear it.
+   */
+  private framingSpokenUntilMs = 0;
+  private lastSpokenFraming: string | null = null;
+  /**
+   * Counting is suspended until the camera has held a good view. Set once per
+   * set; a framing problem mid-set warns but does not disarm, because stopping
+   * the count halfway through someone's set is worse than a few noisy frames.
+   */
+  private armed = false;
+  private goodFramingSinceMs: number | null = null;
 
   constructor(el: CameraViewElements) {
     this.el = el;
@@ -140,7 +184,7 @@ export class CameraView {
       // Synchronously inside the gesture handler. Awaiting anything first
       // would spend the user activation and leave the first cue silent.
       this.voice.unlock();
-      this.voice.preloadCues(allCueTexts());
+      this.voice.preloadCues([...allCueTexts(), ...allSetupSpeech()]);
       void this.toggle();
     });
     el.exerciseSelect.addEventListener('change', () => {
@@ -273,7 +317,12 @@ export class CameraView {
     this.trackedFrames = 0;
     this.heldFrames = 0;
     this.nullAngleFrames = 0;
+    this.implausibleFrames = 0;
     this.cueUntilMs = 0;
+    this.lastSpokenFraming = null;
+    this.framingSpokenUntilMs = 0;
+    this.armed = false;
+    this.goodFramingSinceMs = null;
     this.el.cue.hidden = true;
   }
 
@@ -376,9 +425,25 @@ export class CameraView {
       // Judging angles use the strict visibility bar; the counting angle uses
       // the lenient one. Same landmarks, two different questions.
       const angles = computeJointAngles(detection.frame.landmarks);
+
+      // Is the body even in this movement? A knee that bends and straightens
+      // reads the same lying down as standing, so the joint angle alone cannot
+      // tell — and without this, arbitrary limb movement counts as reps.
+      const posture = checkPosture(detection.frame.landmarks, this.exercise);
+      const plausible =
+        posture.plausible &&
+        (this.exercise !== 'pushup' || handsPlanted(detection.frame.landmarks));
+
+      this.updateArming(framing.ok && posture.plausible, frameStart);
+
+      // Feed null when the body is not in the movement, or before the set is
+      // armed. The counter already treats null as "hold", which is exactly the
+      // behaviour wanted in both cases.
+      const countable = plausible && this.armed;
       const angle = this.smoother.push(
-        primaryAngleForCounting(detection.frame.landmarks, this.exercise),
+        countable ? primaryAngleForCounting(detection.frame.landmarks, this.exercise) : null,
       );
+      if (!plausible) this.implausibleFrames += 1;
       this.windows.push(detection.frame.timestampMs, angles);
 
       const phaseBefore = this.counter.status.phase;
@@ -411,7 +476,10 @@ export class CameraView {
       drawSkeleton(this.ctx, detection.normalized);
       // Framing outranks low confidence: a cropped body is *why* confidence is
       // low, and "step back" is something the user can act on.
-      this.setStatus(this.framingOrTrackingStatus(framing.issue));
+      this.setStatus(this.framingOrTrackingStatus(framing.issue, posture.issue));
+      // Only nag about framing while it still blocks the set. Once armed, a
+      // transient issue is reported on screen and left alone.
+      if (!this.armed) this.speakFraming(framing.issue, frameStart);
     }
 
     this.expireCue(frameStart);
@@ -443,10 +511,62 @@ export class CameraView {
     this.el.guideNote.textContent = guidance.note;
   }
 
-  private framingOrTrackingStatus(issue: FramingIssue | null): Status {
+  /**
+   * Arm the set once the view has been good for long enough.
+   *
+   * One-way: it never disarms. Framing that wobbles mid-set should warn, not
+   * stop counting — a counter that silently switches itself off partway through
+   * a set is indistinguishable from one that is broken.
+   */
+  private updateArming(good: boolean, nowMs: number): void {
+    if (this.armed) return;
+
+    if (!good) {
+      this.goodFramingSinceMs = null;
+      return;
+    }
+
+    this.goodFramingSinceMs ??= nowMs;
+    if (nowMs - this.goodFramingSinceMs >= READY_HOLD_MS) {
+      this.armed = true;
+      this.voice.playCue(READY_CUE);
+    }
+  }
+
+  private framingOrTrackingStatus(
+    issue: FramingIssue | null,
+    posture: PostureIssue | null,
+  ): Status {
+    // Framing first: if the camera cannot see the body, every other reading is
+    // downstream of that.
     if (issue) return { kind: 'framing', message: framingMessage(issue, this.exercise) };
+    if (posture) return { kind: 'posture', message: postureMessage(posture) };
+    if (!this.armed) return { kind: 'arming' };
     if (this.counter.status.holding) return { kind: 'low-confidence' };
     return { kind: 'running' };
+  }
+
+  /**
+   * Say the framing problem aloud, at a survivable rate.
+   *
+   * The banner is written for a phone in the hand; this is for a phone across
+   * the room while the user is face-down on the floor. Repeated only after the
+   * interval, and only while the same problem persists — a new problem speaks
+   * immediately, because it is new information.
+   */
+  private speakFraming(issue: FramingIssue | null, nowMs: number): void {
+    if (!issue) {
+      this.lastSpokenFraming = null;
+      return;
+    }
+
+    const phrase = framingSpeech(issue, this.exercise);
+    const changed = phrase !== this.lastSpokenFraming;
+    if (!changed && nowMs < this.framingSpokenUntilMs) return;
+
+    this.lastSpokenFraming = phrase;
+    this.framingSpokenUntilMs = nowMs + FRAMING_SPEECH_INTERVAL_MS;
+    this.voice.playCue(phrase);
   }
 
   private setStatus(status: Status): void {
@@ -514,6 +634,8 @@ const STATUS_MESSAGE: Record<Status['kind'], (status: Status) => string | null> 
   running: () => null,
   loading: (s) => (s.kind === 'loading' ? s.message : null),
   framing: (s) => (s.kind === 'framing' ? s.message : null),
+  posture: (s) => (s.kind === 'posture' ? s.message : null),
+  arming: () => 'Posisi terbaca. Tahan sebentar…',
   'low-confidence': () => 'Pencahayaan kurang — hitungan ditahan sementara.',
   error: (s) => (s.kind === 'error' ? s.message : null),
 };
