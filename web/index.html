@@ -130,23 +130,41 @@
           </span>
         </header>
 
-        <div class="sheet">
+        <!--
+          A two-stage sheet. Collapsed it is one line: the state, and the single
+          thing to fix. The full checklist is a tap away.
+
+          The reason is the screen's whole purpose — a checklist is only useful
+          until you know what is wrong, and after that what you need is to see
+          your own body. A panel covering half the frame prevents exactly the
+          thing it is asking you to do.
+        -->
+        <div class="setup" id="setupSheet" data-expanded="true" data-ready="false">
+          <button
+            class="setup__bar"
+            id="setupToggle"
+            type="button"
+            aria-expanded="true"
+            aria-controls="setupDetail"
+          >
+            <span class="setup__dot" aria-hidden="true"></span>
+            <span class="setup__line">
+              <span class="setup__title" id="setupBarTitle">ATUR POSISI</span>
+              <span class="setup__sub" id="setupBarSub">Menyiapkan kamera…</span>
+            </span>
+            <span class="setup__count" id="setupReadyCount" hidden></span>
+            <span class="setup__chevron" data-icon="chevron" aria-hidden="true"></span>
+          </button>
+
           <!-- Only the first two rows have live ticks. The app measures whether
                the body is in frame, and estimates distance from how much of the
                frame it fills. Camera angle and height are not measured at all,
                so they are given as instructions rather than dressed up as
                checks that passed. -->
-          <ul class="checks" id="setupChecks"></ul>
-
-          <div class="ready" id="setupReady" data-ready="false">
-            <div>
-              <div class="ready__title" id="setupReadyTitle">ATUR POSISI</div>
-              <div class="ready__sub" id="setupReadySub">Ikuti panduan di bawah</div>
-            </div>
-            <div class="ready__count" id="setupReadyCount">—</div>
+          <div class="setup__detail" id="setupDetail">
+            <ul class="checks" id="setupChecks"></ul>
+            <p class="sheet__note" id="setupNote"></p>
           </div>
-
-          <p class="sheet__note" id="setupNote"></p>
         </div>
       </section>
 

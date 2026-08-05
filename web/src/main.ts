@@ -89,7 +89,6 @@ function finishSet(): void {
 const setupScreen = createSetupScreen({
   getExercise: () => exercise,
   onReady: () => router.go('latihan'),
-  onSpeak: (text) => engine.speak(text),
 });
 
 engine.onReadiness((readiness: Readiness) => setupScreen.update(readiness));

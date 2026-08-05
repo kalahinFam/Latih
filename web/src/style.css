@@ -155,8 +155,22 @@ body {
   padding: max(2.4rem, env(safe-area-inset-top)) 1.6rem 0;
 }
 
+/*
+ * A scrim, because there is no controlling what is behind it. Photographed
+ * against a lit wall the white title was very nearly invisible, and a browser
+ * URL bar sits in the same band — hence the extra top padding too.
+ */
 .screen__bar--onDark {
   justify-content: space-between;
+  padding-top: calc(max(2.4rem, env(safe-area-inset-top)) + 1.4rem);
+  padding-bottom: 1.4rem;
+  background: linear-gradient(to bottom, rgba(13, 18, 24, 0.72), transparent);
+}
+
+.screen__bar--onDark .hud__movement,
+.screen__bar--onDark .hud__voice {
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(13, 18, 24, 0.55);
 }
 
 .screen__title {
@@ -653,52 +667,6 @@ body {
   color: var(--grey);
 }
 
-.ready {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 1rem;
-  padding: 1.25rem 1.35rem;
-  background: #f1f3f2;
-  border-radius: 18px;
-  transition: background 200ms ease;
-}
-
-.ready[data-ready='true'] {
-  background: var(--sage);
-}
-
-.ready__title {
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--grey-deep);
-}
-
-.ready__sub {
-  margin-top: 0.2rem;
-  font-size: 0.81rem;
-  font-weight: 500;
-  color: var(--grey);
-}
-
-.ready__count {
-  font-size: 3.1rem;
-  font-weight: 800;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--grey-faint);
-}
-
-.ready[data-ready='true'] .ready__title,
-.ready[data-ready='true'] .ready__count {
-  color: #fff;
-}
-
-.ready[data-ready='true'] .ready__sub {
-  color: rgb(255 255 255 / 80%);
-}
-
 .focus {
   margin-top: 1.1rem;
   padding: 0.15rem 0 0.15rem 0.85rem;
@@ -1063,7 +1031,6 @@ body {
   border-color: var(--danger);
 }
 
-
 /* ---------------------------------------------------------------------------
  * Active workout HUD.
  *
@@ -1254,7 +1221,6 @@ body {
   );
 }
 
-
 /*
  * Setup and tracking warnings.
  *
@@ -1340,4 +1306,132 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ------------------------------------------------- camera setup sheet (3) */
+
+/*
+ * Two stages. Collapsed it is a single bar; expanded it adds the checklist.
+ *
+ * The first build was a fixed sheet holding the whole list, and on a phone it
+ * took half the frame — the screen telling the user to fix their position was
+ * covering the only thing that would let them fix it. Collapsed, this leaves
+ * roughly 88% of the viewport to the camera.
+ */
+.setup {
+  margin-top: auto;
+  color: var(--ink);
+  background: var(--paper);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -10px 30px rgb(13 18 24 / 22%);
+  /* Clear of the iOS home indicator in both stages. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.setup__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 1.05rem 1.25rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 24px 24px 0 0;
+  cursor: pointer;
+}
+
+/* Ready is the one state worth colouring the whole bar for. */
+.setup[data-ready='true'] .setup__bar {
+  color: #fff;
+  background: var(--sage);
+}
+
+.setup__dot {
+  width: 11px;
+  height: 11px;
+  background: var(--amber);
+  border-radius: 50%;
+  flex: none;
+}
+
+.setup[data-ready='true'] .setup__dot {
+  background: #fff;
+}
+
+.setup__line {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup__title {
+  display: block;
+  font-size: 0.94rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* The single thing to fix. One line, clipped rather than wrapped, so the bar
+   keeps a fixed height as the message changes. */
+.setup__sub {
+  display: block;
+  margin-top: 0.1rem;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--grey);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup[data-ready='true'] .setup__sub {
+  color: rgb(255 255 255 / 82%);
+}
+
+/* One slot, two meanings: the checks passed, then the countdown. Fixed width
+   so the bar does not shift as it switches. */
+.setup__count {
+  min-width: 2.4rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--grey-faint);
+  text-align: right;
+  flex: none;
+}
+
+.setup[data-ready='true'] .setup__count {
+  font-size: 2.1rem;
+  color: #fff;
+}
+
+.setup__chevron {
+  display: flex;
+  color: var(--grey-faint);
+  transition: transform 200ms ease;
+  flex: none;
+}
+
+.setup[data-expanded='true'] .setup__chevron {
+  transform: rotate(180deg);
+}
+
+.setup[data-ready='true'] .setup__chevron {
+  color: rgb(255 255 255 / 75%);
+}
+
+.setup__detail {
+  max-height: 46dvh;
+  padding: 0 1.25rem 0.5rem;
+  overflow-y: auto;
+}
+
+.setup__detail[hidden] {
+  display: none;
+}
+
+.setup__detail .sheet__note {
+  padding-bottom: 1rem;
 }

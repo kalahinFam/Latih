@@ -1,23 +1,32 @@
 /**
  * 3 · Posisi kamera.
  *
+ * ## Why the panel collapses
+ *
+ * The first build put the whole checklist in a fixed sheet, and on a phone it
+ * covered half the frame — so the screen asking the user to fix their position
+ * was hiding the only thing that would let them fix it.
+ *
+ * A checklist is useful until you know what is wrong. After that what you need
+ * is to see yourself. So the sheet has two stages: collapsed it is one line —
+ * the state, and the single thing to fix — and the full list is a tap away. It
+ * collapses itself the moment a pose is detected, which is exactly the moment
+ * the camera becomes more useful than the text.
+ *
  * ## Which rows carry a tick, and why the others do not
  *
- * The design shows four checks. The app can genuinely measure two of them:
- * whether the whole body is inside the frame, and roughly how far away the
- * person is — `bodyFill`, the share of frame height the body spans, which is a
- * real measurement even though it is not metres.
+ * The app genuinely measures two things: whether the whole body is inside the
+ * frame, and roughly how far away the person is — `bodyFill`, the share of
+ * frame height the body spans.
  *
  * It cannot measure camera angle or camera height at all. Nothing in the
- * pipeline estimates either. Those two rows are therefore shown as written
- * guidance with no tick and no value: the tick means *the app checked this*,
- * and a tick that meant "we assume so" would make the other two worthless. A
- * judge asking how the 30–45° check works deserves an answer better than a
- * green circle.
+ * pipeline estimates either. Those rows are written guidance with no tick: the
+ * tick means *the app checked this*, and a tick meaning "we assume so" would
+ * make the other two worthless.
  *
- * Distance is stated as a range in body-fill terms rather than a number in
- * metres, because metres would be a conversion the app cannot justify: it
- * depends on lens field of view and on the person's height, and it has neither.
+ * Distance is stated in body-fill terms rather than metres, because metres
+ * would need the lens field of view and the person's height and the app has
+ * neither.
  */
 
 import { CAMERA_GUIDANCE } from '../../core/framing.ts';
@@ -30,9 +39,9 @@ import type { ExerciseKind } from '../../core/types.ts';
 /**
  * Body height as a share of frame height that reads as a workable distance.
  *
- * The lower bound is `MIN_BODY_FILL` in `core/framing.ts`, which is what
- * actually gates readiness; above the upper bound the person is close enough
- * that limbs start leaving the frame during the movement.
+ * The lower bound is `MIN_BODY_FILL` in `core/framing.ts`, which is what gates
+ * readiness; above the upper bound the person is close enough that limbs start
+ * leaving the frame during the movement.
  */
 const FILL_GOOD = { min: 0.25, max: 0.92 };
 
@@ -44,29 +53,41 @@ export interface SetupDeps {
   getExercise: () => ExerciseKind;
   /** Fires when the countdown completes. */
   onReady: () => void;
-  onSpeak: (text: string) => void;
 }
 
 export function createSetupScreen(deps: SetupDeps): Screen & {
   update: (readiness: Readiness) => void;
 } {
   const title = required('#setupTitle');
+  const sheet = required('#setupSheet');
+  const toggle = required<HTMLButtonElement>('#setupToggle');
+  const detail = required('#setupDetail');
+  const barTitle = required('#setupBarTitle');
+  const barSub = required('#setupBarSub');
+  const count = required('#setupReadyCount');
   const checks = required('#setupChecks');
-  const ready = required('#setupReady');
-  const readyTitle = required('#setupReadyTitle');
-  const readySub = required('#setupReadySub');
-  const readyCount = required('#setupReadyCount');
   const note = required('#setupNote');
 
   let active = false;
   let countdown: number | null = null;
   let timer: number | null = null;
+  /** Cleared once a pose arrives, so the auto-collapse happens exactly once. */
+  let awaitingFirstPose = true;
 
-  function row(
-    state: 'ok' | 'pending' | 'info',
-    text: string,
-    value?: string,
-  ): HTMLElement {
+  function setExpanded(expanded: boolean): void {
+    sheet.dataset.expanded = String(expanded);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    detail.hidden = !expanded;
+  }
+
+  toggle.addEventListener('click', () => {
+    // A manual tap ends the automatic behaviour: after this the sheet is the
+    // user's to open and close.
+    awaitingFirstPose = false;
+    setExpanded(sheet.dataset.expanded !== 'true');
+  });
+
+  function row(state: 'ok' | 'pending' | 'info', text: string, value?: string): HTMLElement {
     const mark = el('span', { class: 'check__mark', 'data-state': state, 'aria-hidden': 'true' });
 
     // Drawn rather than typed: "✓" and "i" land on whatever glyph the device
@@ -84,31 +105,43 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
     );
   }
 
+  /**
+   * Is the distance workable?
+   *
+   * Gated on framing, not only on `bodyFill`. Body fill is measured over the
+   * landmarks that *are* visible, so a head alone can produce a plausible
+   * number — which is how a screenshot ended up showing "Jarak pas ✓" beside a
+   * frame containing nothing but the top of someone's head. A distance reading
+   * means nothing until the body is actually in shot.
+   */
+  function distanceOk(readiness: Readiness | null): boolean {
+    if (!readiness?.hasPose || !readiness.framingOk) return false;
+    return readiness.bodyFill >= FILL_GOOD.min && readiness.bodyFill <= FILL_GOOD.max;
+  }
+
   function renderChecks(readiness: Readiness | null): void {
-    const exercise = deps.getExercise();
-    const guidance = CAMERA_GUIDANCE[exercise];
-    const fill = readiness?.bodyFill ?? 0;
-    const distanceOk = fill >= FILL_GOOD.min && fill <= FILL_GOOD.max;
+    const guidance = CAMERA_GUIDANCE[deps.getExercise()];
+    const framingOk = readiness?.framingOk === true;
+    const distance = distanceOk(readiness);
 
     checks.replaceChildren(
+      row(framingOk ? 'ok' : 'pending', 'Seluruh badan terlihat'),
       row(
-        readiness?.framingOk ? 'ok' : 'pending',
-        'Seluruh badan terlihat',
-      ),
-      row(
-        readiness?.hasPose && distanceOk ? 'ok' : 'pending',
+        distance ? 'ok' : 'pending',
         `Jarak pas — ${guidance.distance}`,
-        // Body fill is what is actually measured, so body fill is what is
-        // shown. Converting it to metres would need the lens field of view and
-        // the person's height, and the app has neither.
-        readiness?.hasPose ? `badan ${Math.round(fill * 100)}% tinggi layar` : undefined,
+        // Body fill is what is measured, so body fill is what is shown.
+        readiness?.hasPose ? `badan ${Math.round(readiness.bodyFill * 100)}% tinggi layar` : undefined,
       ),
-      // No tick: not measured.
       row('info', guidance.angle),
       row('info', `Tinggi kamera ${guidance.height}`),
     );
 
     note.textContent = guidance.note;
+  }
+
+  function passedCount(readiness: Readiness | null): string {
+    const passed = (readiness?.framingOk ? 1 : 0) + (distanceOk(readiness) ? 1 : 0);
+    return `${passed}/2`;
   }
 
   function stopCountdown(): void {
@@ -117,30 +150,37 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
     countdown = null;
   }
 
-  function renderReady(readiness: Readiness | null): void {
+  function renderBar(readiness: Readiness | null): void {
     const isReady = readiness?.ready === true;
-    ready.dataset.ready = String(isReady);
+    sheet.dataset.ready = String(isReady);
 
-    if (!isReady) {
-      stopCountdown();
-      readyTitle.textContent = 'ATUR POSISI';
-      readySub.textContent = readiness?.message ?? 'Ikuti panduan di bawah';
-      readyCount.textContent = '—';
+    if (isReady) {
+      barTitle.textContent = 'POSISI SIAP';
+      barSub.textContent = 'Tahan posisi, hitungan mulai';
+      count.hidden = false;
+
+      if (countdown === null) {
+        countdown = COUNTDOWN_FROM;
+        tick();
+      }
+      count.textContent = String(countdown);
       return;
     }
 
-    readyTitle.textContent = 'POSISI SIAP';
-    readySub.textContent = 'Tahan posisi, hitungan mulai';
-
-    if (countdown === null) {
-      countdown = COUNTDOWN_FROM;
-      tick();
-    }
-    readyCount.textContent = String(countdown);
+    stopCountdown();
+    // The same slot carries the tally while the position is still being set,
+    // so the bar never changes width as it switches.
+    count.hidden = false;
+    count.textContent = passedCount(readiness);
+    barTitle.textContent = 'ATUR POSISI';
+    // The single thing to fix. This is the whole point of the collapsed state:
+    // one instruction, not a list to work through.
+    barSub.textContent =
+      readiness?.message ?? (readiness?.hasPose ? 'Tahan posisi sebentar' : 'Berdiri di depan kamera');
   }
 
   function tick(): void {
-    readyCount.textContent = String(countdown);
+    count.textContent = String(countdown);
     timer = window.setTimeout(() => {
       if (!active) return;
       countdown = (countdown ?? 1) - 1;
@@ -157,10 +197,14 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
   return {
     enter() {
       active = true;
+      awaitingFirstPose = true;
       stopCountdown();
       title.textContent = `POSISI KAMERA · ${deps.getExercise() === 'pushup' ? 'PUSH-UP' : 'SQUAT'}`;
+      // Open to begin with: before a pose exists there is nothing to look at,
+      // so the guidance is the most useful thing on screen.
+      setExpanded(true);
       renderChecks(null);
-      renderReady(null);
+      renderBar(null);
     },
 
     leave() {
@@ -170,8 +214,16 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
 
     update(readiness: Readiness) {
       if (!active) return;
+
+      if (awaitingFirstPose && readiness.hasPose) {
+        // The camera has found them. From here the frame is worth more than
+        // the list.
+        awaitingFirstPose = false;
+        setExpanded(false);
+      }
+
       renderChecks(readiness);
-      renderReady(readiness);
+      renderBar(readiness);
     },
   };
 }

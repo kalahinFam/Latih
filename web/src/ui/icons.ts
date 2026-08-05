@@ -37,6 +37,7 @@ const PATHS: Record<string, string[]> = {
   // Sliders, not a gear: far more legible at 20 px than eight tiny teeth.
   pengaturan: ['M4 8h3', 'M13 8h7', 'M4 16h9', 'M19 16h1'],
   kembali: ['M15 5l-7 7 7 7'],
+  chevron: ['M6 15l6-6 6 6'],
   centang: ['M5 12.5l4.5 4.5L19 7.5'],
   info: ['M12 11.5v5', 'M12 7.8v.01'],
 };
