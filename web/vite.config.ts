@@ -20,7 +20,11 @@ const here = import.meta.dirname;
  */
 export default defineConfig({
   plugins: [apiPlugin()],
-  server: { port: 5174 },
+  server: { 
+    port: 5174,
+    host: true,
+    allowedHosts: true,   // ini perlu diganti di production
+  },
   preview: { port: 5174 },
   build: {
     rollupOptions: {
