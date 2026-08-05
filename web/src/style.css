@@ -1,36 +1,41 @@
 /*
- * Dark, high-contrast, and sized for a phone propped across a room.
+ * LATIH — mobile app shell.
  *
- * Legibility on camera is the constraint that shapes this file: the demo video
- * is judged, and a rep counter that cannot be read at two metres is a counter
- * the viewer has to take on trust.
+ * Two visual registers, and the split is the design's central idea:
+ *
+ *   Over the camera — read from ~2 m, at floor level, while moving. Dark, one
+ *   enormous number, colour as the signal.
+ *
+ *   Everywhere else — read at arm's length. White, one large number per screen,
+ *   everything else 12–15 px.
+ *
+ * Sage marks active states, progress, and the primary action. Amber marks a
+ * detected form error and nothing else. A colour that appears anywhere else
+ * would cost both of them their meaning.
  */
 
 :root {
-  /*
-   * Palette from the LATIH design document.
-   *
-   * Two signal colours and nothing else: sage means the form is right, amber
-   * means there is a correction. Everything not carrying that signal is ink,
-   * white, or a grey — so when a colour appears it means something, which is
-   * the whole point at two metres.
-   */
   --ink: #151d28;
   --bg: #0d1218;
-  --surface: #131c31;
-  --border: #24304d;
-  --text: #e8eefc;
-  --muted: #93a3c4;
+  --paper: #ffffff;
+  --line: #e6e8ea;
+  --line-soft: #eff1f2;
+  --grey: #8a929c;
+  --grey-deep: #6e7683;
+  --grey-faint: #a7acb4;
   --sage: #549c89;
   --sage-deep: #3f7b6b;
+  --sage-wash: rgba(84, 156, 137, 0.13);
   --amber: #e0952b;
-
-  /* Legacy aliases, so existing panels keep working while the design lands. */
-  --accent: var(--sage);
-  --warn: var(--amber);
   --danger: #f87171;
 
-  color-scheme: dark;
+  /* Legacy aliases, kept so the annotation tool still resolves. */
+  --surface: #131c31;
+  --border: var(--line);
+  --text: var(--ink);
+  --muted: var(--grey);
+  --accent: var(--sage);
+  --warn: var(--amber);
 }
 
 * {
@@ -43,92 +48,1000 @@ body {
   height: 100%;
 }
 
+/*
+ * A fixed shell, not a scrolling page.
+ *
+ * The tab bar has to stay put while content moves under it, and only one
+ * region may scroll — a page that scrolls as a whole *and* has an inner
+ * scroller is the thing that feels like a website rather than an app.
+ */
 body {
-  background: var(--bg);
-  color: var(--text);
-  /*
-   * Plus Jakarta Sans per the design, with a system stack behind it. The link
-   * in the document head is not blocking and not cached by the service worker:
-   * offline, the layout renders identically in the fallback because every size
-   * here is explicit. A webfont must never be on the path to the rep counter
-   * working.
-   */
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-.app {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  min-height: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 0.75rem;
-  /* Keeps the controls clear of the iOS home indicator. */
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
 }
 
-.app__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.app__title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.app__perf {
-  margin: 0;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
+/* ------------------------------------------------------------ camera layer */
 
 /*
- * The camera, given the room it needs.
- *
- * It was sized as one section among several and read as a preview thumbnail —
- * reported as "layar kamera terlalu kecil". It is not a preview: it is where
- * the user checks their own framing from across the room, and every other
- * control on the page is used once per set at most. So it takes what is left
- * of the viewport, with a floor that survives a short landscape phone.
- *
- * `dvh` rather than `vh`: mobile browsers collapse and expand their toolbars,
- * and `vh` is measured against the largest state, which pushes the controls
- * below the fold exactly when the address bar is showing.
+ * Behind the screens, never removed from the document. Re-parenting a playing
+ * <video> to move it between the setup and workout screens stalls the stream —
+ * at exactly the moment the user is already on the floor waiting.
  */
-.stage {
-  position: relative;
-  flex: 1;
-  min-height: min(62dvh, 640px);
-  overflow: hidden;
-  background: #000;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+.camera-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--bg);
 }
 
-.stage__video,
-.stage__overlay {
+.camera-layer[hidden] {
+  display: none;
+}
+
+.camera-layer__video,
+.camera-layer__overlay {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  /* Both use the same box and the same fit, so the skeleton stays registered
-     with the body without any per-frame layout maths. */
+  /* Same box and same fit for both, so the skeleton stays registered with the
+     body without per-frame layout maths. */
   object-fit: cover;
 }
 
-.stage__video {
+.camera-layer__video {
   /* Mirrored to match how people expect a front camera to behave. The skeleton
      renderer mirrors its own coordinates to match. */
   transform: scaleX(-1);
 }
+
+/* ------------------------------------------------------------------ screens */
+
+.app {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  /* min-height:0 lets the inner scroller shrink instead of pushing the tab
+     bar off the bottom of the viewport. */
+  min-height: 0;
+}
+
+.screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  /* A gentle sage lift from the bottom, per the design's light screens. */
+  background-image: linear-gradient(
+    to top,
+    var(--sage-wash) 0%,
+    rgba(84, 156, 137, 0.05) 18%,
+    rgba(84, 156, 137, 0) 42%
+  );
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+/*
+ * Screens sitting on the camera: transparent, light text, no gradient.
+ * Positioned, because the HUD, the wash, the banner and the floating action
+ * are all absolute against it.
+ */
+.screen--over-camera {
+  position: relative;
+  background-image: none;
+  color: #fff;
+}
+
+.screen--dim {
+  background-color: rgba(13, 18, 24, 0.55);
+}
+
+.screen__bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: max(2.4rem, env(safe-area-inset-top)) 1.6rem 0;
+}
+
+.screen__bar--onDark {
+  justify-content: space-between;
+}
+
+.screen__title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.screen__date,
+.screen__rest {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--grey);
+}
+
+.screen__rest {
+  color: rgb(255 255 255 / 55%);
+}
+
+/* The only scrolling region on any screen. */
+.screen__body {
+  flex: 1;
+  min-height: 0;
+  padding: 1.5rem 1.6rem 1.5rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.screen__note {
+  margin: 1.4rem 1.6rem 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--grey);
+}
+
+.screen__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1.1rem 1.6rem 1.6rem;
+}
+
+/* Floats over the camera rather than taking layout space from it. */
+.screen__actions--float {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding-bottom: max(1.6rem, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.screen__actions--float .btn {
+  pointer-events: auto;
+}
+
+.wordmark {
+  flex: 1;
+  font-size: 0.94rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+}
+
+/* ------------------------------------------------------------------ controls */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Comfortably above the 44 px minimum: pressed mid-workout, with imprecise
+     aim, sometimes from the floor. */
+  min-height: 60px;
+  padding: 0 1.2rem;
+  font: inherit;
+  font-size: 1.06rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 18px;
+  cursor: pointer;
+}
+
+.btn--primary {
+  color: #fff;
+  background: var(--sage);
+}
+
+.btn--outline {
+  min-height: 52px;
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+.btn--quiet {
+  min-height: 44px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--grey-deep);
+  background: transparent;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible,
+.iconbtn:focus-visible,
+.tab:focus-visible,
+.chip:focus-visible,
+.pick:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+.iconbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  font: inherit;
+  font-size: 1.05rem;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  flex: none;
+}
+
+.iconbtn--onDark {
+  color: #fff;
+  border-color: rgb(255 255 255 / 28%);
+}
+
+/* --------------------------------------------------------------- components */
+
+.greeting__title {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.greeting__sub {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--grey-deep);
+}
+
+.greeting__sub:empty {
+  display: none;
+}
+
+.card {
+  margin-top: 1.9rem;
+  padding: 1.4rem 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.card__eyebrow {
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--grey);
+}
+
+.card__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.card__figure--sm {
+  margin-top: 0.5rem;
+}
+
+.card__number {
+  font-size: 4.1rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+.card__number--lg {
+  font-size: 4.75rem;
+}
+
+.card__number--sm {
+  font-size: 1.9rem;
+}
+
+.card__number--score {
+  font-size: 5rem;
+  color: var(--sage);
+  letter-spacing: -0.05em;
+}
+
+.card__unit {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--grey-deep);
+}
+
+.card__accent {
+  margin-top: 0.4rem;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--sage);
+}
+
+.card__foot {
+  margin: 1rem 0 0;
+  padding-top: 1rem;
+  font-size: 0.81rem;
+  line-height: 1.5;
+  color: var(--grey-deep);
+  border-top: 1px solid var(--line-soft);
+}
+
+.card__foot:empty {
+  display: none;
+}
+
+.stat-row {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.stat {
+  flex: 1;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.stat__number {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__label {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--grey);
+}
+
+.stat__delta {
+  margin-top: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--sage);
+}
+
+.stat__delta:empty {
+  display: none;
+}
+
+.stat__delta[data-dir='down'] {
+  color: var(--amber);
+}
+
+.meter {
+  height: 8px;
+  margin-top: 0.8rem;
+  overflow: hidden;
+  background: #f1f3f2;
+  border-radius: 5px;
+}
+
+.meter__fill {
+  height: 100%;
+  background: var(--sage);
+  border-radius: 5px;
+}
+
+.section {
+  margin-top: 1.4rem;
+}
+
+.section--divided {
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* Movement cards on the picker screen. */
+.pick {
+  display: flex;
+  gap: 1.1rem;
+  align-items: center;
+  width: 100%;
+  margin-top: 0.9rem;
+  padding: 1.35rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.pick[aria-pressed='true'] {
+  border-width: 1.5px;
+  border-color: var(--sage);
+}
+
+.pick:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pick__art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  padding-bottom: 0.35rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--grey-faint);
+  background: #f1f3f2;
+  background-image: repeating-linear-gradient(
+    122deg,
+    rgba(21, 29, 40, 0.07) 0 2px,
+    transparent 2px 9px
+  );
+  border-radius: 14px;
+  flex: none;
+}
+
+.pick__body {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.pick__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.pick__name {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.pick__tag {
+  padding: 0.19rem 0.38rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--sage);
+  border: 1px solid rgba(84, 156, 137, 0.4);
+  border-radius: 6px;
+}
+
+.pick__tag--quiet {
+  color: var(--grey-deep);
+  border-color: var(--line);
+}
+
+.pick__dose {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pick__note {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.77rem;
+  font-weight: 500;
+  color: var(--grey);
+}
+
+/* Camera-setup sheet, and the end-of-set sheet. */
+.sheet {
+  margin-top: auto;
+  padding: 1.5rem 1.35rem;
+  color: var(--ink);
+  background: var(--paper);
+  border-radius: 26px 26px 0 0;
+}
+
+.sheet--tall {
+  max-height: 84dvh;
+  overflow-y: auto;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.sheet__narration {
+  margin: 1.3rem 0 0;
+  font-size: 0.97rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.sheet__section {
+  margin-top: 1.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.sheet__note {
+  margin: 0.9rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--grey);
+}
+
+.sheet__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.check:last-child {
+  border-bottom: none;
+}
+
+.check__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--sage);
+  border-radius: 50%;
+  flex: none;
+}
+
+.check__mark[data-state='pending'] {
+  color: var(--grey);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+/* Guidance rows: the app does not measure these, so they carry no tick. */
+.check__mark[data-state='info'] {
+  font-size: 0.66rem;
+  color: var(--grey-deep);
+  background: #f1f3f2;
+}
+
+.check__text {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.check__value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--grey);
+}
+
+.ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 1.25rem 1.35rem;
+  background: #f1f3f2;
+  border-radius: 18px;
+  transition: background 200ms ease;
+}
+
+.ready[data-ready='true'] {
+  background: var(--sage);
+}
+
+.ready__title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--grey-deep);
+}
+
+.ready__sub {
+  margin-top: 0.2rem;
+  font-size: 0.81rem;
+  font-weight: 500;
+  color: var(--grey);
+}
+
+.ready__count {
+  font-size: 3.1rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--grey-faint);
+}
+
+.ready[data-ready='true'] .ready__title,
+.ready[data-ready='true'] .ready__count {
+  color: #fff;
+}
+
+.ready[data-ready='true'] .ready__sub {
+  color: rgb(255 255 255 / 80%);
+}
+
+.focus {
+  margin-top: 1.1rem;
+  padding: 0.15rem 0 0.15rem 0.85rem;
+  border-left: 3px solid var(--sage);
+}
+
+.focus__eyebrow {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--grey);
+}
+
+.focus__text {
+  margin-top: 0.3rem;
+  font-size: 1.03rem;
+  font-weight: 700;
+}
+
+/* Error breakdown, on both the feedback sheet and the summary screen. */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bar__dot {
+  width: 9px;
+  height: 9px;
+  background: var(--amber);
+  border-radius: 2px;
+  flex: none;
+}
+
+.bar__label {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.bar__track {
+  width: 108px;
+  height: 7px;
+  background: #f1f3f2;
+  border-radius: 4px;
+  flex: none;
+}
+
+/* A span inside a non-flex track: without this the width and height are
+   simply ignored and the bar renders as nothing. */
+.bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+  border-radius: 4px;
+}
+
+.bar__count {
+  min-width: 26px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Stacked variant: label and count above a full-width track. */
+.bars--stacked .bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.bars--stacked .bar__dot {
+  display: none;
+}
+
+.bars--stacked .bar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.bars--stacked .bar__track {
+  width: auto;
+}
+
+.meta {
+  margin: 0.9rem 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.69rem;
+  color: var(--grey-faint);
+}
+
+.meta:empty {
+  display: none;
+}
+
+.chips {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.chip {
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-size: 0.81rem;
+  font-weight: 600;
+  color: var(--grey-deep);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  font-weight: 700;
+  color: #fff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.empty {
+  margin: 2.5rem 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--grey);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* ------------------------------------------------------------ history charts */
+
+.chart {
+  position: relative;
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-end;
+  height: 116px;
+  margin-top: 0.75rem;
+}
+
+.chart--short {
+  height: 62px;
+}
+
+.chart__bar {
+  flex: 1;
+  min-height: 3px;
+  background: var(--sage);
+  border-radius: 6px 6px 0 0;
+}
+
+/* A session that hit its reps by breaking form must not look like progress —
+   the target did not rise for it either. */
+.chart__bar[data-dirty='true'] {
+  background: var(--amber);
+}
+
+.chart__bar--muted {
+  background: #dde3e1;
+}
+
+.chart__bar--latest {
+  background: var(--ink);
+}
+
+/* The target at the time, so a bar reads as met or missed without a number. */
+.chart__target {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px dashed rgba(21, 29, 40, 0.28);
+}
+
+.chart__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  color: var(--grey-faint);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--grey-deep);
+}
+
+.legend__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.legend__swatch--dash {
+  width: 14px;
+  height: 0;
+  border-top: 1px dashed rgba(21, 29, 40, 0.45);
+  border-radius: 0;
+}
+
+.rows {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #f4f5f5;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.row__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.row__sub {
+  margin-top: 0.18rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--grey);
+}
+
+.row__score {
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--sage);
+}
+
+.row__score[data-dirty='true'] {
+  color: var(--amber);
+}
+
+/* ---------------------------------------------------------------- tab bar */
+
+.tabs {
+  z-index: 2;
+  display: flex;
+  flex: none;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--paper);
+  border-top: 1px solid var(--line-soft);
+}
+
+.tabs[hidden] {
+  display: none;
+}
+
+.tab {
+  flex: 1;
+  height: 58px;
+  font: inherit;
+  font-size: 0.81rem;
+  font-weight: 500;
+  color: var(--grey);
+  background: transparent;
+  border: none;
+  border-top: 2px solid transparent;
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  font-weight: 700;
+  color: var(--ink);
+  border-top-color: var(--sage);
+}
+
+/* --------------------------------------------------------------- banner */
+
+/*
+ * Setup and tracking warnings, over the camera.
+ *
+ * At the top: the lower third belongs to the count, and a banner sharing it
+ * would sit directly on the one number the screen exists to show.
+ */
+.banner {
+  position: absolute;
+  top: 4.6rem;
+  right: 0.9rem;
+  left: 0.9rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #fff;
+  text-align: center;
+  background: rgba(13, 18, 24, 0.88);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+.banner[data-kind='framing'],
+.banner[data-kind='posture'],
+.banner[data-kind='low-confidence'] {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.banner[data-kind='error'] {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 
 /* ---------------------------------------------------------------------------
  * Active workout HUD.
@@ -263,7 +1176,9 @@ body {
 }
 
 @supports (container-type: inline-size) {
-  .stage {
+  /* The workout screen is what the count has to fill, so it is the container
+     the count is sized against. */
+  .screen--over-camera {
     container-type: inline-size;
   }
 
@@ -327,578 +1242,55 @@ body {
  * show. This is also the honest place for it — a framing warning is about the
  * camera, and the camera's own status line is already up there.
  */
-.banner {
-  position: absolute;
-  top: 4.2rem;
-  right: 0.9rem;
-  left: 0.9rem;
-  margin: 0;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.9rem;
-  line-height: 1.35;
-  text-align: center;
-  background: rgba(11, 17, 32, 0.88);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  backdrop-filter: blur(6px);
-}
 
-.banner[data-kind='framing'],
-.banner[data-kind='low-confidence'] {
-  border-color: var(--warn);
-  color: var(--warn);
-}
+/* ------------------------------------------------------------------- forms */
 
-.banner[data-kind='error'] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.controls {
+/*
+ * Settings fields. Two columns on a phone, because these are short numeric
+ * inputs and a single column would push the save button below the fold.
+ */
+.fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.6rem;
-  align-items: end;
+  gap: 0.7rem;
+  margin: 1rem 0 1.1rem;
 }
 
-.control {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.control__label {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.control__input {
-  padding: 0.6rem 0.7rem;
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.control__button {
-  grid-column: 1 / -1;
-  /* Comfortably above the 44px minimum touch target: it is pressed mid-workout
-     with imprecise aim. */
-  min-height: 52px;
-  padding: 0.95rem 1rem;
-  font: inherit;
-  font-size: 1.05rem;
-  font-weight: 650;
-  color: #04222a;
-  background: var(--accent);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-}
-
-.control__button:active {
-  transform: translateY(1px);
-}
-
-.control__input:focus-visible,
-.control__button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.control__button--ghost {
-  color: var(--accent);
-  background: transparent;
-  border: 1px solid var(--accent);
-}
-
-/* Slow-loop feedback, shown between sets. Generous line height because this is
-   read while catching breath, not glanced at mid-rep. */
-.coach {
-  padding: 0.9rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-radius: 12px;
-}
-
-.coach__title {
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.coach__narration {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.55;
-  text-wrap: pretty;
-}
-
-.coach__focus {
-  margin: 0.6rem 0 0;
-  font-size: 0.92rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--warn);
-}
-
-.coach__focus:empty {
-  display: none;
-}
-
-/* Latency, tokens and cost. Visible on purpose: these are the numbers the
-   paper reports, and reading them off the running product beats trusting a
-   spreadsheet. */
-.coach__meta {
-  margin: 0.6rem 0 0;
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-.coach__meta:empty {
-  display: none;
-}
-
-/* Nutrition panel. The cited rows are shown at full size rather than tucked
-   behind a disclosure, because being able to check the answer against its
-   source is the feature, not a footnote. */
-.nutrition {
-  padding: 0.9rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-
-.nutrition__title {
-  margin: 0 0 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.nutrition__form {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.nutrition__input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.6rem 0.7rem;
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-}
-
-.nutrition__submit {
-  padding: 0.6rem 1rem;
-  font: inherit;
-  font-weight: 650;
-  color: #04222a;
-  background: var(--accent);
-  border: none;
-  border-radius: 9px;
-  cursor: pointer;
-}
-
-.nutrition__submit:disabled {
-  color: var(--muted);
-  background: var(--surface-2, #182342);
-  cursor: not-allowed;
-}
-
-.nutrition__answer {
-  margin: 0.8rem 0 0;
-  font-size: 0.98rem;
-  line-height: 1.55;
-  text-wrap: pretty;
-}
-
-.nutrition__warning {
-  margin: 0.6rem 0 0;
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: var(--warn);
-}
-
-.nutrition__citations {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.6rem;
-  margin-top: 0.8rem;
-}
-
-.citation {
-  padding: 0.6rem 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-}
-
-.citation__name {
-  margin: 0 0 0.4rem;
-  font-size: 0.85rem;
-  font-weight: 650;
-}
-
-.citation__values {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.15rem 0.7rem;
-  margin: 0;
-  font-size: 0.82rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.citation__values dt {
-  color: var(--muted);
-}
-
-.citation__values dd {
-  margin: 0;
-}
-
-.citation__source {
-  margin: 0.5rem 0 0;
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-/* Reported whether it passed or failed — "verified" only means something to a
-   reader who has seen the failure case reported too. */
-.nutrition__verify {
-  margin: 0.7rem 0 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
-.nutrition__verify[data-passed='true'] {
-  color: var(--accent);
-}
-
-.nutrition__verify[data-passed='false'] {
-  color: var(--danger);
-}
-
-/* Camera setup guidance. Wrong placement is the largest single cause of bad
-   tracking, so this is prevention, not documentation. */
-.guide {
-  padding: 0.7rem 0.85rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.guide__summary {
-  font-size: 0.9rem;
-  font-weight: 650;
-  color: var(--accent);
-  cursor: pointer;
-}
-
-.guide__list {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.3rem 0.9rem;
-  margin: 0.7rem 0 0;
-  font-size: 0.86rem;
-}
-
-.guide__list dt {
-  color: var(--muted);
-}
-
-.guide__list dd {
-  margin: 0;
-}
-
-.guide__note {
-  margin: 0.7rem 0 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-@media (min-width: 640px) {
-  .controls {
-    grid-template-columns: 1fr 1fr auto;
-  }
-
-  .control__button {
-    grid-column: auto;
-  }
-}
-
-/* ---------------------------------------------------------------------------
- * Plan page.
- *
- * Read seated, at arm's length, before or after a session — the opposite of
- * the camera view's constraint. So: denser type, more of it on screen, and no
- * need for anything to be legible from across the room.
- * ------------------------------------------------------------------------ */
-
-.app__link {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.app__link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.card {
-  padding: 0.9rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-}
-
-.card__title {
-  margin: 0 0 0.6rem;
-  font-size: 1rem;
-  font-weight: 650;
-}
-
-.card__note,
-.card__summary {
-  margin: 0 0 0.7rem;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.card__summary {
-  margin-top: 0.8rem;
-  color: var(--text);
-}
-
-.card__error {
-  margin: 0.7rem 0 0;
-  font-size: 0.85rem;
-  color: var(--danger);
-}
-
-.card__disclaimer {
-  margin: 0.9rem 0 0;
-  padding-top: 0.7rem;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--muted);
-  border-top: 1px solid var(--border);
-}
-
-.form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6rem;
-  align-items: end;
-}
-
-.control--wide {
-  grid-column: 1 / -1;
-}
-
-/* The week at a glance. Horizontal scroll rather than wrapping: seven days in
-   order reads as a week, and a wrapped grid reads as a list. */
-.week {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(6.5rem, 1fr);
-  gap: 0.45rem;
-  overflow-x: auto;
-  padding-bottom: 0.3rem;
-}
-
-.day {
+.field {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  padding: 0.6rem 0.5rem;
-  font-size: 0.78rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  min-width: 0;
 }
 
-.day--training {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+/* Selects with long option text get the full width. */
+.field:has(select) {
+  grid-column: 1 / -1;
 }
 
-.day--today {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+.field__label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--grey);
 }
 
-.day--done {
-  opacity: 0.62;
-}
-
-.day__name {
-  font-weight: 650;
-}
-
-.day__rest {
-  color: var(--muted);
-}
-
-.day__exercise {
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-
-.day__done {
-  color: var(--muted);
-}
-
-.energy__headline {
-  margin: 0 0 0.7rem;
-  font-size: 0.95rem;
-  line-height: 1.55;
-}
-
-.energy__stats {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.3rem 0.9rem;
-  margin: 0;
-  font-size: 0.85rem;
-}
-
-.energy__stats dt {
-  color: var(--muted);
-}
-
-.energy__stats dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.meal {
-  margin-top: 1rem;
-}
-
-.meal__title {
-  margin: 0 0 0.5rem;
-  font-size: 0.88rem;
-  font-weight: 650;
-  color: var(--muted);
-}
-
-.meal__empty {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.option {
-  margin-bottom: 0.6rem;
-  padding: 0.7rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.option__name {
-  margin: 0 0 0.45rem;
-  font-size: 0.9rem;
-  font-weight: 650;
-}
-
-/* Every portion with the energy it contributes, so the total below can be
-   checked by adding up what is on screen. */
-.option__items {
-  margin: 0;
-  padding-left: 1.1rem;
-  font-size: 0.82rem;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.option__total {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-}
-
-.option__note {
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-@media (min-width: 640px) {
-  .form {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* Reminder toggle, sitting with the schedule it acts on. */
-.reminder {
-  margin-top: 0.9rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid var(--border);
-}
-
-.reminder__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.reminder__label {
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.reminder__toggle {
-  min-height: 40px;
-  padding: 0.5rem 1rem;
+.field__input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.55rem 0.7rem;
   font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--accent);
-  background: transparent;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  cursor: pointer;
+  font-size: 0.94rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 
-.reminder__toggle--on {
-  color: #04222a;
-  background: var(--accent);
+.field__input:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 1px;
 }
 
-.reminder__toggle:disabled {
-  opacity: 0.55;
-  cursor: progress;
-}
-
-.reminder__toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.reminder__status {
-  margin: 0.5rem 0 0;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  color: var(--muted);
+.card .btn {
+  width: 100%;
 }

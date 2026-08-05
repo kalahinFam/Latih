@@ -60,8 +60,8 @@ isi `OPENAI_API_KEY`. **Tanpa kunci, fast loop tetap berjalan penuh** —
 penghitung repetisi dan cue koreksi tidak butuh jaringan sama sekali; hanya
 narasi antar-set yang dilewati.
 
-Buka **http://localhost:5174** (atau port yang ditampilkan), tekan **Mulai**,
-lalu izinkan akses kamera.
+Buka **http://localhost:5174** (atau port yang ditampilkan), tekan **Mulai
+latihan**, pilih gerakan, lalu izinkan akses kamera.
 
 `npm install` tidak mengunduh model. Saat `npm run dev` dijalankan pertama kali,
 skrip `setup:assets` otomatis menyalin runtime WASM dari `node_modules` dan
@@ -100,7 +100,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (351 tes) |
+| `npm test` | Unit test (382 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -161,10 +161,15 @@ web/src/
 │   ├── energy.ts       Mifflin-St Jeor → target kalori & protein
 │   ├── pantry.ts       bahan pangan terkurasi, per kode TKPI
 │   ├── meals.ts        validasi opsi menu + perhitungan total
-│   └── metrics.ts      instrumentasi FPS & latensi
+│   ├── metrics.ts      instrumentasi FPS & latensi
+│   └── quality.ts      skor kualitas, runtutan hari, agregat sesi
+├── app/           ← router hash + state sesi latihan
 ├── session/       ← penyimpanan di perangkat: riwayat, profil, pengingat
 ├── pose/          ← satu-satunya file yang tahu MediaPipe ada
-└── ui/            ← kamera, overlay skeleton, HUD, halaman rencana
+└── ui/
+    ├── workoutEngine.ts  fast loop + kamera, dua mode
+    ├── skeleton.ts       overlay
+    └── screens/          satu modul per layar
 
 web/test/          ← tes integrasi terhadap data & kode server nyata.
                      Di luar src/ supaya src/ tetap murni kode browser.
@@ -269,6 +274,56 @@ bekerja itu yang mengubah perilaku.
 
 ---
 
+## Alur aplikasi
+
+Delapan layar dalam satu dokumen, dengan router hash di `app/router.ts`:
+
+```
+Beranda ──► Pilih gerakan ──► Posisi kamera ──► Latihan ──► Umpan balik set
+   ▲                                              ▲              │
+   │                                              └── set lagi ───┤
+   └──────────────── Ringkasan sesi ◄─────── selesai ─────────────┘
+
+Nav bawah: Latihan · Riwayat · Gizi          Pengaturan dari Beranda
+```
+
+**Kenapa satu dokumen, bukan beberapa halaman.** Kamera harus bertahan
+melintasi setiap transisi itu. Halaman terpisah membongkar dokumen setiap kali
+berpindah, artinya membongkar `getUserMedia` dan menginisialisasi ulang
+MediaPipe — layar hitam beberapa detik, di tengah latihan, tepat saat
+penggunanya sudah telentang di lantai menunggu. Elemen `<video>` hidup di
+lapisan tersendiri di luar layar-layar itu dan tidak pernah dipindahkan.
+
+**Kenapa hash, bukan History API.** Aplikasinya disajikan sebagai berkas
+statis, dan tautan dalam harus tetap terbuka tanpa rewrite di sisi server.
+
+### Layar posisi kamera — centang hanya untuk yang diukur
+
+Desain menampilkan empat pemeriksaan. Aplikasi benar-benar mengukur dua: badan
+utuh di frame, dan jarak secara kasar lewat `bodyFill` — porsi tinggi layar yang
+ditempati badan.
+
+Sudut kamera dan tinggi kamera **tidak diukur sama sekali**; tidak ada apa pun
+di pipeline yang memperkirakan keduanya. Jadi dua baris itu ditampilkan sebagai
+panduan tertulis tanpa centang. Centang berarti *aplikasi memeriksa ini*, dan
+centang yang artinya "kami asumsikan begitu" akan membuat dua centang lainnya
+tidak berarti. Juri yang bertanya bagaimana pemeriksaan 30–45° bekerja pantas
+mendapat jawaban yang lebih baik daripada lingkaran hijau.
+
+Jaraknya pun dinyatakan dalam porsi tinggi layar, bukan meter: konversi ke meter
+butuh field of view lensa dan tinggi badan penggunanya, dan aplikasi tidak punya
+keduanya.
+
+### Plank
+
+Tampil di layar pilih gerakan, ditandai "segera hadir", tidak bisa dipilih.
+Gerakan itu ada di desain dan tidak ada di kode. Menghapusnya diam-diam akan
+menyembunyikan celah; mengaktifkannya akan mengklaim mesin yang tidak ada —
+plank dinilai dari durasi dan garis pinggul, bukan repetisi, dan itu state
+machine tersendiri.
+
+---
+
 ## Layar latihan — tiga aturan dari desain
 
 Mengikuti opsi **1b** dari dokumen desain. Batasannya: dibaca dari ±2 m, dari
@@ -295,7 +350,7 @@ baris terlalu banyak.
 
 ## Rencana mingguan
 
-Halaman `/plan.html`. Session loop memutuskan **berapa repetisi**; ini
+Layar Beranda dan Pengaturan. Session loop memutuskan **berapa repetisi**; ini
 memutuskan **kapan menagihnya**, dan mengubah satu angka di HUD menjadi sesuatu
 yang berbentuk rencana.
 

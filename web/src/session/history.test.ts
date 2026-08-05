@@ -51,6 +51,10 @@ describe('toSetRecord', () => {
       flaggedReps: 0,
       meanDepthDeg: 90,
       trackingQuality: 0.85,
+      // Carried for the summary and history screens. Adaptation never reads
+      // either — `flaggedReps` is what gates progression.
+      durationMs: 30_000,
+      errorCounts: {},
     });
   });
 });

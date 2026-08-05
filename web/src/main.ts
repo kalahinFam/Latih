@@ -1,18 +1,28 @@
 import './style.css';
 import { registerServiceWorker } from './pwa.ts';
-import { CameraView } from './ui/cameraView.ts';
-import { NutritionPanel } from './nutrition/nutritionPanel.ts';
+import { Router, type Route } from './app/router.ts';
+import { WorkoutSession } from './app/workoutSession.ts';
+import { TrainingHistory, toSetRecord } from './session/history.ts';
+import { loadPreferences } from './session/profile.ts';
+import { explainTarget } from './core/sessionLoop.ts';
+import { WorkoutEngine, type Readiness } from './ui/workoutEngine.ts';
+import { createHomeScreen } from './ui/screens/homeScreen.ts';
+import { createPickerScreen } from './ui/screens/pickerScreen.ts';
+import { createSetupScreen } from './ui/screens/setupScreen.ts';
+import { createFeedbackScreen } from './ui/screens/feedbackScreen.ts';
+import { createSummaryScreen } from './ui/screens/summaryScreen.ts';
+import { createHistoryScreen } from './ui/screens/historyScreen.ts';
+import { createNutritionScreen } from './ui/screens/nutritionScreen.ts';
+import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
+import { required } from './ui/dom.ts';
+import type { ExerciseKind } from './core/types.ts';
+import type { SetSummary } from './core/setSummary.ts';
 
-/** Fail loudly at startup rather than with `null` deref deep in the loop. */
-function required<T extends Element>(selector: string): T {
-  const el = document.querySelector<T>(selector);
-  if (!el) throw new Error(`Missing required element: ${selector}`);
-  return el;
-}
-
-const view = new CameraView({
+const history = new TrainingHistory();
+const engine = new WorkoutEngine({
   video: required<HTMLVideoElement>('#video'),
   canvas: required<HTMLCanvasElement>('#canvas'),
+  cameraLayer: required('#cameraLayer'),
   hud: required('#hud'),
   hudWash: required('#hudWash'),
   movementLabel: required('#movementLabel'),
@@ -20,32 +30,194 @@ const view = new CameraView({
   repCount: required('#repCount'),
   repCaption: required('#repCaption'),
   statusBanner: required('#statusBanner'),
-  perf: required('#perf'),
-  startButton: required<HTMLButtonElement>('#start'),
-  exerciseSelect: required<HTMLSelectElement>('#exercise'),
-  modelSelect: required<HTMLSelectElement>('#model'),
-  guide: required<HTMLDetailsElement>('#guide'),
-  guideList: required('#guideList'),
-  guideNote: required('#guideNote'),
-  finishSetButton: required<HTMLButtonElement>('#finishSet'),
-  coachPanel: required('#coachPanel'),
-  coachNarration: required('#coachNarration'),
-  coachFocus: required('#coachFocus'),
-  coachMeta: required('#coachMeta'),
 });
 
-new NutritionPanel({
-  form: required<HTMLFormElement>('#nutritionForm'),
-  input: required<HTMLInputElement>('#nutritionQuestion'),
-  submit: required<HTMLButtonElement>('#nutritionForm button[type="submit"]'),
-  answer: required('#nutritionAnswer'),
-  warning: required('#nutritionWarning'),
-  citations: required('#nutritionCitations'),
-  verify: required('#nutritionVerify'),
+/* ------------------------------------------------------------------- state */
+
+let exercise: ExerciseKind = 'pushup';
+let workout: WorkoutSession | null = null;
+let lastSummary: SetSummary | null = null;
+
+function setLabel(): string {
+  if (!workout) return '';
+  return `SET ${workout.currentSet}/${workout.plan.setsPlanned}`;
+}
+
+function startWorkout(): void {
+  const prefs = loadPreferences();
+  workout = new WorkoutSession({
+    exercise,
+    setsPlanned: prefs.setsPerExercise,
+    targetReps: history.currentTarget(exercise).targetReps,
+  });
+  lastSummary = null;
+}
+
+/**
+ * End the set, persist it, and attach the session context the coach needs.
+ *
+ * Recorded before the network call, so history survives a failed or slow
+ * request — and before the trend is read, so the deltas compare this session
+ * with the last one rather than the last two.
+ */
+function finishSet(): void {
+  if (!workout) return;
+
+  const summary = engine.endSet();
+  const workedTo = history.currentTarget(exercise);
+  history.recordSet(toSetRecord(summary));
+
+  const trend = history.trend(exercise);
+  if (trend) {
+    summary.session = {
+      targetReps: workedTo.targetReps,
+      targetReason: explainTarget(workedTo),
+      sessions: trend.sessions,
+      repsDelta: trend.repsDelta,
+      depthDeltaDeg: trend.depthDeltaDeg,
+    };
+  }
+
+  workout.record(summary);
+  lastSummary = summary;
+  router.go('umpanbalik');
+}
+
+/* ----------------------------------------------------------------- screens */
+
+const setupScreen = createSetupScreen({
+  getExercise: () => exercise,
+  onReady: () => router.go('latihan'),
+  onSpeak: (text) => engine.speak(text),
 });
 
+engine.onReadiness((readiness: Readiness) => setupScreen.update(readiness));
+
+const screens = {
+  beranda: createHomeScreen({
+    history,
+    defaultExercise: exercise,
+    onStart: () => {
+      // Inside the gesture, before any await: otherwise the activation is spent
+      // and the first cue plays silently.
+      engine.unlockAudio();
+      router.go('pilih');
+    },
+    onSettings: () => router.go('pengaturan'),
+  }),
+
+  pilih: createPickerScreen({
+    history,
+    getSelected: () => exercise,
+    setSelected: (next) => {
+      exercise = next;
+    },
+    onContinue: (chosen) => {
+      exercise = chosen;
+      startWorkout();
+      router.go('kamera');
+    },
+  }),
+
+  kamera: {
+    enter() {
+      setupScreen.enter?.({});
+      if (!workout) startWorkout();
+      engine.configure(exercise, workout!.plan.targetReps, setLabel());
+      void engine.enterSetup().catch(() => {
+        /* the engine already put the reason in the banner */
+      });
+    },
+    leave() {
+      setupScreen.leave?.();
+    },
+  },
+
+  latihan: {
+    enter() {
+      if (!workout) {
+        router.go('beranda');
+        return;
+      }
+      engine.configure(exercise, workout.plan.targetReps, setLabel());
+      engine.beginSet();
+    },
+  },
+
+  umpanbalik: createFeedbackScreen({
+    getSummary: () => lastSummary,
+    getSetLabel: () => (workout ? `${exercise === 'pushup' ? 'PUSH-UP' : 'SQUAT'} · ${setLabel()}` : ''),
+    getTargetReps: () => workout?.plan.targetReps ?? 0,
+    hasMoreSets: () => (workout ? !workout.isComplete : false),
+    onNext: () => router.go('kamera'),
+    onFinish: () => router.go('ringkasan'),
+    onNarration: (text) => void engine.speakNarration(text),
+  }),
+
+  ringkasan: createSummaryScreen({
+    history,
+    getExercise: () => exercise,
+    onDone: () => {
+      workout = null;
+      lastSummary = null;
+      router.go('beranda');
+    },
+  }),
+
+  riwayat: createHistoryScreen({ history }),
+
+  gizi: createNutritionScreen({
+    history,
+    onOpenSettings: () => router.go('pengaturan'),
+  }),
+
+  pengaturan: createSettingsScreen({ history }),
+};
+
+/* ------------------------------------------------------------------ chrome */
+
+const sections = new Map<string, HTMLElement>();
+for (const node of document.querySelectorAll<HTMLElement>('[data-screen]')) {
+  sections.set(node.dataset.screen!, node);
+}
+
+const tabs = required('#tabs');
+const tabButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+
+/** Screens that show the camera; everything else releases it. */
+const CAMERA_SCREENS = new Set(['kamera', 'latihan', 'umpanbalik']);
+/** Screens the tab bar belongs on. Not during a workout — nothing to switch to. */
+const TABBED = new Set(['beranda', 'riwayat', 'gizi']);
+
+function applyChrome(route: Route): void {
+  for (const [name, node] of sections) node.hidden = name !== route.name;
+
+  tabs.hidden = !TABBED.has(route.name);
+  for (const button of tabButtons) {
+    button.setAttribute('aria-selected', String(button.dataset.tab === route.name));
+  }
+
+  if (!CAMERA_SCREENS.has(route.name)) engine.stopCamera();
+  // Every screen is its own scroll context; arriving part-way down a page the
+  // user has never seen is disorienting.
+  document.querySelector('.screen:not([hidden]) .screen__body')?.scrollTo(0, 0);
+}
+
+const router = new Router(screens, applyChrome);
+
+for (const button of tabButtons) {
+  button.addEventListener('click', () => router.go(button.dataset.tab!));
+}
+
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-back]')) {
+  button.addEventListener('click', () => window.history.back());
+}
+
+required<HTMLButtonElement>('#finishSet').addEventListener('click', finishSet);
+
+router.start();
 registerServiceWorker();
 
 // Exposed for manual inspection during device testing and for capturing the
 // latency/FPS table that goes into the paper.
-Object.assign(window, { latih: view });
+Object.assign(window, { latih: { engine, history } });

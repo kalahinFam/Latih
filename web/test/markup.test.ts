@@ -34,9 +34,19 @@ function requiredSelectors(source: string): string[] {
   return [...source.matchAll(/required(?:<[^>]+>)?\('([^']+)'\)/g)].map((m) => m[1]);
 }
 
-const PAGES: [entry: string, html: string][] = [
-  ['src/main.ts', 'index.html'],
-  ['src/plan.ts', 'plan.html'],
+const PAGES: [entry: string, html: string][] = [['src/main.ts', 'index.html']];
+
+/** Every screen the router can land on must exist as a section. */
+const SCREENS = [
+  'beranda',
+  'pilih',
+  'kamera',
+  'latihan',
+  'umpanbalik',
+  'ringkasan',
+  'gizi',
+  'riwayat',
+  'pengaturan',
 ];
 
 describe.each(PAGES)('%s against %s', (entry, htmlPath) => {
@@ -65,6 +75,37 @@ describe.each(PAGES)('%s against %s', (entry, htmlPath) => {
       .filter((head) => head.startsWith('#') && !ids.has(head.slice(1)));
 
     expect(missing).toEqual([]);
+  });
+});
+
+describe('screens', () => {
+  const html = read('index.html');
+  const main = read('src/main.ts');
+
+  it('has a section for every screen the router registers', () => {
+    const declared = new Set(
+      [...html.matchAll(/data-screen="([^"]+)"/g)].map((m) => m[1]),
+    );
+    const missing = SCREENS.filter((name) => !declared.has(name));
+    expect(missing, `no <section data-screen> for: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('registers a handler for every section', () => {
+    // A section with no handler renders but never populates — it would show
+    // the empty markup and look broken rather than fail.
+    const declared = [...html.matchAll(/data-screen="([^"]+)"/g)].map((m) => m[1]);
+    for (const name of declared) {
+      expect(main.includes(`${name}:`), `no screen handler for "${name}"`).toBe(true);
+    }
+  });
+
+  it('has a tab target for every tab button', () => {
+    const declared = new Set(
+      [...html.matchAll(/data-screen="([^"]+)"/g)].map((m) => m[1]),
+    );
+    for (const [, tab] of html.matchAll(/data-tab="([^"]+)"/g)) {
+      expect(declared.has(tab), `tab "${tab}" has no screen`).toBe(true);
+    }
   });
 });
 

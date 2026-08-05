@@ -134,7 +134,7 @@ self.addEventListener('push', (event) => {
       // stacked into a pile of identical notifications.
       tag: REMINDER_TAG,
       renotify: true,
-      data: { url: '/plan.html' },
+      data: { url: '/#/beranda' },
     }),
   );
 });

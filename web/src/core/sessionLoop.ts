@@ -30,7 +30,7 @@ import type { ExerciseKind } from './types.ts';
 /** One completed set, as retained across sessions. */
 export interface SetRecord {
   exercise: ExerciseKind;
-  /** Epoch milliseconds. */
+  /** Epoch milliseconds, recorded when the set ended. */
   at: number;
   repCount: number;
   /** Reps that triggered at least one form rule. */
@@ -39,6 +39,21 @@ export interface SetRecord {
   meanDepthDeg: number;
   /** Share of frames the pose was readable, 0..1. */
   trackingQuality: number;
+  /**
+   * How long the set took, milliseconds.
+   *
+   * Kept because `at` marks the *end* of a set: without a duration, elapsed
+   * time for a session would silently omit its first set.
+   */
+  durationMs?: number;
+  /**
+   * Occurrences per error code.
+   *
+   * Adaptation never reads this — `flaggedReps` is what gates progression. It
+   * is stored so the session summary and history can show *which* faults
+   * happened rather than only how many reps were imperfect.
+   */
+  errorCounts?: Record<string, number>;
 }
 
 export interface ExerciseTarget {

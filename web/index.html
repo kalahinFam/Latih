@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b1120" />
+    <meta name="theme-color" content="#0d1218" />
     <meta
       name="description"
       content="Pelatih kebugaran AI yang mengoreksi form latihan secara real-time langsung di perangkat."
@@ -30,21 +30,118 @@
     <title>LATIH — Pelatih Pribadi AI</title>
   </head>
   <body>
-    <main class="app">
-      <header class="app__header">
-        <h1 class="app__title">LATIH</h1>
-        <a class="app__link" href="/plan.html">Rencana →</a>
-        <p class="app__perf" id="perf"></p>
-      </header>
+    <!--
+      The camera lives here, outside the screens, and is never removed from the
+      document. Two screens show it — camera setup and the workout itself — and
+      re-parenting a playing <video> between them would stall the stream at
+      exactly the moment the user is already on the floor waiting. Screens that
+      need it reveal this layer; the rest hide it.
+    -->
+    <div class="camera-layer" id="cameraLayer" hidden>
+      <video id="video" class="camera-layer__video" playsinline muted></video>
+      <canvas id="canvas" class="camera-layer__overlay"></canvas>
+    </div>
 
-      <section class="stage">
-        <!-- `playsinline` stops iOS from forcing the video fullscreen, which
-             would hide the skeleton overlay entirely. -->
-        <video id="video" class="stage__video" playsinline muted></video>
-        <canvas id="canvas" class="stage__overlay"></canvas>
+    <main class="app" id="app">
+      <!-- ============================= 1 · Beranda ========================= -->
+      <section class="screen" data-screen="beranda" hidden>
+        <header class="screen__bar">
+          <span class="wordmark">LATIH</span>
+          <span class="screen__date" id="homeDate"></span>
+        </header>
 
-        <!-- Tints the lower half sage or amber. Behind the HUD, in front of the
-             video, so the number below always has contrast to sit on. -->
+        <div class="screen__body">
+          <div class="greeting">
+            <h1 class="greeting__title" id="homeGreeting">Selamat datang</h1>
+            <p class="greeting__sub" id="homeLastSession"></p>
+          </div>
+
+          <!-- The target carries its reason. A number that rises without
+               explanation reads as an app making demands. -->
+          <div class="card">
+            <div class="card__eyebrow">TARGET HARI INI</div>
+            <div class="card__figure">
+              <span class="card__number" id="homeTargetReps">—</span>
+              <span class="card__unit" id="homeTargetSets">repetisi</span>
+            </div>
+            <div class="card__accent" id="homeTargetExercise">Push-up</div>
+            <p class="card__foot" id="homeTargetReason"></p>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat__number" id="homeStreak">0</div>
+              <div class="stat__label">hari berturut-turut</div>
+            </div>
+            <div class="stat">
+              <div class="stat__number" id="homeQuality">—</div>
+              <div class="stat__label">kualitas gerakan</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screen__actions">
+          <button class="btn btn--primary" id="homeStart" type="button">Mulai latihan</button>
+          <button class="btn btn--quiet" id="homeSettings" type="button">Pengaturan</button>
+        </div>
+      </section>
+
+      <!-- ========================= 2 · Pilih gerakan ======================= -->
+      <section class="screen" data-screen="pilih" hidden>
+        <header class="screen__bar">
+          <button class="iconbtn" type="button" data-back aria-label="Kembali">←</button>
+          <h1 class="screen__title">Pilih gerakan</h1>
+        </header>
+
+        <div class="screen__body" id="pickerList"></div>
+
+        <p class="screen__note">
+          Set ditahan tetap tiga. Hanya target repetisi yang bergerak, supaya beban tiap sesi bisa
+          dijelaskan dalam satu angka.
+        </p>
+
+        <div class="screen__actions">
+          <button class="btn btn--primary" id="pickerContinue" type="button">
+            Lanjut ke kamera
+          </button>
+        </div>
+      </section>
+
+      <!-- ========================= 3 · Posisi kamera ======================= -->
+      <section class="screen screen--over-camera" data-screen="kamera" hidden>
+        <header class="screen__bar screen__bar--onDark">
+          <button class="iconbtn iconbtn--onDark" type="button" data-back aria-label="Kembali">
+            ←
+          </button>
+          <span class="hud__movement" id="setupTitle">POSISI KAMERA</span>
+          <span class="hud__voice">
+            <span class="hud__dot" aria-hidden="true"></span>
+            <span>SUARA</span>
+          </span>
+        </header>
+
+        <div class="sheet">
+          <!-- Only the first two rows have live ticks. The app measures whether
+               the body is in frame, and estimates distance from how much of the
+               frame it fills. Camera angle and height are not measured at all,
+               so they are given as instructions rather than dressed up as
+               checks that passed. -->
+          <ul class="checks" id="setupChecks"></ul>
+
+          <div class="ready" id="setupReady" data-ready="false">
+            <div>
+              <div class="ready__title" id="setupReadyTitle">ATUR POSISI</div>
+              <div class="ready__sub" id="setupReadySub">Ikuti panduan di bawah</div>
+            </div>
+            <div class="ready__count" id="setupReadyCount">—</div>
+          </div>
+
+          <p class="sheet__note" id="setupNote"></p>
+        </div>
+      </section>
+
+      <!-- ========================= 4 · Latihan berjalan ==================== -->
+      <section class="screen screen--over-camera" data-screen="latihan" hidden>
         <div class="hud__wash" id="hudWash"></div>
 
         <div class="hud" data-state="good" id="hud">
@@ -66,77 +163,148 @@
             <div class="hud__count" id="repCount">0</div>
             <!-- Doubles as the correction slot: aria-live so a screen reader
                  announces the cue the moment it replaces the caption. -->
-            <p class="hud__caption" id="repCaption" role="status" aria-live="polite">
-              BERSIAP
-            </p>
+            <p class="hud__caption" id="repCaption" role="status" aria-live="polite">BERSIAP</p>
           </div>
         </div>
 
         <p class="banner" id="statusBanner" hidden></p>
+
+        <div class="screen__actions screen__actions--float">
+          <button class="btn btn--primary" id="finishSet" type="button">Selesai set</button>
+        </div>
       </section>
 
-      <section class="controls">
-        <label class="control">
-          <span class="control__label">Gerakan</span>
-          <select id="exercise" class="control__input">
-            <option value="pushup">Push-up</option>
-            <option value="squat">Squat</option>
-          </select>
-        </label>
+      <!-- ====================== 5 · Umpan balik akhir set ================== -->
+      <section class="screen screen--over-camera screen--dim" data-screen="umpanbalik" hidden>
+        <header class="screen__bar screen__bar--onDark">
+          <span class="hud__movement" id="feedbackTitle">PUSH-UP · SET 2/3</span>
+          <span class="screen__rest" id="feedbackRest"></span>
+        </header>
 
-        <label class="control">
-          <span class="control__label">Model</span>
-          <select id="model" class="control__input">
-            <option value="lite">Lite (cepat)</option>
-            <option value="full">Full (akurat)</option>
-          </select>
-        </label>
+        <div class="sheet sheet--tall">
+          <div class="sheet__head">
+            <div class="card__eyebrow" id="feedbackEyebrow">SET SELESAI</div>
+            <div class="card__figure">
+              <span class="card__number card__number--lg" id="feedbackReps">0</span>
+              <span class="card__unit" id="feedbackTarget">repetisi</span>
+            </div>
+          </div>
 
-        <button id="start" class="control__button" type="button">Mulai</button>
-        <button id="finishSet" class="control__button control__button--ghost" type="button" hidden>
-          Selesai set
-        </button>
+          <p class="sheet__narration" id="feedbackNarration">Menganalisis set…</p>
+
+          <div class="focus" id="feedbackFocusWrap" hidden>
+            <div class="focus__eyebrow">FOKUS SET BERIKUTNYA</div>
+            <div class="focus__text" id="feedbackFocus"></div>
+          </div>
+
+          <div class="sheet__section" id="feedbackErrorsWrap" hidden>
+            <div class="card__eyebrow">TERDETEKSI</div>
+            <div class="bars" id="feedbackErrors"></div>
+          </div>
+
+          <p class="meta" id="feedbackMeta"></p>
+
+          <div class="sheet__actions">
+            <button class="btn btn--primary" id="feedbackNext" type="button">
+              Lanjut ke set berikutnya
+            </button>
+            <button class="btn btn--outline" id="feedbackFinish" type="button">
+              Selesai latihan
+            </button>
+          </div>
+        </div>
       </section>
 
-      <section class="coach" id="coachPanel" hidden aria-live="polite">
-        <h2 class="coach__title">Umpan balik pelatih</h2>
-        <p class="coach__narration" id="coachNarration"></p>
-        <p class="coach__focus" id="coachFocus"></p>
-        <p class="coach__meta" id="coachMeta"></p>
+      <!-- ========================= 6 · Ringkasan sesi ====================== -->
+      <section class="screen" data-screen="ringkasan" hidden>
+        <header class="screen__bar">
+          <h1 class="screen__title">Latihan selesai</h1>
+          <span class="screen__date" id="summaryMeta"></span>
+        </header>
+
+        <div class="screen__body">
+          <div class="card">
+            <div class="card__eyebrow">KUALITAS GERAKAN</div>
+            <div class="card__figure">
+              <span class="card__number card__number--score" id="summaryQuality">—</span>
+              <span class="card__unit">dari 100</span>
+            </div>
+            <div class="meter"><div class="meter__fill" id="summaryQualityBar"></div></div>
+            <p class="card__foot" id="summaryQualityNote"></p>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat__number" id="summaryReps">0</div>
+              <div class="stat__label">repetisi total</div>
+              <div class="stat__delta" id="summaryRepsDelta"></div>
+            </div>
+            <div class="stat">
+              <div class="stat__number" id="summaryDepth">—</div>
+              <div class="stat__label">kedalaman rata-rata</div>
+              <div class="stat__delta" id="summaryDepthDelta"></div>
+            </div>
+          </div>
+
+          <div class="section" id="summaryErrorsWrap" hidden>
+            <div class="card__eyebrow">RINCIAN KESALAHAN</div>
+            <div class="bars bars--stacked" id="summaryErrors"></div>
+          </div>
+
+          <div class="section section--divided">
+            <div class="card__eyebrow">TARGET SESI BERIKUTNYA</div>
+            <div class="card__figure card__figure--sm">
+              <span class="card__number card__number--sm" id="summaryNextTarget">—</span>
+              <span class="card__unit" id="summaryNextSets">repetisi</span>
+            </div>
+            <p class="card__foot" id="summaryNextReason"></p>
+          </div>
+        </div>
+
+        <div class="screen__actions">
+          <button class="btn btn--primary" id="summaryDone" type="button">Selesai</button>
+        </div>
       </section>
 
-      <section class="nutrition">
-        <h2 class="nutrition__title">Tanya gizi</h2>
-        <form class="nutrition__form" id="nutritionForm">
-          <input
-            type="text"
-            id="nutritionQuestion"
-            class="nutrition__input"
-            placeholder="Berapa protein tempe?"
-            maxlength="300"
-            autocomplete="off"
-          />
-          <button type="submit" class="nutrition__submit">Tanya</button>
-        </form>
+      <!-- ============================== 7 · Gizi =========================== -->
+      <section class="screen" data-screen="gizi" hidden>
+        <header class="screen__bar">
+          <h1 class="screen__title">Gizi hari ini</h1>
+          <span class="screen__date" id="nutritionDate"></span>
+        </header>
 
-        <p class="nutrition__answer" id="nutritionAnswer" hidden></p>
-        <p class="nutrition__warning" id="nutritionWarning" hidden></p>
-
-        <!-- The cited rows are shown in full so the answer can be checked
-             against the source without leaving the page. -->
-        <div class="nutrition__citations" id="nutritionCitations" hidden></div>
-        <p class="nutrition__verify" id="nutritionVerify" hidden></p>
+        <div class="screen__body" id="nutritionBody"></div>
       </section>
 
-      <!-- Open by default: placing the camera wrong is the single biggest
-           cause of bad tracking, and it is far cheaper to prevent than to
-           detect and explain afterwards. -->
-      <details class="guide" id="guide" open>
-        <summary class="guide__summary">Posisi kamera</summary>
-        <dl class="guide__list" id="guideList"></dl>
-        <p class="guide__note" id="guideNote"></p>
-      </details>
+      <!-- ============================= 8 · Riwayat ========================= -->
+      <section class="screen" data-screen="riwayat" hidden>
+        <header class="screen__bar">
+          <h1 class="screen__title">Riwayat</h1>
+        </header>
+
+        <div class="screen__body">
+          <div class="chips" id="historyChips"></div>
+          <div id="historyBody"></div>
+        </div>
+      </section>
+
+      <!-- =========================== · Pengaturan ========================== -->
+      <!-- Not in the design document, which has no settings screen — but the
+           body profile, schedule, and reminders all need somewhere to live. -->
+      <section class="screen" data-screen="pengaturan" hidden>
+        <header class="screen__bar">
+          <button class="iconbtn" type="button" data-back aria-label="Kembali">←</button>
+          <h1 class="screen__title">Pengaturan</h1>
+        </header>
+        <div class="screen__body" id="settingsBody"></div>
+      </section>
     </main>
+
+    <nav class="tabs" id="tabs" hidden>
+      <button class="tab" type="button" data-tab="beranda">Latihan</button>
+      <button class="tab" type="button" data-tab="riwayat">Riwayat</button>
+      <button class="tab" type="button" data-tab="gizi">Gizi</button>
+    </nav>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

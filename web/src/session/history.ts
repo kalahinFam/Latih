@@ -78,6 +78,8 @@ export function toSetRecord(summary: SetSummary, at = Date.now()): SetRecord {
     flaggedReps: summary.reps.filter((rep) => rep.errors.length > 0).length,
     meanDepthDeg: summary.depth.meanDeg,
     trackingQuality: summary.trackingQuality,
+    durationMs: summary.durationMs,
+    errorCounts: { ...summary.errorCounts },
   };
 }
 

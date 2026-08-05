@@ -26,7 +26,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(here, 'index.html'),
-        plan: resolve(here, 'plan.html'),
         annotate: resolve(here, 'annotate.html'),
       },
     },
