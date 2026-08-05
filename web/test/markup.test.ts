@@ -109,6 +109,39 @@ describe('screens', () => {
   });
 });
 
+describe('icons', () => {
+  const html = read('index.html');
+  const icons = read('src/ui/icons.ts');
+
+  it('every data-icon slot names an icon that exists', () => {
+    // An unknown name is skipped silently at runtime, leaving an empty button
+    // — a control with nothing in it, which reads as broken rather than
+    // missing.
+    const declared = [...icons.matchAll(/^  (\w+): \[/gm)].map((m) => m[1]);
+    const used = [...html.matchAll(/data-icon="([^"]+)"/g)].map((m) => m[1]);
+
+    expect(used.length).toBeGreaterThan(0);
+    const unknown = used.filter((name) => !declared.includes(name));
+    expect(unknown, `no path defined for: ${unknown.join(', ')}`).toEqual([]);
+  });
+
+  it('leaves the workout HUD alone', () => {
+    // The design gives one number and one colour the job of carrying the
+    // signal there. An icon would be a third thing competing for it.
+    const workout = html.slice(
+      html.indexOf('data-screen="latihan"'),
+      html.indexOf('data-screen="umpanbalik"'),
+    );
+    expect(workout).not.toContain('data-icon');
+  });
+
+  it('gives every icon-only button an accessible name', () => {
+    for (const [tag] of html.matchAll(/<button[^>]*data-icon="[^"]*"[^>]*>\s*<\/button>/g)) {
+      expect(tag, `icon-only button without aria-label: ${tag}`).toMatch(/aria-label=/);
+    }
+  });
+});
+
 describe('workout HUD', () => {
   const html = read('index.html');
   const css = read('src/style.css');

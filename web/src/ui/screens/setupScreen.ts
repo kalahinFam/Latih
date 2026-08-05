@@ -22,6 +22,7 @@
 
 import { CAMERA_GUIDANCE } from '../../core/framing.ts';
 import { el, required } from '../dom.ts';
+import { icon } from '../icons.ts';
 import type { Screen } from '../../app/router.ts';
 import type { Readiness } from '../workoutEngine.ts';
 import type { ExerciseKind } from '../../core/types.ts';
@@ -66,12 +67,13 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
     text: string,
     value?: string,
   ): HTMLElement {
-    const mark = el('span', {
-      class: 'check__mark',
-      'data-state': state,
-      'aria-hidden': 'true',
-      text: state === 'ok' ? '✓' : state === 'pending' ? '' : 'i',
-    });
+    const mark = el('span', { class: 'check__mark', 'data-state': state, 'aria-hidden': 'true' });
+
+    // Drawn rather than typed: "✓" and "i" land on whatever glyph the device
+    // font happens to have, and the tick is the one thing on this screen that
+    // has to be unmistakable at a glance.
+    if (state === 'ok') mark.append(icon('centang', 13, 2.6));
+    else if (state === 'info') mark.append(icon('info', 13, 2));
 
     return el(
       'li',

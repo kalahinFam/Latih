@@ -631,14 +631,12 @@ body {
 }
 
 .check__mark[data-state='pending'] {
-  color: var(--grey);
   background: transparent;
   border: 1px solid var(--line);
 }
 
 /* Guidance rows: the app does not measure these, so they carry no tick. */
 .check__mark[data-state='info'] {
-  font-size: 0.66rem;
   color: var(--grey-deep);
   background: #f1f3f2;
 }
@@ -982,12 +980,20 @@ body {
   display: none;
 }
 
+/*
+ * Icon above label. The icon inherits the label's colour, so the selected tab
+ * changes as one thing rather than two — which is also why these are drawn
+ * paths and not images.
+ */
 .tab {
+  display: flex;
   flex: 1;
-  height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  height: 60px;
   font: inherit;
-  font-size: 0.81rem;
-  font-weight: 500;
   color: var(--grey);
   background: transparent;
   border: none;
@@ -995,10 +1001,25 @@ body {
   cursor: pointer;
 }
 
+.tab__label {
+  font-size: 0.69rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 .tab[aria-selected='true'] {
-  font-weight: 700;
   color: var(--ink);
   border-top-color: var(--sage);
+}
+
+.tab[aria-selected='true'] .tab__label {
+  font-weight: 700;
+}
+
+/* The selected tab's icon takes the accent; the label stays ink so the two do
+   not both shout. */
+.tab[aria-selected='true'] .icon {
+  color: var(--sage);
 }
 
 /* --------------------------------------------------------------- banner */
@@ -1293,4 +1314,30 @@ body {
 
 .card .btn {
   width: 100%;
+}
+
+/* --------------------------------------------------------------------- icons */
+
+/*
+ * Blocked so width and height apply, and never allowed to shrink — a squashed
+ * icon in a tight flex row reads as a rendering fault rather than an icon.
+ */
+.icon {
+  display: block;
+  flex: none;
+}
+
+/* Icon-only buttons: the icon is the whole control, so it is centred and the
+   button has no text to space around it. */
+.iconbtn .icon {
+  margin: 0;
+}
+
+/* The home bar is wordmark · date · settings, so the date must not push the
+   button off the edge. */
+.screen__bar .screen__date {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

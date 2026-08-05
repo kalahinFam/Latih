@@ -100,7 +100,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (382 tes) |
+| `npm test` | Unit test (385 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -169,6 +169,7 @@ web/src/
 └── ui/
     ├── workoutEngine.ts  fast loop + kamera, dua mode
     ├── skeleton.ts       overlay
+    ├── icons.ts          tujuh ikon, digambar sendiri
     └── screens/          satu modul per layar
 
 web/test/          ← tes integrasi terhadap data & kode server nyata.

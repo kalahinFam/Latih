@@ -48,6 +48,13 @@
         <header class="screen__bar">
           <span class="wordmark">LATIH</span>
           <span class="screen__date" id="homeDate"></span>
+          <button
+            class="iconbtn"
+            type="button"
+            id="homeSettings"
+            data-icon="pengaturan"
+            aria-label="Pengaturan"
+          ></button>
         </header>
 
         <div class="screen__body">
@@ -82,14 +89,13 @@
 
         <div class="screen__actions">
           <button class="btn btn--primary" id="homeStart" type="button">Mulai latihan</button>
-          <button class="btn btn--quiet" id="homeSettings" type="button">Pengaturan</button>
         </div>
       </section>
 
       <!-- ========================= 2 · Pilih gerakan ======================= -->
       <section class="screen" data-screen="pilih" hidden>
         <header class="screen__bar">
-          <button class="iconbtn" type="button" data-back aria-label="Kembali">←</button>
+          <button class="iconbtn" type="button" data-back data-icon="kembali" aria-label="Kembali"></button>
           <h1 class="screen__title">Pilih gerakan</h1>
         </header>
 
@@ -110,9 +116,13 @@
       <!-- ========================= 3 · Posisi kamera ======================= -->
       <section class="screen screen--over-camera" data-screen="kamera" hidden>
         <header class="screen__bar screen__bar--onDark">
-          <button class="iconbtn iconbtn--onDark" type="button" data-back aria-label="Kembali">
-            ←
-          </button>
+          <button
+            class="iconbtn iconbtn--onDark"
+            type="button"
+            data-back
+            data-icon="kembali"
+            aria-label="Kembali"
+          ></button>
           <span class="hud__movement" id="setupTitle">POSISI KAMERA</span>
           <span class="hud__voice">
             <span class="hud__dot" aria-hidden="true"></span>
@@ -293,7 +303,7 @@
            body profile, schedule, and reminders all need somewhere to live. -->
       <section class="screen" data-screen="pengaturan" hidden>
         <header class="screen__bar">
-          <button class="iconbtn" type="button" data-back aria-label="Kembali">←</button>
+          <button class="iconbtn" type="button" data-back data-icon="kembali" aria-label="Kembali"></button>
           <h1 class="screen__title">Pengaturan</h1>
         </header>
         <div class="screen__body" id="settingsBody"></div>
@@ -301,9 +311,15 @@
     </main>
 
     <nav class="tabs" id="tabs" hidden>
-      <button class="tab" type="button" data-tab="beranda">Latihan</button>
-      <button class="tab" type="button" data-tab="riwayat">Riwayat</button>
-      <button class="tab" type="button" data-tab="gizi">Gizi</button>
+      <button class="tab" type="button" data-tab="beranda" data-icon="latihan">
+        <span class="tab__label">Latihan</span>
+      </button>
+      <button class="tab" type="button" data-tab="riwayat" data-icon="riwayat">
+        <span class="tab__label">Riwayat</span>
+      </button>
+      <button class="tab" type="button" data-tab="gizi" data-icon="gizi">
+        <span class="tab__label">Gizi</span>
+      </button>
     </nav>
 
     <script type="module" src="/src/main.ts"></script>

@@ -15,6 +15,7 @@ import { createHistoryScreen } from './ui/screens/historyScreen.ts';
 import { createNutritionScreen } from './ui/screens/nutritionScreen.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { required } from './ui/dom.ts';
+import { hasIcon, icon } from './ui/icons.ts';
 import type { ExerciseKind } from './core/types.ts';
 import type { SetSummary } from './core/setSummary.ts';
 
@@ -183,6 +184,20 @@ for (const node of document.querySelectorAll<HTMLElement>('[data-screen]')) {
 
 const tabs = required('#tabs');
 const tabButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+
+/**
+ * Fill every icon slot declared in the markup.
+ *
+ * The markup names the icon; this puts it there. Building the SVG in script
+ * rather than writing it inline keeps `index.html` readable as a description of
+ * the screens, and keeps every path in one file where they can be kept
+ * consistent with each other.
+ */
+for (const slot of document.querySelectorAll<HTMLElement>('[data-icon]')) {
+  const name = slot.dataset.icon!;
+  if (!hasIcon(name)) continue;
+  slot.prepend(icon(name));
+}
 
 /** Screens that show the camera; everything else releases it. */
 const CAMERA_SCREENS = new Set(['kamera', 'latihan', 'umpanbalik']);
