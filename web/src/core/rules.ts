@@ -15,6 +15,19 @@
  * being drawn honestly — if the rules quietly covered everything, "rule+model"
  * could not beat "rule-only" and the three-loop design would be unjustified.
  *
+ * ## Depth is not judged here
+ *
+ * It used to be: the counter credited anything past `downEnter` and a rule
+ * flagged it as shallow afterwards, so a set of twelve half squats produced
+ * twelve repetitions and twelve corrections. Depth is now the counter's
+ * `creditMax` and nothing else — an attempt either reaches the bottom and
+ * counts, or it does not and is reported as an uncounted attempt. One
+ * threshold, one place, no ordering to keep straight.
+ *
+ * `shallow_depth` survives as an error code because it is still what an
+ * uncounted attempt *is*, and what `liveCue` fires at the reversal. It is
+ * simply no longer produced by `evaluateRules`.
+ *
  * ## On thresholds
  *
  * The values below are seeded from the biomechanics of each movement, not
@@ -24,13 +37,12 @@
  *
  * ## The invariant that makes these rules reachable
  *
- * Every threshold here must be *stricter* than the rep counter's gate for the
- * same joint, because the rules only ever see repetitions the counter emitted.
- * Set `depthMax` equal to the counter's `downEnter` and the shallow-depth rule
- * becomes unreachable: any rep deep enough to be counted is deep enough to
- * pass. The rule still reads correctly on its own and still passes a unit test
- * built from a synthetic window — it simply never fires in the product.
- * `rules.test.ts` asserts the ordering against `DEFAULT_CONFIGS` directly.
+ * Every threshold here must be reachable from a repetition the counter would
+ * actually emit, because the rules only ever see those. A threshold on the
+ * wrong side of a counter gate is unreachable code that still reads correctly
+ * in isolation and still passes a unit test built from a synthetic window — it
+ * simply never fires in the product. `rules.test.ts` asserts the relationships
+ * against `DEFAULT_CONFIGS` directly.
  */
 
 import type { ExerciseKind, JointAngles } from './types.ts';
@@ -95,8 +107,6 @@ export interface RuleFinding {
 }
 
 interface Thresholds {
-  /** A rep shallower than this at the bottom is not deep enough. */
-  depthMax: number;
   /**
    * Absolute backstop for lockout — a rep peaking below this is short however
    * the rest of the set looked. Deliberately close to the counter's `upEnter`,
@@ -134,10 +144,6 @@ interface Thresholds {
 
 export const DEFAULT_THRESHOLDS: Record<ExerciseKind, Thresholds> = {
   pushup: {
-    // Elbow at the bottom. Above ~105 deg the chest has not travelled far.
-    // Counter gate is 135, so reps bottoming between 105 and 135 are counted
-    // and flagged — which is exactly the population that needs coaching.
-    depthMax: 105,
     // Elbow at the top. Counter gate is 158, so this only catches the narrow
     // band just above it — the relative rule does the real work.
     lockoutMin: 161,
@@ -148,9 +154,6 @@ export const DEFAULT_THRESHOLDS: Record<ExerciseKind, Thresholds> = {
     band: 25,
   },
   squat: {
-    // Knee at the bottom. Parallel is ~90; above ~110 is a partial squat.
-    // Counter gate is 140, so 110-140 is the coachable band.
-    depthMax: 110,
     // Counter gate is 162.
     lockoutMin: 165,
     lockoutDropMax: 14,
@@ -166,23 +169,15 @@ function severityOf(value: number, threshold: number, band: number, direction: '
   return Math.min(1, Math.max(0, excess / band));
 }
 
-// All three prefer the better-observed side. Averaging a measured limb with an
-// occluded one is what let partial squats read as deep enough to pass — see
+// Prefers the better-observed side. Averaging a measured limb with an occluded
+// one is what let partial squats read as deep enough to pass — see
 // `reliableMean`.
 function hipAngle(angles: JointAngles): number | null {
   const c = angles.confidence;
   return reliableMean(angles.hipLeft, angles.hipRight, c.hipLeft, c.hipRight);
 }
 
-function kneeAngle(angles: JointAngles): number | null {
-  const c = angles.confidence;
-  return reliableMean(angles.kneeLeft, angles.kneeRight, c.kneeLeft, c.kneeRight);
-}
 
-function elbowAngle(angles: JointAngles): number | null {
-  const c = angles.confidence;
-  return reliableMean(angles.elbowLeft, angles.elbowRight, c.elbowLeft, c.elbowRight);
-}
 
 /**
  * Evaluate the rules for one completed repetition.
@@ -216,26 +211,6 @@ export function evaluateRules(
   const t = { ...DEFAULT_THRESHOLDS[exercise], ...overrides };
   const bottom = bottomFrames(window);
   const findings: RuleFinding[] = [];
-
-  // Median, not min. `min` over the bottom window is the most optimistic
-  // possible reading of depth — one badly-fitted frame is enough to make a
-  // shallow rep look deep and silence the cue. Field testing showed cues
-  // firing inconsistently, and an outlier-sensitive statistic is one cause.
-  const primaryAtBottom =
-    exercise === 'pushup' ? medianOf(bottom, elbowAngle) : medianOf(bottom, kneeAngle);
-
-  // Depth. Uses the frames around the bottom rather than the counter's
-  // minAngle so the two agree even if the counter held frames for low
-  // visibility partway through.
-  if (primaryAtBottom !== null && primaryAtBottom > t.depthMax) {
-    findings.push({
-      code: 'shallow_depth',
-      cue: cueFor(exercise, 'shallow_depth'),
-      value: primaryAtBottom,
-      threshold: t.depthMax,
-      severity: severityOf(primaryAtBottom, t.depthMax, t.band, 'above'),
-    });
-  }
 
   // Lockout. maxAngle is the peak extension the counter observed at the top.
   const lockout = window.event.maxAngle;

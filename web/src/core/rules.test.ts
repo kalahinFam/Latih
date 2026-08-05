@@ -43,6 +43,7 @@ function windowAt(bottom: Partial<JointAngles>, event: Partial<RepEvent> = {}): 
   builder.push(1500, angles(primaryTop));
 
   return builder.take({
+    counted: true,
     index: 1,
     startMs: 0,
     bottomMs: 1000,
@@ -67,13 +68,15 @@ function codes(findings: { code: RuleErrorCode }[]): RuleErrorCode[] {
  * the *rep counter* would never emit such a window in the first place. These
  * assertions close that gap by checking the two modules against each other.
  */
-describe('rule thresholds must be reachable from counted reps', () => {
+describe('thresholds must be reachable from what the counter emits', () => {
   const exercises: ExerciseKind[] = ['pushup', 'squat'];
 
-  it.each(exercises)('%s: depth rule is stricter than the counter gate', (exercise) => {
-    // If these were equal, every counted rep would already be deep enough and
-    // shallow_depth could never fire on a real repetition.
-    expect(DEFAULT_THRESHOLDS[exercise].depthMax).toBeLessThan(DEFAULT_CONFIGS[exercise].downEnter);
+  it.each(exercises)('%s: credit depth sits inside the descent phase', (exercise) => {
+    // The descent phase only begins past `downEnter`, so a credit threshold
+    // above it could never be evaluated — the machine would award credit for
+    // entering the phase rather than for reaching the bottom.
+    const { downEnter, creditMax } = DEFAULT_CONFIGS[exercise];
+    expect(creditMax).toBeLessThanOrEqual(downEnter);
   });
 
   it.each(exercises)('%s: lockout rule is stricter than the counter gate', (exercise) => {
@@ -87,39 +90,62 @@ describe('rule thresholds must be reachable from counted reps', () => {
     expect(upEnter - downEnter).toBeGreaterThanOrEqual(20);
   });
 
-  /**
-   * End-to-end proof, not just an inequality: drive a genuinely shallow rep
-   * through the real counter and assert the rule fires on what it emits.
-   */
-  it.each(exercises)('%s: a shallow rep is counted and then flagged', (exercise) => {
-    const { downEnter, upEnter } = DEFAULT_CONFIGS[exercise];
-    // Bottom out between the rule threshold and the counter gate.
-    const shallowBottom = (DEFAULT_THRESHOLDS[exercise].depthMax + downEnter) / 2;
+  /** Drive a movement through the real counter and read what it emits. */
+  function driveRep(exercise: ExerciseKind, bottom: number): RepEvent | null {
+    const { upEnter } = DEFAULT_CONFIGS[exercise];
+    const counter = new RepCounter(exercise);
     const top = upEnter + 12;
 
-    const counter = new RepCounter(exercise);
-    const builder = new RepWindowBuilder();
-    const isPushup = exercise === 'pushup';
-
     let event: RepEvent | null = null;
-    const sequence = [
-      ...Array(12).fill(top),
-      ...Array(12).fill(shallowBottom),
-      ...Array(12).fill(top),
-    ];
+    const sequence = [...Array(12).fill(top), ...Array(12).fill(bottom), ...Array(12).fill(top)];
 
     sequence.forEach((angle, i) => {
-      const t = i * 33;
-      const joints: Partial<JointAngles> = isPushup
-        ? { elbowLeft: angle, elbowRight: angle, hipLeft: 178, hipRight: 178 }
-        : { kneeLeft: angle, kneeRight: angle, trunkLean: 30 };
-      builder.push(t, angles(joints));
-      event = counter.update(angle, t) ?? event;
+      event = counter.update(angle, i * 33) ?? event;
     });
+    return event;
+  }
+
+  /**
+   * The behaviour the whole two-threshold split exists for: a half repetition
+   * is *seen* — so it can be corrected — and not *credited*.
+   *
+   * Reported from a phone as squats counting without reaching depth. A counter
+   * that credits half reps tells the lifter something untrue about the work
+   * they did, and inflates the target the session loop then progresses from.
+   */
+  it.each(exercises)('%s: a half rep is reported but not counted', (exercise) => {
+    const { downEnter, creditMax } = DEFAULT_CONFIGS[exercise];
+    // Past the attempt gate, short of the credit depth.
+    const event = driveRep(exercise, (creditMax + downEnter) / 2);
 
     expect(event).not.toBeNull();
-    const findings = evaluateRules(exercise, builder.take(event!));
-    expect(codes(findings)).toContain('shallow_depth');
+    expect(event!.counted).toBe(false);
+  });
+
+  it.each(exercises)('%s: a full rep is counted', (exercise) => {
+    const event = driveRep(exercise, DEFAULT_CONFIGS[exercise].creditMax - 10);
+    expect(event).not.toBeNull();
+    expect(event!.counted).toBe(true);
+  });
+
+  it.each(exercises)('%s: the count only moves for credited reps', (exercise) => {
+    const { downEnter, upEnter, creditMax } = DEFAULT_CONFIGS[exercise];
+    const counter = new RepCounter(exercise);
+    const top = upEnter + 12;
+    const half = (creditMax + downEnter) / 2;
+    const full = creditMax - 10;
+
+    const sequence = [
+      ...Array(12).fill(top),
+      ...Array(12).fill(half),
+      ...Array(12).fill(top),
+      ...Array(12).fill(full),
+      ...Array(12).fill(top),
+    ];
+    sequence.forEach((angle, i) => counter.update(angle, i * 33));
+
+    expect(counter.status.repCount).toBe(1);
+    expect(counter.status.rejectedCount).toBe(1);
   });
 });
 
@@ -127,11 +153,6 @@ describe('evaluateRules — push-up', () => {
   it('passes a clean rep', () => {
     const w = windowAt({ elbowLeft: 80, elbowRight: 80, hipLeft: 178, hipRight: 178 });
     expect(evaluateRules('pushup', w)).toEqual([]);
-  });
-
-  it('flags insufficient depth', () => {
-    const w = windowAt({ elbowLeft: 120, elbowRight: 120, hipLeft: 178, hipRight: 178 });
-    expect(codes(evaluateRules('pushup', w))).toContain('shallow_depth');
   });
 
   it('flags a sagging hip', () => {
@@ -157,16 +178,22 @@ describe('evaluateRules — push-up', () => {
   });
 
   it('reports several independent faults on one rep', () => {
-    const w = windowAt({ elbowLeft: 125, elbowRight: 125, hipLeft: 140, hipRight: 140 });
+    const w = windowAt(
+      { elbowLeft: 80, elbowRight: 80, hipLeft: 140, hipRight: 140 },
+      { maxAngle: 150 },
+    );
     const found = codes(evaluateRules('pushup', w));
-    expect(found).toContain('shallow_depth');
     expect(found).toContain('hip_sag');
+    expect(found).toContain('partial_lockout');
   });
 
   it('orders findings by severity, worst first', () => {
-    // Depth is barely off (just past the 105 threshold); the hip is badly
-    // collapsed. Both fire, and the hip must be spoken first.
-    const w = windowAt({ elbowLeft: 110, elbowRight: 110, hipLeft: 120, hipRight: 120 });
+    // Lockout is barely off; the hip is badly collapsed. Both fire, and the
+    // hip must be spoken first.
+    const w = windowAt(
+      { elbowLeft: 80, elbowRight: 80, hipLeft: 120, hipRight: 120 },
+      { maxAngle: 159 },
+    );
     const findings = evaluateRules('pushup', w);
     expect(findings).toHaveLength(2);
     expect(findings[0].code).toBe('hip_sag');
@@ -181,8 +208,18 @@ describe('evaluateRules — push-up', () => {
   });
 
   it('honours threshold overrides', () => {
-    const w = windowAt({ elbowLeft: 120, elbowRight: 120, hipLeft: 178 });
-    expect(codes(evaluateRules('pushup', w, { depthMax: 130 }))).not.toContain('shallow_depth');
+    const w = windowAt({ elbowLeft: 80, elbowRight: 80, hipLeft: 150, hipRight: 150 });
+    expect(codes(evaluateRules('pushup', w))).toContain('hip_sag');
+    expect(codes(evaluateRules('pushup', w, { hipSagMin: 140 }))).not.toContain('hip_sag');
+  });
+
+  it('no longer judges depth — the counter does', () => {
+    // Depth used to be checked twice, in two places, with an ordering between
+    // them that had to be kept straight. It is now the counter's `creditMax`
+    // and nothing else: an attempt either reaches the bottom and counts, or it
+    // does not and is reported uncounted.
+    const shallow = windowAt({ elbowLeft: 128, elbowRight: 128, hipLeft: 178, hipRight: 178 });
+    expect(codes(evaluateRules('pushup', shallow))).not.toContain('shallow_depth');
   });
 });
 
@@ -192,9 +229,11 @@ describe('evaluateRules — squat', () => {
     expect(evaluateRules('squat', w)).toEqual([]);
   });
 
-  it('flags a squat above parallel', () => {
+  it('leaves depth to the counter', () => {
+    // A squat above parallel never becomes a counted rep in the first place —
+    // `creditMax` is 90 — so there is nothing here for a depth rule to flag.
     const w = windowAt({ kneeLeft: 125, kneeRight: 125, trunkLean: 30 }, { maxAngle: 175 });
-    expect(codes(evaluateRules('squat', w))).toContain('shallow_depth');
+    expect(codes(evaluateRules('squat', w))).not.toContain('shallow_depth');
   });
 
   it('flags excessive forward lean', () => {
@@ -328,6 +367,7 @@ describe('RepWindowBuilder', () => {
     for (let t = 0; t <= 2000; t += 250) builder.push(t, angles({ elbowLeft: 100 }));
 
     const window = builder.take({
+      counted: true,
       index: 1,
       startMs: 500,
       bottomMs: 1000,
@@ -347,6 +387,7 @@ describe('RepWindowBuilder', () => {
     for (let t = 0; t <= 2000; t += 250) builder.push(t, angles({ elbowLeft: 100 }));
 
     builder.take({
+      counted: true,
       index: 1,
       startMs: 0,
       bottomMs: 500,

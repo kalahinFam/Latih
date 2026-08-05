@@ -26,7 +26,7 @@
  * correction forward.
  */
 
-import { DEFAULT_THRESHOLDS } from './rules.ts';
+import { DEFAULT_CONFIGS } from './repCounter.ts';
 import type { ExerciseKind } from './types.ts';
 
 /**
@@ -48,6 +48,7 @@ const REVERSAL_FRAMES = 3;
 const DEPTH_GRACE_DEG = 8;
 
 export class LiveDepthCue {
+  /** The depth that would have earned the count — see `creditMax`. */
   private readonly depthMax: number;
 
   private minAngle = Number.POSITIVE_INFINITY;
@@ -56,7 +57,7 @@ export class LiveDepthCue {
   private firedThisRep = false;
 
   constructor(exercise: ExerciseKind) {
-    this.depthMax = DEFAULT_THRESHOLDS[exercise].depthMax;
+    this.depthMax = DEFAULT_CONFIGS[exercise].creditMax;
   }
 
   /**

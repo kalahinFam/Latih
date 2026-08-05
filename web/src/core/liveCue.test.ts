@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LiveDepthCue } from './liveCue.ts';
 import { RepCounter } from './repCounter.ts';
-import { DEFAULT_THRESHOLDS } from './rules.ts';
+import { DEFAULT_CONFIGS } from './repCounter.ts';
 import type { ExerciseKind } from './types.ts';
 
 /**
@@ -160,21 +160,24 @@ describe('LiveDepthCue — robustness', () => {
   });
 
   it('uses the exercise-specific depth threshold', () => {
-    // 125 is short for a push-up (105) but past the squat threshold (110)
-    // by more than the grace, so both should fire — but a 115 bottom is
-    // forgiven for squat and flagged for push-up.
+    // The two movements credit at different depths — 105 for a push-up elbow,
+    // 90 for a squat knee — so the same bottom angle is a different verdict.
+    // 125 is short for both; 100 is short for a squat and fine for a push-up.
     expect(runRep('pushup', rep(168, 125)).firedAt).toBeGreaterThan(0);
-    expect(runRep('squat', rep(175, 115)).firedAt).toBe(-1);
+    expect(runRep('squat', rep(175, 125)).firedAt).toBeGreaterThan(0);
+    expect(runRep('pushup', rep(168, 100)).firedAt).toBe(-1);
+    expect(runRep('squat', rep(175, 100)).firedAt).toBeGreaterThan(0);
   });
 
-  it('agrees with the rule threshold it is derived from', () => {
-    // Both read DEFAULT_THRESHOLDS, so a threshold change moves them together
-    // rather than leaving the live cue and the post-rep rule disagreeing.
+  it('is derived from the depth that actually earns the count', () => {
+    // Both read `creditMax`, so moving the depth the counter credits moves the
+    // live cue with it. Otherwise the app could refuse a rep for being shallow
+    // while never having warned that it was going to.
     for (const exercise of ['pushup', 'squat'] as const) {
-      const { depthMax } = DEFAULT_THRESHOLDS[exercise];
+      const { creditMax } = DEFAULT_CONFIGS[exercise];
       const top = exercise === 'pushup' ? 168 : 175;
-      expect(runRep(exercise, rep(top, depthMax + 30)).firedAt).toBeGreaterThan(0);
-      expect(runRep(exercise, rep(top, depthMax - 20)).firedAt).toBe(-1);
+      expect(runRep(exercise, rep(top, creditMax + 30)).firedAt).toBeGreaterThan(0);
+      expect(runRep(exercise, rep(top, creditMax - 20)).firedAt).toBe(-1);
     }
   });
 });

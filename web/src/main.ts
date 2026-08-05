@@ -1,6 +1,6 @@
 import './style.css';
 import { registerServiceWorker } from './pwa.ts';
-import { Router, type Route } from './app/router.ts';
+import { Router, parseHash, type Route } from './app/router.ts';
 import { WorkoutSession } from './app/workoutSession.ts';
 import { TrainingHistory, toSetRecord } from './session/history.ts';
 import { loadPreferences } from './session/profile.ts';
@@ -55,6 +55,28 @@ function startWorkout(): void {
 }
 
 /**
+ * Beat between hitting the target and the sheet arriving.
+ *
+ * Long enough to see the final number land and hear "target tercapai"; short
+ * enough that it reads as the app finishing for you rather than lagging.
+ */
+const TARGET_CLOSE_DELAY_MS = 1500;
+
+let closing = false;
+
+/** The set met its target — close it without making the user reach for a button. */
+function autoFinishSet(): void {
+  if (closing) return;
+  closing = true;
+  window.setTimeout(() => {
+    // Only if they are still on the workout screen: tapping "Selesai set"
+    // during the pause, or backing out, must not be overridden.
+    if (parseHash(window.location.hash).name === 'latihan') finishSet();
+    closing = false;
+  }, TARGET_CLOSE_DELAY_MS);
+}
+
+/**
  * End the set, persist it, and attach the session context the coach needs.
  *
  * Recorded before the network call, so history survives a failed or slow
@@ -92,6 +114,7 @@ const setupScreen = createSetupScreen({
 });
 
 engine.onReadiness((readiness: Readiness) => setupScreen.update(readiness));
+engine.onTargetReached(autoFinishSet);
 
 const screens = {
   beranda: createHomeScreen({

@@ -55,6 +55,7 @@ function pushupWindow(
   }
 
   return builder.take({
+    counted: true,
     index: 1,
     startMs: 0,
     bottomMs: half * frameMs,
@@ -84,6 +85,7 @@ describe('extractFeatures — shape', () => {
     // An abandoned rep must not enter the training set as a zero tensor.
     const empty: RepWindow = {
       event: {
+        counted: true,
         index: 1,
         startMs: 0,
         bottomMs: 0,
@@ -205,6 +207,7 @@ describe('extractFeatures — missing data', () => {
       );
     }
     const window = builder.take({
+      counted: true,
       index: 1,
       startMs: 0,
       bottomMs: 19 * 33,
@@ -251,6 +254,7 @@ describe('feature contract', () => {
       builder.push(i * 33, angles({ elbowLeft: 100, elbowRight: 100, kneeLeft: 150, kneeRight: 150 }));
     }
     const event = {
+      counted: true,
       index: 1,
       startMs: 0,
       bottomMs: 300,

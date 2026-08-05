@@ -31,6 +31,27 @@ export type RepPhase = 'unknown' | 'up' | 'down';
 export interface RepCounterConfig {
   /** Angle must fall below this to enter the bottom of the rep, degrees. */
   downEnter: number;
+  /**
+   * Depth that must actually be reached for the repetition to count.
+   *
+   * ## Two thresholds, two questions
+   *
+   * `downEnter` asks "is a repetition being attempted" — it is what starts the
+   * descent phase and makes the movement observable. `creditMax` asks "did it
+   * reach the bottom" and is the only thing that increments the count.
+   *
+   * An attempt that reverses between the two is still emitted, with
+   * `counted: false`, so the app can flag it in amber and say what was wrong.
+   * It simply does not add to the number.
+   *
+   * This is the single depth authority in the system. It used to be split — the
+   * counter credited anything past `downEnter` and a separate rule flagged it
+   * as shallow afterwards — which meant a set of twelve half squats reported
+   * twelve repetitions and twelve corrections. A counter that counts half reps
+   * is telling the lifter something untrue about the work they did, and it
+   * inflates the target the session loop then progresses from.
+   */
+  creditMax: number;
   /** Angle must rise above this to return to the top, degrees. */
   upEnter: number;
   /** The angle must stay past a threshold this long before the phase commits. */
@@ -51,12 +72,11 @@ export interface RepCounterConfig {
  * person attempt a repetition", not "was it a good one". Quality is the rules'
  * job (`core/rules.ts`), and the rules can only see a rep the counter emitted.
  *
- * That imposes a hard invariant: **every counter gate must be looser than the
- * corresponding rule threshold.** If `downEnter` equalled the rules' depth
- * threshold, a rep deep enough to be counted would by definition be deep
- * enough to pass, and the shallow-depth rule could never fire on any real
- * repetition — it would be unreachable code that still looked correct in
- * isolation. `rules.test.ts` asserts this relationship so it cannot regress.
+ * That imposes a hard invariant: **`creditMax` must be at or below
+ * `downEnter`.** The descent phase only begins once the angle passes
+ * `downEnter`, so a credit threshold above it could never be evaluated — the
+ * machine would award credit for entering the phase rather than for reaching
+ * the bottom. `repCounter.test.ts` asserts this so it cannot regress.
  *
  * `minPhaseMs` is 120 ms — about four frames at 30 fps. It has to reject
  * frame-level tracker noise without rejecting fast repetitions: a trained
@@ -67,16 +87,29 @@ export interface RepCounterConfig {
  */
 export const DEFAULT_CONFIGS: Record<ExerciseKind, RepCounterConfig> = {
   // Elbow: ~170 deg locked out at the top, ~70-90 deg at a good bottom.
-  // 135 deg is an unmistakable descent while still leaving shallow reps
-  // countable — and therefore coachable.
-  pushup: { downEnter: 135, upEnter: 158, minPhaseMs: 120, maxHoldMs: 2000 },
-  // Knee: ~175 deg standing, ~90 deg at parallel.
-  squat: { downEnter: 140, upEnter: 162, minPhaseMs: 120, maxHoldMs: 2000 },
+  // 135 marks an unmistakable descent; 105 is the chest-down position that
+  // earns the count.
+  pushup: { downEnter: 135, creditMax: 105, upEnter: 158, minPhaseMs: 120, maxHoldMs: 2000 },
+  // Knee: ~175 deg standing, ~90 deg at parallel. Parallel is the standard the
+  // count is held to, so 90 is the credit threshold.
+  squat: { downEnter: 140, creditMax: 90, upEnter: 162, minPhaseMs: 120, maxHoldMs: 2000 },
 };
 
-/** One completed repetition. This is the unit the form classifier scores. */
+/** One completed attempt at a repetition. */
 export interface RepEvent {
-  /** 1-based position within the current set. */
+  /**
+   * Did it reach `creditMax`?
+   *
+   * False means the lifter went down and came back up without reaching depth.
+   * The attempt is still reported — it is worth a correction — but it did not
+   * add to the count.
+   */
+  counted: boolean;
+  /**
+   * 1-based position within the current set. For an uncounted attempt this is
+   * the number it *would* have taken, which is what the count still stands at
+   * plus one.
+   */
   index: number;
   /** When the lifter left the top — the last frame at peak extension. */
   startMs: number;
@@ -97,6 +130,8 @@ export interface RepEvent {
 export interface RepCounterStatus {
   phase: RepPhase;
   repCount: number;
+  /** Attempts that reversed before reaching depth. */
+  rejectedCount: number;
   /** True while pose confidence is too low to judge the movement. */
   holding: boolean;
 }
@@ -117,6 +152,7 @@ export class RepCounter {
 
   private phase: RepPhase = 'unknown';
   private repCount = 0;
+  private rejectedCount = 0;
 
   /** Pending threshold crossing, held until it has lasted `minPhaseMs`. */
   private candidate: { phase: RepPhase; sinceMs: number } | null = null;
@@ -136,13 +172,19 @@ export class RepCounter {
   }
 
   get status(): RepCounterStatus {
-    return { phase: this.phase, repCount: this.repCount, holding: this.holding };
+    return {
+      phase: this.phase,
+      repCount: this.repCount,
+      rejectedCount: this.rejectedCount,
+      holding: this.holding,
+    };
   }
 
   /** Clears counts and in-flight rep state. Call when a new set starts. */
   reset(): void {
     this.phase = 'unknown';
     this.repCount = 0;
+    this.rejectedCount = 0;
     this.candidate = null;
     this.abandonRep();
     this.lastValidMs = null;
@@ -154,7 +196,8 @@ export class RepCounter {
    *
    * @param angle Primary joint angle in degrees, or null when the pose is not
    *   confidently visible.
-   * @returns The completed rep, if this frame finished one.
+   * @returns The completed attempt, if this frame finished one. Check
+   *   `counted` before treating it as a repetition.
    */
   update(angle: number | null, timestampMs: number): RepEvent | null {
     if (angle === null) return this.handleMissingPose(timestampMs);
@@ -241,19 +284,26 @@ export class RepCounter {
   }
 
   /**
-   * Commit the ascent. Emits a rep only when the matching descent was observed;
-   * otherwise this is just a state change.
+   * Commit the ascent. Emits an attempt only when the matching descent was
+   * observed; otherwise this is just a state change.
    */
   private enterUp(angle: number, timestampMs: number): RepEvent | null {
-    const completed = this.descentObserved && this.top !== null && this.bottom !== null;
+    const attempted = this.descentObserved && this.top !== null && this.bottom !== null;
     let event: RepEvent | null = null;
 
-    if (completed) {
-      this.repCount += 1;
+    if (attempted) {
       const top = this.top!;
       const bottom = this.bottom!;
+      // Depth decides credit. Everything else about the attempt is reported
+      // either way.
+      const counted = bottom.angle <= this.config.creditMax;
+
+      if (counted) this.repCount += 1;
+      else this.rejectedCount += 1;
+
       event = {
-        index: this.repCount,
+        counted,
+        index: counted ? this.repCount : this.repCount + 1,
         startMs: top.timestampMs,
         bottomMs: bottom.timestampMs,
         endMs: timestampMs,

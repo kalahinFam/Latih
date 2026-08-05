@@ -23,6 +23,7 @@ import { computeJointAngles, primaryAngleForCounting } from '../core/angles.ts';
 import { LiveDepthCue } from '../core/liveCue.ts';
 import {
   READY_CUE,
+  TARGET_CUE,
   allSetupSpeech,
   checkFraming,
   framingMessage,
@@ -176,6 +177,9 @@ export class WorkoutEngine {
   private bestLockoutDeg: number | null = null;
   /** Codes already spoken once this set, for the say-once corrections. */
   private readonly spokenThisSet = new Set<RuleErrorCode>();
+  /** Fires once per set, when the rep target is reached. */
+  private targetListener: (() => void) | null = null;
+  private targetAnnounced = false;
   private framingSpokenUntilMs = 0;
   private lastSpokenFraming: string | null = null;
   /**
@@ -214,6 +218,16 @@ export class WorkoutEngine {
 
   onReadiness(listener: (readiness: Readiness) => void): void {
     this.readinessListener = listener;
+  }
+
+  /**
+   * Called once per set, on the frame the rep target is reached.
+   *
+   * The set is not ended here — the engine counts, and what happens next is the
+   * app's decision.
+   */
+  onTargetReached(listener: () => void): void {
+    this.targetListener = listener;
   }
 
   configure(exercise: ExerciseKind, targetReps: number, setLabel: string): void {
@@ -347,6 +361,7 @@ export class WorkoutEngine {
     this.nullAngleFrames = 0;
     this.bestLockoutDeg = null;
     this.spokenThisSet.clear();
+    this.targetAnnounced = false;
     this.cueUntilMs = 0;
     this.lastSpokenFraming = null;
     this.framingSpokenUntilMs = 0;
@@ -466,7 +481,19 @@ export class WorkoutEngine {
       this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
     }
 
-    if (rep) {
+    if (rep && !rep.counted) {
+      // An attempt that reversed before reaching depth. Flagged, spoken, and
+      // deliberately not counted — a counter that credits half reps tells the
+      // lifter something untrue about the work they did, and inflates the
+      // target the session loop then progresses from.
+      //
+      // `liveCue` usually says this first, at the reversal, which is earlier
+      // and better; `spokenThisRep` stops it being said twice.
+      if (!this.spokenThisRep.has('shallow_depth')) {
+        this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
+      }
+      this.spokenThisRep.clear();
+    } else if (rep) {
       const findings = evaluateRules(
         this.exercise,
         this.windows.take(rep),
@@ -491,6 +518,14 @@ export class WorkoutEngine {
 
       this.showCue(cue?.code ?? null, cue?.cue ?? null, frameStart);
       this.spokenThisRep.clear();
+
+      // The set has done what it set out to do. Announced here rather than
+      // polled, so the transition lands on the frame the target was met.
+      if (!this.targetAnnounced && this.counter.status.repCount >= this.targetReps) {
+        this.targetAnnounced = true;
+        this.voice.playCue(TARGET_CUE);
+        this.targetListener?.();
+      }
     }
 
     if (angle === null) this.nullAngleFrames += 1;

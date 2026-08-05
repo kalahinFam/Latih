@@ -19,6 +19,7 @@ const OPTIONS = { durationMs: 30_000, trackingQuality: 0.97 };
 describe('toRepRecord', () => {
   it('carries the rule findings as codes', () => {
     const event: RepEvent = {
+      counted: true,
       index: 3,
       startMs: 0,
       bottomMs: 800,
@@ -39,6 +40,7 @@ describe('toRepRecord', () => {
 
   it('survives a non-finite angle from an abandoned rep', () => {
     const event: RepEvent = {
+      counted: true,
       index: 1,
       startMs: 0,
       bottomMs: 0,

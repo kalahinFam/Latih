@@ -178,8 +178,11 @@ export function framingSpeech(issue: FramingIssue, exercise: ExerciseKind): stri
 /** Spoken when the camera has held a good view and the set may begin. */
 export const READY_CUE = 'Posisi siap, mulai';
 
+/** Spoken when the rep target is reached and the set closes itself. */
+export const TARGET_CUE = 'Target tercapai, set selesai';
+
 /**
- * Every setup phrase the app can speak, for the audio generator.
+ * Every non-rule phrase the app can speak, for the audio generator.
  *
  * Enumerated rather than derived from `framingSpeech` because the issue type is
  * a union of shapes, not a list — and a phrase without a pre-rendered clip
@@ -195,7 +198,7 @@ export function allSetupSpeech(): string[] {
     { kind: 'out-of-frame', missing: 'body' },
   ];
 
-  const phrases = new Set<string>([READY_CUE]);
+  const phrases = new Set<string>([READY_CUE, TARGET_CUE]);
   for (const exercise of ['pushup', 'squat'] as ExerciseKind[]) {
     for (const issue of issues) phrases.add(framingSpeech(issue, exercise));
   }

@@ -110,6 +110,7 @@ describe('rule findings carry speakable text', () => {
       builder.push(i * 33, { ...blank, elbowLeft: 125, elbowRight: 125, hipLeft: 140, hipRight: 140 });
     }
     const window = builder.take({
+      counted: true,
       index: 1,
       startMs: 0,
       bottomMs: 100,

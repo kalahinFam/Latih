@@ -100,7 +100,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (391 tes) |
+| `npm test` | Unit test (395 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -632,7 +632,7 @@ Hasil ditulis ke `eval/results/rep_accuracy.json`.
 
 ---
 
-## Lima keputusan desain yang perlu diketahui sebelum mengubah kode
+## Enam keputusan desain yang perlu diketahui sebelum mengubah kode
 
 ### 0. Jangan rata-ratakan sisi kiri dan kanan begitu saja
 
@@ -671,6 +671,36 @@ form dan tidak boleh menolak repetisi nyata: squat dalam mencondongkan badan
 jauh ke depan, dan push-up dari sudut serong tidak seterbaca "datar". Yang
 ditolak hanya kasus yang tidak ambigu — orang berbaring, duduk, atau berdiri
 diam. Kalau tidak bisa memastikan, ia mengizinkan.
+
+### 0d. Setengah rep dilihat, tapi tidak dihitung
+
+Counter punya **dua** ambang. `downEnter` menjawab "apakah ada percobaan
+repetisi" — itu yang memulai fase turun dan membuat gerakannya teramati.
+`creditMax` menjawab "apakah sampai bawah", dan hanya itu yang menambah
+hitungan.
+
+Percobaan yang berbalik di antara keduanya tetap dilaporkan (`counted: false`),
+jadi aplikasi bisa menandainya amber dan mengatakan apa yang kurang. Ia cuma
+tidak menambah angka.
+
+Sebelumnya kedalaman diperiksa **dua kali di dua tempat**: counter memberi
+kredit untuk apa pun yang melewati `downEnter`, lalu rule menandainya dangkal
+sesudahnya. Akibatnya satu set berisi dua belas squat setengah menghasilkan dua
+belas repetisi **dan** dua belas koreksi. Penghitung yang mengkreditkan setengah
+rep mengatakan sesuatu yang tidak benar tentang kerja yang dilakukan, dan
+menggelembungkan target yang kemudian dipakai session loop untuk naik.
+
+Sekarang satu ambang, satu tempat, tanpa urutan yang harus dijaga:
+
+| Gerakan | Percobaan (`downEnter`) | Dihitung (`creditMax`) |
+|---|---|---|
+| Push-up | siku 135° | siku 105° |
+| Squat | lutut 140° | lutut 90° — paralel |
+
+`liveCue` membaca `creditMax` yang sama, jadi peringatan "turun lebih dalam"
+datang di titik balik, **sebelum** rep-nya ditolak. Aplikasi tidak akan pernah
+menolak rep karena dangkal tanpa lebih dulu memperingatkan bahwa ia akan
+menolaknya.
 
 ### 0c. Lockout dinilai relatif, bukan terhadap ambang tetap
 
