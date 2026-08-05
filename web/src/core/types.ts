@@ -43,7 +43,37 @@ export const LANDMARK_COUNT = 33;
 
 export type Side = 'left' | 'right';
 
+/**
+ * Movements measured in repetitions.
+ *
+ * Kept deliberately narrow. The rep counter, the rep rules, and the per-rep
+ * feature window all only make sense for these, and widening this type to
+ * include plank would force a meaningless entry into every one of their
+ * threshold tables.
+ */
 export type ExerciseKind = 'pushup' | 'squat';
+
+/**
+ * Movements measured in held time.
+ *
+ * A plank has no repetitions to count — what is measured is how long the
+ * position is held and whether the hip line stays straight. That is a
+ * different engine (`core/holdTracker.ts`), not a different threshold.
+ */
+export type HoldKind = 'plank';
+
+/** Anything the app can train. */
+export type MovementKind = ExerciseKind | HoldKind;
+
+const HOLDS: readonly MovementKind[] = ['plank'];
+
+export function isHold(movement: MovementKind): movement is HoldKind {
+  return HOLDS.includes(movement);
+}
+
+export function isExercise(movement: MovementKind): movement is ExerciseKind {
+  return !isHold(movement);
+}
 
 /**
  * Joint angles for one frame, in degrees.

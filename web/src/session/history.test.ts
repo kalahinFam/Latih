@@ -141,7 +141,7 @@ describe('TrainingHistory', () => {
       trackingQuality: 0.95,
     });
 
-    expect(target.targetReps).toBeGreaterThan(0);
+    expect('targetReps' in target && target.targetReps).toBeGreaterThan(0);
   });
 
   it('reports no trend before any set exists', () => {
@@ -161,6 +161,7 @@ describe('TrainingHistory', () => {
     });
 
     expect(history.recordSet(clean(day)).reason).toBe('held-for-consistency');
-    expect(history.recordSet(clean(2 * day)).targetReps).toBe(9);
+    const raised = history.recordSet(clean(2 * day));
+    expect('targetReps' in raised && raised.targetReps).toBe(9);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cueFileName, cueHash, cueUrl } from './cueId.ts';
 import { allCueTexts, CUE_TEXT, cueFor } from '../core/rules.ts';
-import type { ExerciseKind, JointAngles } from '../core/types.ts';
+import type { JointAngles, MovementKind } from '../core/types.ts';
 import { equalConfidence } from '../core/angles.ts';
 
 describe('cueHash', () => {
@@ -44,10 +44,18 @@ describe('cueFileName', () => {
 });
 
 describe('cue coverage', () => {
-  /** Every rule the evaluator can emit, per exercise. */
-  const EXPECTED: Record<ExerciseKind, string[]> = {
+  /**
+   * Every fault each movement can produce.
+   *
+   * `shallow_depth` is not a rule any more — it is what an uncounted attempt
+   * *is*, fired by the counter and by `liveCue` — but it still needs a phrase,
+   * so it belongs here.
+   */
+  const EXPECTED: Record<MovementKind, string[]> = {
     pushup: ['shallow_depth', 'partial_lockout', 'hip_sag', 'hip_pike'],
     squat: ['shallow_depth', 'partial_lockout', 'excessive_trunk_lean'],
+    // A hold has no repetitions to grade; the hip line is the whole judgement.
+    plank: ['hip_sag', 'hip_pike'],
   };
 
   it('has a phrase for every rule the evaluator can produce', () => {
@@ -55,7 +63,7 @@ describe('cue coverage', () => {
     // the exact silent failure this test exists to prevent.
     for (const [exercise, codes] of Object.entries(EXPECTED)) {
       for (const code of codes) {
-        const cue = cueFor(exercise as ExerciseKind, code as never);
+        const cue = cueFor(exercise as MovementKind, code as never);
         expect(cue, `${exercise}:${code}`).not.toBe('');
       }
     }

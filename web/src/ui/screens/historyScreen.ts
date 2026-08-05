@@ -19,12 +19,12 @@ import { TrainingHistory } from '../../session/history.ts';
 import { EXERCISE_NAMES, el, formatDate, formatDateShort, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
 import type { SessionStats } from '../../core/quality.ts';
-import type { ExerciseKind } from '../../core/types.ts';
+import { isHold, type MovementKind } from '../../core/types.ts';
 
 /** Sessions shown. Beyond this the bars stop being individually readable. */
 const WINDOW = 8;
 
-const EXERCISES: ExerciseKind[] = ['pushup', 'squat'];
+const MOVEMENTS: MovementKind[] = ['pushup', 'squat', 'plank'];
 
 export interface HistoryDeps {
   history: TrainingHistory;
@@ -33,10 +33,15 @@ export interface HistoryDeps {
 export function createHistoryScreen(deps: HistoryDeps): Screen {
   const chips = required('#historyChips');
   const body = required('#historyBody');
-  let selected: ExerciseKind = 'pushup';
+  let selected: MovementKind = 'pushup';
+
+  /** Repetitions, or seconds for a held movement — whichever the work is in. */
+  function amountOf(session: SessionStats): number {
+    return session.isHold ? session.holdSeconds : session.reps;
+  }
 
   function barChart(stats: SessionStats[], target: number): HTMLElement {
-    const peak = Math.max(target, ...stats.map((s) => s.reps), 1);
+    const peak = Math.max(target, ...stats.map(amountOf), 1);
     const chart = el('div', { class: 'chart' });
 
     // Positioned from the bottom by the same scale as the bars, so the line
@@ -54,8 +59,8 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
         el('div', {
           class: 'chart__bar',
           'data-dirty': String(isDirty(session)),
-          style: `height:${Math.max(3, (session.reps / peak) * 100)}%`,
-          title: `${formatDate(session.startedAt)} — ${session.reps} repetisi`,
+          style: `height:${Math.max(3, (amountOf(session) / peak) * 100)}%`,
+          title: `${formatDate(session.startedAt)} — ${amountOf(session)} ${session.isHold ? 'detik' : 'repetisi'}`,
         }),
       );
     }
@@ -89,7 +94,7 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
 
   function render(): void {
     chips.replaceChildren();
-    for (const exercise of EXERCISES) {
+    for (const exercise of MOVEMENTS) {
       const chip = el('button', {
         class: 'chip',
         type: 'button',
@@ -117,7 +122,12 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
       return;
     }
 
-    const target = deps.history.currentTarget(selected).targetReps;
+    // Narrowed through the guard so each branch gets the right target reader.
+    const movement = selected;
+    const hold = isHold(movement);
+    const target = isHold(movement)
+      ? deps.history.currentHoldTarget(movement).targetSeconds
+      : deps.history.currentTarget(movement).targetReps;
 
     body.append(
       el(
@@ -126,7 +136,10 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
         el(
           'div',
           { class: 'sheet__head' },
-          el('span', { class: 'card__eyebrow', text: 'REPETISI PER SESI' }),
+          el('span', {
+            class: 'card__eyebrow',
+            text: hold ? 'DETIK TERTAHAN PER SESI' : 'REPETISI PER SESI',
+          }),
           el('span', { class: 'check__value', text: `${stats.length} sesi terakhir` }),
         ),
         barChart(stats, target),
@@ -140,13 +153,20 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
           'div',
           { class: 'legend' },
           legendItem('dash', `target ${target}`),
-          legendItem('sage', 'form bersih'),
-          legendItem('amber', `>${Math.round(DIRTY_SESSION_SHARE * 100)}% repetisi ditandai`),
+          legendItem('sage', hold ? 'tahan bersih' : 'form bersih'),
+          legendItem(
+            'amber',
+            hold ? 'garis badan putus >1×' : `>${Math.round(DIRTY_SESSION_SHARE * 100)}% repetisi ditandai`,
+          ),
         ),
       ),
     );
 
-    const depths = stats.map((s) => s.meanDepthDeg).filter((d): d is number => d !== null);
+    // Depth is meaningless for a hold — the second chart is about how deep the
+    // repetitions went, and there are none.
+    const depths = hold
+      ? []
+      : stats.map((s) => s.meanDepthDeg).filter((d): d is number => d !== null);
     if (depths.length >= 2) {
       const change = depths[0] - depths[depths.length - 1];
       body.append(
@@ -187,7 +207,7 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
             el('div', { class: 'row__title', text: formatDate(session.startedAt) }),
             el('div', {
               class: 'row__sub',
-              text: `${session.sets} set · ${session.reps} repetisi · ${formatDuration(session.elapsedMs)}`,
+              text: `${session.sets} set · ${amountOf(session)} ${session.isHold ? 'detik' : 'repetisi'} · ${formatDuration(session.elapsedMs)}`,
             }),
           ),
           el('div', {

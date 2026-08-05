@@ -16,11 +16,11 @@ import { TrainingHistory } from '../../session/history.ts';
 import { loadPreferences } from '../../session/profile.ts';
 import { el, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
-import type { ExerciseKind } from '../../core/types.ts';
+import { isHold, type MovementKind } from '../../core/types.ts';
 
 export interface SummaryDeps {
   history: TrainingHistory;
-  getExercise: () => ExerciseKind;
+  getExercise: () => MovementKind;
   onDone: () => void;
 }
 
@@ -33,6 +33,8 @@ export function createSummaryScreen(deps: SummaryDeps): Screen {
   const repsDelta = required('#summaryRepsDelta');
   const depth = required('#summaryDepth');
   const depthDelta = required('#summaryDepthDelta');
+  const repsLabel = required('#summaryRepsLabel');
+  const depthLabel = required('#summaryDepthLabel');
   const errorsWrap = required('#summaryErrorsWrap');
   const errors = required('#summaryErrors');
   const nextTarget = required('#summaryNextTarget');
@@ -76,17 +78,27 @@ export function createSummaryScreen(deps: SummaryDeps): Screen {
 
       quality.textContent = stats.quality === null ? '—' : String(stats.quality);
       qualityBar.style.width = `${stats.quality ?? 0}%`;
+      const tracking = `Sudut terbaca ${Math.round(stats.trackingQuality * 100)}% frame.`;
       qualityNote.textContent =
         stats.quality === null
-          ? 'Tidak ada repetisi terhitung di sesi ini.'
-          : `${stats.flaggedReps} dari ${stats.reps} repetisi ditandai. Sudut terbaca ${Math.round(stats.trackingQuality * 100)}% frame.`;
+          ? 'Tidak ada yang terhitung di sesi ini.'
+          : stats.isHold
+            ? `${stats.holdSeconds} detik tertahan, hitungan berhenti ${stats.flaggedReps}×. ${tracking}`
+            : `${stats.flaggedReps} dari ${stats.reps} repetisi ditandai. ${tracking}`;
 
-      reps.textContent = String(stats.reps);
-      depth.textContent = stats.meanDepthDeg === null ? '—' : `${Math.round(stats.meanDepthDeg)}°`;
+      // The big pair reads in the unit the movement is measured in.
+      reps.textContent = stats.isHold ? `${stats.holdSeconds}` : String(stats.reps);
+      repsLabel.textContent = stats.isHold ? 'detik tertahan' : 'repetisi total';
+      depth.textContent = stats.isHold
+        ? String(stats.flaggedReps)
+        : stats.meanDepthDeg === null
+          ? '—'
+          : `${Math.round(stats.meanDepthDeg)}°`;
+      depthLabel.textContent = stats.isHold ? 'kali garis putus' : 'kedalaman rata-rata';
 
       // The same numbers the coach was given, so the screen and the narration
-      // cannot tell different stories.
-      const trend = progressTrend(exercise, history);
+      // cannot tell different stories. A hold has no rep trend.
+      const trend = isHold(exercise) ? null : progressTrend(exercise, history);
       if (trend && trend.sessions >= 2) {
         setDelta(repsDelta, trend.repsDelta, 'repetisi', true);
         setDelta(depthDelta, Math.round(trend.depthDeltaDeg), '°', false);
@@ -123,9 +135,13 @@ export function createSummaryScreen(deps: SummaryDeps): Screen {
         );
       }
 
-      const target = deps.history.currentTarget(exercise);
-      nextTarget.textContent = String(target.targetReps);
-      nextSets.textContent = `repetisi × ${prefs.setsPerExercise} set`;
+      const target = isHold(exercise)
+        ? deps.history.currentHoldTarget(exercise)
+        : deps.history.currentTarget(exercise);
+      nextTarget.textContent = String(
+        'targetReps' in target ? target.targetReps : target.targetSeconds,
+      );
+      nextSets.textContent = `${isHold(exercise) ? 'detik' : 'repetisi'} × ${prefs.setsPerExercise} set`;
       nextReason.textContent = explainTarget(target);
     },
   };

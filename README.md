@@ -19,6 +19,7 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 |---|---|
 | Pose estimation on-device (MediaPipe) | ✅ berjalan |
 | Penghitung repetisi (push-up, squat) | ✅ berjalan |
+| Plank — durasi + garis pinggul | ✅ berjalan |
 | Koreksi form deterministik + cue | ✅ berjalan |
 | Instrumentasi latensi & FPS | ✅ berjalan |
 | PWA installable + offline | ✅ berjalan |
@@ -100,7 +101,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (395 tes) |
+| `npm test` | Unit test (411 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -315,13 +316,33 @@ Jaraknya pun dinyatakan dalam porsi tinggi layar, bukan meter: konversi ke meter
 butuh field of view lensa dan tinggi badan penggunanya, dan aplikasi tidak punya
 keduanya.
 
-### Plank
+### Plank — mesin tersendiri, bukan counter dengan timer
 
-Tampil di layar pilih gerakan, ditandai "segera hadir", tidak bisa dipilih.
-Gerakan itu ada di desain dan tidak ada di kode. Menghapusnya diam-diam akan
-menyembunyikan celah; mengaktifkannya akan mengklaim mesin yang tidak ada —
-plank dinilai dari durasi dan garis pinggul, bukan repetisi, dan itu state
-machine tersendiri.
+Repetisi adalah **peristiwa**: satu ambang dilewati dua kali berurutan. Tahanan
+tidak punya peristiwa sama sekali — ia **keadaan** yang sedang dipertahankan
+atau tidak, dan satu-satunya besaran adalah berapa lama. `core/holdTracker.ts`.
+
+**Jam hanya berjalan selama plank-nya nyata.** Waktu ketika pinggul sudah ambruk
+bukan waktu plank. Mengkreditkannya akan membuat tiga puluh detik yang melorot
+tak bisa dibedakan dari tiga puluh detik yang tertahan — kesalahan yang sama
+dengan mengkreditkan setengah repetisi, dan kode ini sudah memutuskan soal itu.
+
+Jadi putusnya garis **menghentikan jam, bukan mengakhiri set**. Angkanya berhenti
+dan layar jadi amber, yang mengatakan *kenapa* tanpa teks sama sekali, dan
+lanjut lagi begitu garisnya lurus.
+
+**Ada grace, karena plank bukan foto.** Garis pinggul bergoyang terus saat lelah;
+tidak ada satu frame di mana ia "putus". Turun sesaat yang langsung dikoreksi
+sendiri adalah bagian dari menahan plank, bukan kegagalan menahannya — jadi
+putusnya harus bertahan 300 ms sebelum jam berhenti.
+
+**Kameranya beda.** Push-up dan squat minta serong 30–45°; plank minta **samping
+penuh**. Yang dinilai cuma satu garis, dan garis paling sulit dibaca dari arah ia
+menunjuk.
+
+Skor kualitas untuk plank adalah porsi set yang benar-benar dipakai menahan
+posisi — gagasan yang sama dengan skor repetisi, dalam satuan gerakannya
+sendiri.
 
 ---
 

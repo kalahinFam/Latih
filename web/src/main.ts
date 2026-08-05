@@ -16,7 +16,7 @@ import { createNutritionScreen } from './ui/screens/nutritionScreen.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { required } from './ui/dom.ts';
 import { hasIcon, icon } from './ui/icons.ts';
-import type { ExerciseKind } from './core/types.ts';
+import { isHold, type MovementKind } from './core/types.ts';
 import type { SetSummary } from './core/setSummary.ts';
 
 const history = new TrainingHistory();
@@ -35,13 +35,26 @@ const engine = new WorkoutEngine({
 
 /* ------------------------------------------------------------------- state */
 
-let exercise: ExerciseKind = 'pushup';
+let exercise: MovementKind = 'pushup';
 let workout: WorkoutSession | null = null;
 let lastSummary: SetSummary | null = null;
+
+const MOVEMENT_LABEL: Record<MovementKind, string> = {
+  pushup: 'PUSH-UP',
+  squat: 'SQUAT',
+  plank: 'PLANK',
+};
 
 function setLabel(): string {
   if (!workout) return '';
   return `SET ${workout.currentSet}/${workout.plan.setsPlanned}`;
+}
+
+/** Repetitions for a counted movement, seconds for a held one. */
+function currentTargetAmount(): number {
+  return isHold(exercise)
+    ? history.currentHoldTarget(exercise).targetSeconds
+    : history.currentTarget(exercise).targetReps;
 }
 
 function startWorkout(): void {
@@ -49,7 +62,7 @@ function startWorkout(): void {
   workout = new WorkoutSession({
     exercise,
     setsPlanned: prefs.setsPerExercise,
-    targetReps: history.currentTarget(exercise).targetReps,
+    targetReps: currentTargetAmount(),
   });
   lastSummary = null;
 }
@@ -87,13 +100,18 @@ function finishSet(): void {
   if (!workout) return;
 
   const summary = engine.endSet();
-  const workedTo = history.currentTarget(exercise);
+  const workedTo = isHold(exercise)
+    ? history.currentHoldTarget(exercise)
+    : history.currentTarget(exercise);
   history.recordSet(toSetRecord(summary));
 
-  const trend = history.trend(exercise);
+  // The coach's session context is rep-shaped. A hold has no rep trend to
+  // report, so it goes without rather than with a number that means something
+  // else.
+  const trend = isHold(exercise) ? null : history.trend(exercise);
   if (trend) {
     summary.session = {
-      targetReps: workedTo.targetReps,
+      targetReps: 'targetReps' in workedTo ? workedTo.targetReps : workedTo.targetSeconds,
       targetReason: explainTarget(workedTo),
       sessions: trend.sessions,
       repsDelta: trend.repsDelta,
@@ -169,7 +187,7 @@ const screens = {
 
   umpanbalik: createFeedbackScreen({
     getSummary: () => lastSummary,
-    getSetLabel: () => (workout ? `${exercise === 'pushup' ? 'PUSH-UP' : 'SQUAT'} · ${setLabel()}` : ''),
+    getSetLabel: () => (workout ? `${MOVEMENT_LABEL[exercise]} · ${setLabel()}` : ''),
     getTargetReps: () => workout?.plan.targetReps ?? 0,
     hasMoreSets: () => (workout ? !workout.isComplete : false),
     onNext: () => router.go('kamera'),

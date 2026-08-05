@@ -13,12 +13,12 @@ import { TrainingHistory } from '../../session/history.ts';
 import { loadPreferences } from '../../session/profile.ts';
 import { EXERCISE_NAMES, formatDate, greetingFor, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
-import type { ExerciseKind } from '../../core/types.ts';
+import { isHold, type MovementKind } from '../../core/types.ts';
 
 export interface HomeDeps {
   history: TrainingHistory;
   /** Movement the home screen offers first. */
-  defaultExercise: ExerciseKind;
+  defaultExercise: MovementKind;
   onStart: () => void;
   onSettings: () => void;
 }
@@ -41,7 +41,10 @@ export function createHomeScreen(deps: HomeDeps): Screen {
     enter() {
       const now = Date.now();
       const history = deps.history.all();
-      const target = deps.history.currentTarget(deps.defaultExercise);
+      const movement = deps.defaultExercise;
+      const target = isHold(movement)
+        ? deps.history.currentHoldTarget(movement)
+        : deps.history.currentTarget(movement);
       const prefs = loadPreferences();
 
       date.textContent = formatDate(now);
@@ -52,9 +55,11 @@ export function createHomeScreen(deps: HomeDeps): Screen {
         ? `Sesi terakhir ${formatDate(last.startedAt)}, ${last.reps} repetisi dalam ${formatDuration(last.elapsedMs)}.`
         : 'Belum ada sesi tercatat. Mulai yang pertama.';
 
-      targetReps.textContent = String(target.targetReps);
-      targetSets.textContent = `repetisi × ${prefs.setsPerExercise} set`;
-      targetExercise.textContent = EXERCISE_NAMES[deps.defaultExercise] ?? deps.defaultExercise;
+      targetReps.textContent = String(
+        'targetReps' in target ? target.targetReps : target.targetSeconds,
+      );
+      targetSets.textContent = `${isHold(movement) ? 'detik' : 'repetisi'} × ${prefs.setsPerExercise} set`;
+      targetExercise.textContent = EXERCISE_NAMES[movement] ?? movement;
       targetReason.textContent = explainTarget(target);
 
       streak.textContent = String(currentStreak(history, now));

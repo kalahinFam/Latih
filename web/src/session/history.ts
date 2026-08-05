@@ -10,9 +10,16 @@
  * without a DOM.
  */
 
-import { nextTarget, progressTrend, type ExerciseTarget, type SetRecord } from '../core/sessionLoop.ts';
+import {
+  nextHoldTarget,
+  nextTarget,
+  progressTrend,
+  type ExerciseTarget,
+  type HoldTarget,
+  type SetRecord,
+} from '../core/sessionLoop.ts';
 import type { SetSummary } from '../core/setSummary.ts';
-import type { ExerciseKind } from '../core/types.ts';
+import { isHold, type ExerciseKind, type HoldKind, type MovementKind } from '../core/types.ts';
 
 const STORAGE_KEY = 'latih.history.v1';
 
@@ -26,8 +33,13 @@ const MAX_SETS = 500;
 interface StoredHistory {
   version: 1;
   sets: SetRecord[];
-  /** Target currently being worked to, per exercise. */
-  targets: Partial<Record<ExerciseKind, number>>;
+  /**
+   * Target currently being worked to, per movement.
+   *
+   * Repetitions for the counted movements, seconds for the held ones — the key
+   * says which, so one map serves both.
+   */
+  targets: Partial<Record<MovementKind, number>>;
 }
 
 function empty(): StoredHistory {
@@ -75,34 +87,50 @@ export function toSetRecord(summary: SetSummary, at = Date.now()): SetRecord {
     exercise: summary.exercise,
     at,
     repCount: summary.repCount,
-    flaggedReps: summary.reps.filter((rep) => rep.errors.length > 0).length,
+    // For a hold this is the number of breaks — the same meaning in both
+    // cases: how much of the set failed the standard.
+    flaggedReps: summary.hold
+      ? summary.hold.breaks
+      : summary.reps.filter((rep) => rep.errors.length > 0).length,
     meanDepthDeg: summary.depth.meanDeg,
     trackingQuality: summary.trackingQuality,
     durationMs: summary.durationMs,
     errorCounts: { ...summary.errorCounts },
+    holdSeconds: summary.hold ? Math.round(summary.hold.heldMs / 1000) : undefined,
   };
 }
 
 export class TrainingHistory {
   /** Record a completed set and return the target for the next one. */
-  recordSet(record: SetRecord): ExerciseTarget {
+  recordSet(record: SetRecord): ExerciseTarget | HoldTarget {
     const history = read();
     history.sets.push(record);
     if (history.sets.length > MAX_SETS) {
       history.sets = history.sets.slice(-MAX_SETS);
     }
 
-    const target = nextTarget(record.exercise, history.sets, history.targets[record.exercise]);
-    history.targets[record.exercise] = target.targetReps;
+    const stored = history.targets[record.exercise];
+    const target = isHold(record.exercise)
+      ? nextHoldTarget(record.exercise, history.sets, stored)
+      : nextTarget(record.exercise, history.sets, stored);
+
+    history.targets[record.exercise] =
+      'movement' in target ? target.targetSeconds : target.targetReps;
     write(history);
 
     return target;
   }
 
-  /** Target for an exercise without recording anything. */
+  /** Target for a counted movement without recording anything. */
   currentTarget(exercise: ExerciseKind): ExerciseTarget {
     const history = read();
     return nextTarget(exercise, history.sets, history.targets[exercise]);
+  }
+
+  /** Target for a held movement without recording anything. */
+  currentHoldTarget(movement: HoldKind): HoldTarget {
+    const history = read();
+    return nextHoldTarget(movement, history.sets, history.targets[movement]);
   }
 
   trend(exercise: ExerciseKind) {

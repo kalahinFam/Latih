@@ -18,10 +18,14 @@
  */
 
 import { groupIntoSessions, type SetRecord, type Session } from './sessionLoop.ts';
-import type { ExerciseKind } from './types.ts';
+import { isHold, type MovementKind } from './types.ts';
 
 export interface SessionStats {
   startedAt: number;
+  /** True when this session was a held movement rather than a counted one. */
+  isHold: boolean;
+  /** Seconds credited, for held movements. */
+  holdSeconds: number;
   /** Wall time from the start of the first set to the end of the last, ms. */
   elapsedMs: number;
   sets: number;
@@ -56,19 +60,31 @@ export function summarizeSession(session: Session): SessionStats {
     }
   }
 
+  const hold = sets.length > 0 && isHold(sets[0].exercise);
+  const holdSeconds = sets.reduce((sum, s) => sum + (s.holdSeconds ?? 0), 0);
+
   const first = sets[0];
   const last = sets[sets.length - 1];
   // `at` marks the end of a set, so the first set's own duration has to be
   // added back or a one-set session would read as zero minutes.
   const elapsedMs = last.at - first.at + (first.durationMs ?? 0);
 
+  // Held sets are scored on the share of the set actually spent holding the
+  // position, which is the same idea as the rep score — how much of the work
+  // met the standard — expressed in the unit the movement is measured in.
+  const totalMs = sets.reduce((sum, s) => sum + (s.durationMs ?? 0), 0);
+  const holdQuality =
+    totalMs === 0 ? null : Math.min(100, Math.round(((holdSeconds * 1000) / totalMs) * 100));
+
   return {
     startedAt: first.at - (first.durationMs ?? 0),
+    isHold: hold,
+    holdSeconds,
     elapsedMs: Math.max(0, elapsedMs),
     sets: sets.length,
     reps,
     flaggedReps: flagged,
-    quality: reps === 0 ? null : Math.round(((reps - flagged) / reps) * 100),
+    quality: hold ? holdQuality : reps === 0 ? null : Math.round(((reps - flagged) / reps) * 100),
     meanDepthDeg: weightedMean(sets, (r) => r.meanDepthDeg),
     trackingQuality:
       sets.length === 0 ? 0 : sets.reduce((sum, s) => sum + s.trackingQuality, 0) / sets.length,
@@ -76,8 +92,8 @@ export function summarizeSession(session: Session): SessionStats {
   };
 }
 
-/** Every session for one exercise, oldest first. */
-export function sessionStats(exercise: ExerciseKind, history: SetRecord[]): SessionStats[] {
+/** Every session for one movement, oldest first. */
+export function sessionStats(exercise: MovementKind, history: SetRecord[]): SessionStats[] {
   return groupIntoSessions(history.filter((s) => s.exercise === exercise)).map(summarizeSession);
 }
 
@@ -136,6 +152,9 @@ export function latestSession(history: SetRecord[]): SessionStats | null {
 export const DIRTY_SESSION_SHARE = 0.25;
 
 export function isDirty(stats: SessionStats): boolean {
+  // For a hold, "dirty" is the clock having stopped more than once — the same
+  // question, asked of the unit the movement is measured in.
+  if (stats.isHold) return stats.flaggedReps > 1;
   return stats.reps > 0 && stats.flaggedReps / stats.reps > DIRTY_SESSION_SHARE;
 }
 

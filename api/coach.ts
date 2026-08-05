@@ -25,7 +25,7 @@ export const config = { runtime: 'nodejs' };
 
 /** Mirrors `SetSummary` in web/src/core/setSummary.ts. */
 interface SetSummaryPayload {
-  exercise: 'pushup' | 'squat';
+  exercise: 'pushup' | 'squat' | 'plank';
   repCount: number;
   durationMs: number;
   reps: {
@@ -40,6 +40,8 @@ interface SetSummaryPayload {
   depth: { meanDeg: number; bestDeg: number; worstDeg: number; consistencyDeg: number };
   tempo: { meanEccentricMs: number; meanConcentricMs: number; tempoDriftMs: number };
   trackingQuality: number;
+  /** Present for held movements, which have no repetitions to describe. */
+  hold?: { heldMs: number; brokenMs: number; breaks: number };
   /**
    * Session-loop context, when history exists.
    *
@@ -91,6 +93,8 @@ Aturan:
 - Bahasa Indonesia sehari-hari. Sapa dengan "kamu".
 - Sebut angka hanya kalau membantu, dan bulatkan. "Turun sekitar setengah detik
   lebih lambat" lebih baik daripada "eccentricMs naik 480".
+- Untuk plank, yang dinilai adalah berapa lama posisi benar-benar tertahan dan
+  berapa kali garis badan putus — bukan berapa lama set berlangsung.
 - Pilih SATU hal terpenting untuk dikoreksi. Menyebut tiga kesalahan sekaligus
   membuat tidak ada yang diperbaiki.
 - Jangan pernah menyebut nama field, kode error mentah, atau istilah teknis
@@ -115,6 +119,7 @@ const ERROR_LABELS: Record<string, string> = {
 const EXERCISE_LABELS: Record<string, string> = {
   pushup: 'push-up',
   squat: 'squat',
+  plank: 'plank',
 };
 
 /**
@@ -220,6 +225,52 @@ Kualitas pembacaan kamera: ${(summary.trackingQuality * 100).toFixed(0)}%${descr
   }`;
 }
 
+/**
+ * A held set, described in its own terms.
+ *
+ * The interesting quantity is not how long the set lasted but how much of it
+ * was actually spent holding the position — a thirty-second plank with the hips
+ * collapsed for ten of them is a twenty-second plank, and saying so is the
+ * whole point of pausing the clock.
+ */
+function describeHold(summary: SetSummaryPayload): string {
+  const hold = summary.hold!;
+  const held = Math.round(hold.heldMs / 1000);
+  const broken = Math.round(hold.brokenMs / 1000);
+
+  const faults = Object.entries(summary.errorCounts)
+    .map(([code, count]) => `- ${ERROR_LABELS[code] ?? code}: ${count}×`)
+    .join('\n');
+
+  const directives: string[] = [];
+  if (hold.breaks === 0) {
+    directives.push(
+      'INSTRUKSI: Garis badan tidak pernah putus sepanjang set ini. DILARANG ' +
+        'mengarang kekurangan. Akui hasilnya, lalu sarankan satu peningkatan ' +
+        'untuk set berikutnya: tahan lebih lama, atau tambah satu set.',
+    );
+  }
+  if (summary.trackingQuality < 0.8) {
+    directives.push(
+      `INSTRUKSI: Kamera hanya membaca ${(summary.trackingQuality * 100).toFixed(0)}% gerakan. ` +
+        'WAJIB sebutkan dalam satu anak kalimat bahwa sebagian gerakan kurang ' +
+        'terbaca, dan sarankan memperbaiki posisi kamera.',
+    );
+  }
+
+  return `Gerakan: plank
+Durasi tertahan: ${held} detik
+Waktu terbuang karena garis badan putus: ${broken} detik
+Berapa kali hitungan berhenti: ${hold.breaks}
+
+Kesalahan terdeteksi:
+${faults || '- tidak ada'}
+
+Kualitas pembacaan kamera: ${(summary.trackingQuality * 100).toFixed(0)}%${describeSession(summary)}${
+    directives.length > 0 ? `\n\n${directives.join('\n\n')}` : ''
+  }`;
+}
+
 /** Progress across sessions, when the session loop has enough history. */
 function describeSession(summary: SetSummaryPayload): string {
   const s = summary.session;
@@ -255,7 +306,7 @@ function isValidSummary(value: unknown): value is SetSummaryPayload {
   if (typeof value !== 'object' || value === null) return false;
   const s = value as Partial<SetSummaryPayload>;
   return (
-    (s.exercise === 'pushup' || s.exercise === 'squat') &&
+    (s.exercise === 'pushup' || s.exercise === 'squat' || s.exercise === 'plank') &&
     typeof s.repCount === 'number' &&
     Array.isArray(s.reps) &&
     typeof s.depth === 'object' &&
@@ -291,6 +342,23 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (!isValidSummary(summary)) {
     return json({ error: 'Ringkasan set tidak lengkap.' }, 400);
+  }
+
+  if (summary.hold) {
+    // A hold has no repetitions, so the rep-shaped description below would be
+    // a page of zeroes. It gets its own, much shorter one.
+    try {
+      const result = await completeJson<CoachOutput>({
+        system: SYSTEM,
+        user: describeHold(summary),
+        schema: SCHEMA,
+        schemaName: 'umpan_balik_set',
+        maxTokens: 400,
+      });
+      return json({ ...result.data, usage: result.usage, latencyMs: result.latencyMs });
+    } catch (error) {
+      return errorResponse(error, 'Pelatih AI sedang tidak bisa dihubungi.');
+    }
   }
 
   if (summary.repCount === 0) {

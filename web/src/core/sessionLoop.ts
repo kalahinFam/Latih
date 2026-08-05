@@ -25,11 +25,11 @@
  * from the app through `session/history.ts`.
  */
 
-import type { ExerciseKind } from './types.ts';
+import type { ExerciseKind, HoldKind, MovementKind } from './types.ts';
 
 /** One completed set, as retained across sessions. */
 export interface SetRecord {
-  exercise: ExerciseKind;
+  exercise: MovementKind;
   /** Epoch milliseconds, recorded when the set ended. */
   at: number;
   repCount: number;
@@ -54,6 +54,15 @@ export interface SetRecord {
    * happened rather than only how many reps were imperfect.
    */
   errorCounts?: Record<string, number>;
+  /**
+   * Seconds credited, for held movements.
+   *
+   * A plank has no repetitions, so `repCount` is 0 and this carries the work
+   * instead. Kept as a separate field rather than overloading `repCount`
+   * because the two are different units and the history charts would otherwise
+   * plot seconds against repetitions on one axis.
+   */
+  holdSeconds?: number;
 }
 
 export interface ExerciseTarget {
@@ -73,6 +82,17 @@ export interface ExerciseTarget {
 
 /** Starting point before any history exists. Modest on purpose. */
 const DEFAULT_TARGET: Record<ExerciseKind, number> = { pushup: 8, squat: 10 };
+
+/** Seconds a first plank is asked to hold. */
+const DEFAULT_HOLD_TARGET: Record<HoldKind, number> = { plank: 30 };
+
+/**
+ * Seconds added when a hold progresses.
+ *
+ * Five rather than one: a second is inside the noise of how long anyone holds a
+ * plank, so a one-second step would be progression the user cannot perceive.
+ */
+const HOLD_PROGRESS_STEP = 5;
 
 /** Above this share of flagged reps, the set was not clean enough to progress. */
 const MAX_FLAGGED_SHARE = 0.25;
@@ -266,15 +286,134 @@ export function progressTrend(exercise: ExerciseKind, history: SetRecord[]): Pro
   };
 }
 
+export interface HoldTarget {
+  movement: HoldKind;
+  /** Seconds to aim for in the next set. */
+  targetSeconds: number;
+  reason: ExerciseTarget['reason'];
+  basedOnSessions: number;
+}
+
+/**
+ * Decide the next hold target.
+ *
+ * The rules are the rep-target rules, applied to seconds: progress only after
+ * two consecutive sessions that both reached the target and held it cleanly,
+ * reduce when the target is clearly wrong for the person, and skip sessions the
+ * camera could not judge.
+ *
+ * Written out rather than sharing a generic with `nextTarget` because the two
+ * differ in what "clean" means — a repetition is clean when few reps were
+ * flagged, a hold is clean when the clock barely stopped — and a generic
+ * carrying that difference as a parameter would be harder to read than both
+ * versions side by side.
+ */
+export function nextHoldTarget(
+  movement: HoldKind,
+  history: SetRecord[],
+  currentTarget?: number,
+): HoldTarget {
+  const sessions = groupIntoSessions(history.filter((set) => set.exercise === movement));
+
+  const judgeable = sessions
+    .map((session) => bestHold(session.sets.filter(isTrustworthy)))
+    .filter((set): set is SetRecord => set !== null);
+
+  if (judgeable.length === 0) {
+    return {
+      movement,
+      targetSeconds: currentTarget ?? DEFAULT_HOLD_TARGET[movement],
+      reason: 'baseline',
+      basedOnSessions: 0,
+    };
+  }
+
+  const latest = judgeable[judgeable.length - 1];
+  const latestSeconds = latest.holdSeconds ?? 0;
+  const target = currentTarget ?? Math.max(DEFAULT_HOLD_TARGET[movement], latestSeconds);
+
+  if (latestSeconds < target * RESET_SHARE) {
+    return {
+      movement,
+      // Meet them where they are, never below a hold worth attempting.
+      targetSeconds: Math.max(10, Math.round(latestSeconds)),
+      reason: 'reduced',
+      basedOnSessions: judgeable.length,
+    };
+  }
+
+  if (latestSeconds < target) {
+    return {
+      movement,
+      targetSeconds: target,
+      reason: 'held-for-consistency',
+      basedOnSessions: judgeable.length,
+    };
+  }
+
+  if (!isCleanHold(latest)) {
+    // The seconds were there and the line was not. Raising now would ask for
+    // more of a plank they are not yet holding.
+    return {
+      movement,
+      targetSeconds: target,
+      reason: 'held-for-form',
+      basedOnSessions: judgeable.length,
+    };
+  }
+
+  const qualifying = judgeable
+    .slice(-SESSIONS_BEFORE_PROGRESS)
+    .filter((set) => (set.holdSeconds ?? 0) >= target && isCleanHold(set));
+
+  if (qualifying.length < SESSIONS_BEFORE_PROGRESS) {
+    return {
+      movement,
+      targetSeconds: target,
+      reason: 'held-for-consistency',
+      basedOnSessions: judgeable.length,
+    };
+  }
+
+  return {
+    movement,
+    targetSeconds: target + HOLD_PROGRESS_STEP,
+    reason: 'progressed',
+    basedOnSessions: judgeable.length,
+  };
+}
+
+/** Longest hold of a session — progression is judged on what they can do. */
+function bestHold(sets: SetRecord[]): SetRecord | null {
+  return sets.reduce<SetRecord | null>(
+    (best, set) => (best === null || (set.holdSeconds ?? 0) > (best.holdSeconds ?? 0) ? set : best),
+    null,
+  );
+}
+
+/**
+ * A hold is clean when the clock barely stopped.
+ *
+ * `flaggedReps` carries the number of breaks for a hold — the same field, the
+ * same meaning: how much of the set failed the standard.
+ */
+function isCleanHold(set: SetRecord): boolean {
+  return (set.holdSeconds ?? 0) > 0 && set.flaggedReps <= 1;
+}
+
 /** Short Indonesian explanation of a target, for the UI. */
-export function explainTarget(target: ExerciseTarget): string {
+export function explainTarget(target: ExerciseTarget | HoldTarget): string {
   switch (target.reason) {
     case 'baseline':
       return 'Target awal. Akan menyesuaikan setelah beberapa sesi.';
     case 'progressed':
-      return 'Naik satu repetisi — dua sesi terakhir tercapai dengan form bersih.';
+      return 'movement' in target
+        ? `Naik ${HOLD_PROGRESS_STEP} detik — dua sesi terakhir tercapai dengan garis badan bersih.`
+        : 'Naik satu repetisi — dua sesi terakhir tercapai dengan form bersih.';
     case 'held-for-form':
-      return 'Target ditahan dulu. Repetisinya tercapai, tapi form perlu dirapikan.';
+      return 'movement' in target
+        ? 'Target ditahan dulu. Durasinya tercapai, tapi garis badan sempat putus.'
+        : 'Target ditahan dulu. Repetisinya tercapai, tapi form perlu dirapikan.';
     case 'held-for-consistency':
       return 'Target ditahan sampai tercapai dua sesi berturut-turut.';
     case 'reduced':

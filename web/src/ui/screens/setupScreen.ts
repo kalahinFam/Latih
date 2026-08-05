@@ -34,7 +34,7 @@ import { el, required } from '../dom.ts';
 import { icon } from '../icons.ts';
 import type { Screen } from '../../app/router.ts';
 import type { Readiness } from '../workoutEngine.ts';
-import type { ExerciseKind } from '../../core/types.ts';
+import type { MovementKind } from '../../core/types.ts';
 
 /**
  * Body height as a share of frame height that reads as a workable distance.
@@ -47,10 +47,16 @@ const FILL_GOOD = { min: 0.25, max: 0.92 };
 
 /** Countdown shown once the position has been held, before counting starts. */
 const COUNTDOWN_FROM = 3;
+
+const MOVEMENT_LABEL: Record<MovementKind, string> = {
+  pushup: 'PUSH-UP',
+  squat: 'SQUAT',
+  plank: 'PLANK',
+};
 const COUNTDOWN_STEP_MS = 700;
 
 export interface SetupDeps {
-  getExercise: () => ExerciseKind;
+  getExercise: () => MovementKind;
   /** Fires when the countdown completes. */
   onReady: () => void;
 }
@@ -199,7 +205,7 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
       active = true;
       awaitingFirstPose = true;
       stopCountdown();
-      title.textContent = `POSISI KAMERA · ${deps.getExercise() === 'pushup' ? 'PUSH-UP' : 'SQUAT'}`;
+      title.textContent = `POSISI KAMERA · ${MOVEMENT_LABEL[deps.getExercise()]}`;
       // Open to begin with: before a pose exists there is nothing to look at,
       // so the guidance is the most useful thing on screen.
       setExpanded(true);

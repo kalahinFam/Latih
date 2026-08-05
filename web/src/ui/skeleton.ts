@@ -11,7 +11,7 @@
  */
 
 import { POSE_CONNECTIONS } from '../pose/poseSource.ts';
-import { LM, type ExerciseKind, type Landmark } from '../core/types.ts';
+import { LM, type Landmark, type MovementKind } from '../core/types.ts';
 
 /**
  * The skeleton is drawn white, not in the signal colour.
@@ -120,9 +120,13 @@ export const HIGHLIGHT_JOINTS: Record<string, readonly number[]> = {
   'squat:partial_lockout': [LM.LEFT_KNEE, LM.RIGHT_KNEE],
   // Trunk lean is measured shoulder-to-hip, so both ends are the fault.
   'squat:excessive_trunk_lean': [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP],
+  // The plank's whole judgement is the hip line, so the hips are always where
+  // the problem is.
+  'plank:hip_sag': [LM.LEFT_HIP, LM.RIGHT_HIP],
+  'plank:hip_pike': [LM.LEFT_HIP, LM.RIGHT_HIP],
 };
 
-export function highlightFor(exercise: ExerciseKind, code: string | null): readonly number[] {
+export function highlightFor(exercise: MovementKind, code: string | null): readonly number[] {
   if (!code) return [];
   return HIGHLIGHT_JOINTS[`${exercise}:${code}`] ?? [];
 }

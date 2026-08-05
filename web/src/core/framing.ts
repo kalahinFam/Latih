@@ -16,10 +16,10 @@
  * literally "is this inside the picture", which world coordinates cannot answer.
  */
 
-import { LM, type ExerciseKind, type Landmark } from './types.ts';
+import { LM, type Landmark, type MovementKind } from './types.ts';
 
 /** Landmarks that must be present for the whole-body solve to be trustworthy. */
-const REQUIRED: Record<ExerciseKind, number[]> = {
+const REQUIRED: Record<MovementKind, number[]> = {
   /**
    * Arms and torso. Ankles were required here on the theory that losing them
    * destabilises the whole solve — plausible, and wrong in practice.
@@ -50,6 +50,19 @@ const REQUIRED: Record<ExerciseKind, number[]> = {
     LM.LEFT_ANKLE,
     LM.RIGHT_ANKLE,
   ],
+  /**
+   * The judged line is shoulder-hip-knee, so all three are required — a plank
+   * with the knees out of shot cannot be scored at all, unlike a push-up where
+   * the arms carry the measurement.
+   */
+  plank: [
+    LM.LEFT_SHOULDER,
+    LM.RIGHT_SHOULDER,
+    LM.LEFT_HIP,
+    LM.RIGHT_HIP,
+    LM.LEFT_KNEE,
+    LM.RIGHT_KNEE,
+  ],
 };
 
 /**
@@ -59,12 +72,13 @@ const REQUIRED: Record<ExerciseKind, number[]> = {
  * the near arm is measured and the far one is inferred, so requiring both is
  * requiring a viewpoint that makes the joint itself unreadable.
  */
-const ANY_OF: Record<ExerciseKind, number[][]> = {
+const ANY_OF: Record<MovementKind, number[][]> = {
   pushup: [
     [LM.LEFT_ELBOW, LM.RIGHT_ELBOW],
     [LM.LEFT_WRIST, LM.RIGHT_WRIST],
   ],
   squat: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
+  plank: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
 };
 
 /** Below this, treat the landmark as not meaningfully observed. */
@@ -119,7 +133,7 @@ function classifyMissing(missing: number[]): 'feet' | 'hands' | 'body' {
 
 export function checkFraming(
   landmarks: Landmark[] | null,
-  exercise: ExerciseKind,
+  exercise: MovementKind,
 ): FramingStatus {
   if (!landmarks || landmarks.length === 0) {
     return { ok: false, issue: { kind: 'no-pose' }, bodyFill: 0 };
@@ -157,7 +171,7 @@ export function checkFraming(
  * Deliberately terser than `framingMessage`. Spoken instructions are heard
  * once, cannot be re-read, and compete with the room.
  */
-export function framingSpeech(issue: FramingIssue, exercise: ExerciseKind): string {
+export function framingSpeech(issue: FramingIssue, exercise: MovementKind): string {
   switch (issue.kind) {
     case 'no-pose':
       return 'Kamu tidak terlihat kamera';
@@ -166,7 +180,7 @@ export function framingSpeech(issue: FramingIssue, exercise: ExerciseKind): stri
     case 'out-of-frame':
       switch (issue.missing) {
         case 'feet':
-          return exercise === 'pushup' ? 'Geser kamera, kaki terpotong' : 'Mundur, kaki terpotong';
+          return exercise === 'squat' ? 'Mundur, kaki terpotong' : 'Geser kamera, kaki terpotong';
         case 'hands':
           return 'Tangan terpotong frame';
         default:
@@ -199,14 +213,14 @@ export function allSetupSpeech(): string[] {
   ];
 
   const phrases = new Set<string>([READY_CUE, TARGET_CUE]);
-  for (const exercise of ['pushup', 'squat'] as ExerciseKind[]) {
+  for (const exercise of ['pushup', 'squat', 'plank'] as MovementKind[]) {
     for (const issue of issues) phrases.add(framingSpeech(issue, exercise));
   }
   return [...phrases].sort();
 }
 
 /** Actionable Indonesian message — what to do, not what is wrong internally. */
-export function framingMessage(issue: FramingIssue, exercise: ExerciseKind): string {
+export function framingMessage(issue: FramingIssue, exercise: MovementKind): string {
   switch (issue.kind) {
     case 'no-pose':
       return 'Tidak ada orang terdeteksi. Pastikan kamera menghadap area latihan.';
@@ -215,9 +229,9 @@ export function framingMessage(issue: FramingIssue, exercise: ExerciseKind): str
     case 'out-of-frame':
       switch (issue.missing) {
         case 'feet':
-          return exercise === 'pushup'
-            ? 'Telapak kaki terpotong. Geser kamera agar seluruh badan sampai kaki terlihat.'
-            : 'Kaki terpotong. Mundur sampai seluruh badan terlihat.';
+          return exercise === 'squat'
+            ? 'Kaki terpotong. Mundur sampai seluruh badan terlihat.'
+            : 'Telapak kaki terpotong. Geser kamera agar seluruh badan sampai kaki terlihat.';
         case 'hands':
           return 'Tangan terpotong frame. Sesuaikan posisi kamera.';
         default:
@@ -245,7 +259,7 @@ export interface CameraGuidance {
  * left-right asymmetry unmeasurable. 30-45 degrees keeps the flexion readable
  * while leaving both sides partly visible.
  */
-export const CAMERA_GUIDANCE: Record<ExerciseKind, CameraGuidance> = {
+export const CAMERA_GUIDANCE: Record<MovementKind, CameraGuidance> = {
   pushup: {
     angle: 'Serong 30–45° dari samping',
     height: 'Rendah, ±30–50 cm dari lantai',
@@ -259,5 +273,15 @@ export const CAMERA_GUIDANCE: Record<ExerciseKind, CameraGuidance> = {
     distance: '2–3 meter',
     orientation: 'Portrait (HP berdiri)',
     note: 'Kedalaman paling terbaca dari samping, tapi lutut yang masuk ke dalam hanya terlihat dari depan. Serong adalah kompromi terbaik.',
+  },
+  plank: {
+    // Unlike the other two this really does want a side view. The only thing
+    // measured is whether one line is straight, and a line is least readable
+    // from the direction it points.
+    angle: 'Dari samping, tegak lurus badan',
+    height: 'Rendah, ±30–50 cm dari lantai',
+    distance: '2–3 meter',
+    orientation: 'Landscape (HP tidur)',
+    note: 'Garis bahu–pinggul–lutut adalah satu-satunya yang dinilai, dan garis paling sulit dibaca dari arah ia menunjuk. Ambil dari samping penuh.',
   },
 };

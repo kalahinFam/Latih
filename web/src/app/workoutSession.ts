@@ -11,13 +11,13 @@
  */
 
 import type { SetSummary } from '../core/setSummary.ts';
-import type { ExerciseKind } from '../core/types.ts';
+import type { MovementKind } from '../core/types.ts';
 
 export interface WorkoutPlan {
-  exercise: ExerciseKind;
+  exercise: MovementKind;
   /** Sets intended for this workout. */
   setsPlanned: number;
-  /** Rep target per set, from the session loop. */
+  /** Repetitions per set, or seconds for a held movement. */
   targetReps: number;
 }
 

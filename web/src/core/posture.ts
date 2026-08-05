@@ -28,7 +28,7 @@
  */
 
 import { trunkLeanDeg } from './angles.ts';
-import { LM, type ExerciseKind, type Landmark } from './types.ts';
+import { LM, type Landmark, type MovementKind } from './types.ts';
 
 /**
  * Trunk lean, in degrees from vertical, still acceptable for a squat.
@@ -75,7 +75,7 @@ const UNKNOWN: PostureStatus = { plausible: true, issue: null, trunkLeanDeg: nul
  */
 export function checkPosture(
   landmarks: Landmark[] | null,
-  exercise: ExerciseKind,
+  exercise: MovementKind,
 ): PostureStatus {
   if (!landmarks || landmarks.length === 0) return UNKNOWN;
 
@@ -89,6 +89,7 @@ export function checkPosture(
     return { plausible, issue: plausible ? null : 'not-upright', trunkLeanDeg: lean };
   }
 
+  // Push-up and plank are the same question: is the body horizontal.
   const plausible = lean >= PUSHUP_MIN_TRUNK_LEAN;
   return { plausible, issue: plausible ? null : 'not-horizontal', trunkLeanDeg: lean };
 }
@@ -97,7 +98,7 @@ export function checkPosture(
 export function postureMessage(issue: PostureIssue): string {
   return issue === 'not-upright'
     ? 'Berdiri dulu — hitungan squat butuh badan tegak.'
-    : 'Ambil posisi plank — hitungan push-up butuh badan lurus mendatar.';
+    : 'Ambil posisi plank, badan lurus mendatar.';
 }
 
 /**

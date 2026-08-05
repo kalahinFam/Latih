@@ -15,7 +15,7 @@
 
 import type { RepEvent } from './repCounter.ts';
 import type { RuleErrorCode, RuleFinding } from './rules.ts';
-import type { ExerciseKind } from './types.ts';
+import type { MovementKind } from './types.ts';
 
 /** One rep as the coach sees it. */
 export interface RepRecord {
@@ -30,7 +30,7 @@ export interface RepRecord {
 }
 
 export interface SetSummary {
-  exercise: ExerciseKind;
+  exercise: MovementKind;
   repCount: number;
   durationMs: number;
   reps: RepRecord[];
@@ -40,6 +40,15 @@ export interface SetSummary {
   tempo: { meanEccentricMs: number; meanConcentricMs: number; tempoDriftMs: number };
   /** Share of frames the pose was confidently visible, 0..1. */
   trackingQuality: number;
+  /**
+   * Present only for held movements. `repCount` is 0 for these, and this is
+   * what the set actually was.
+   */
+  hold?: {
+    heldMs: number;
+    brokenMs: number;
+    breaks: number;
+  };
   /**
    * Session-loop context. Derived numbers only — the history itself never
    * leaves the device.
@@ -98,7 +107,7 @@ function tempoDrift(reps: RepRecord[]): number {
 }
 
 export function summarizeSet(
-  exercise: ExerciseKind,
+  exercise: MovementKind,
   reps: RepRecord[],
   options: { durationMs: number; trackingQuality: number },
 ): SetSummary {
@@ -129,6 +138,36 @@ export function summarizeSet(
       tempoDriftMs: tempoDrift(reps),
     },
     trackingQuality: round(options.trackingQuality, 2),
+  };
+}
+
+/**
+ * Summarise a held set.
+ *
+ * Separate from `summarizeSet` rather than a branch inside it: almost every
+ * field that function computes — depth, tempo, per-rep records — is undefined
+ * for a movement with no repetitions, and a shared version would spend most of
+ * its body proving that.
+ */
+export function summarizeHold(
+  movement: MovementKind,
+  hold: { heldMs: number; brokenMs: number; breaks: number; faultCounts: Record<string, number> },
+  options: { durationMs: number; trackingQuality: number },
+): SetSummary {
+  return {
+    exercise: movement,
+    repCount: 0,
+    durationMs: Math.round(options.durationMs),
+    reps: [],
+    errorCounts: { ...hold.faultCounts },
+    depth: { meanDeg: 0, bestDeg: 0, worstDeg: 0, consistencyDeg: 0 },
+    tempo: { meanEccentricMs: 0, meanConcentricMs: 0, tempoDriftMs: 0 },
+    trackingQuality: round(options.trackingQuality, 2),
+    hold: {
+      heldMs: Math.round(hold.heldMs),
+      brokenMs: Math.round(hold.brokenMs),
+      breaks: hold.breaks,
+    },
   };
 }
 

@@ -45,7 +45,7 @@
  * against `DEFAULT_CONFIGS` directly.
  */
 
-import type { ExerciseKind, JointAngles } from './types.ts';
+import type { ExerciseKind, JointAngles, MovementKind } from './types.ts';
 import { reliableMean } from './angles.ts';
 import { bottomFrames, extremeOf, medianOf, type RepWindow } from './repWindow.ts';
 
@@ -77,9 +77,13 @@ export const CUE_TEXT: Record<string, string> = {
   'squat:shallow_depth': 'Turun lebih dalam',
   'squat:partial_lockout': 'Berdiri tegak sepenuhnya',
   'squat:excessive_trunk_lean': 'Jaga dada tetap tegak',
+  // Same line, judged the same way, so the same words — and therefore no extra
+  // audio clip: `allCueTexts` deduplicates by phrase.
+  'plank:hip_sag': 'Angkat pinggul, jaga badan lurus',
+  'plank:hip_pike': 'Turunkan pinggul, jaga badan lurus',
 };
 
-export function cueFor(exercise: ExerciseKind, code: RuleErrorCode): string {
+export function cueFor(exercise: MovementKind, code: RuleErrorCode): string {
   // Falling back to the code would speak "hip_sag" aloud; an empty string is
   // caught by the generator's completeness test instead.
   return CUE_TEXT[`${exercise}:${code}`] ?? '';

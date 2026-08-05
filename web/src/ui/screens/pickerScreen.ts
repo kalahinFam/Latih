@@ -7,20 +7,18 @@
  * a uniform list, and that is worth keeping: a card that reads "3 set × 30
  * detik" tells the user what kind of thing they are about to do.
  *
- * Plank is shown and disabled. The movement is in the design and not in the
- * code, and a card marked "segera hadir" is the honest way to say so — quietly
- * dropping it would hide a gap, and enabling it would claim an engine that does
- * not exist.
+ * Plank runs on its own engine (`core/holdTracker.ts`): there is nothing to
+ * count, so the card states seconds and the workout screen shows a clock.
  */
 
 import { TrainingHistory } from '../../session/history.ts';
 import { loadPreferences } from '../../session/profile.ts';
 import { el, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
-import type { ExerciseKind } from '../../core/types.ts';
+import { isHold, type MovementKind } from '../../core/types.ts';
 
 interface Movement {
-  id: ExerciseKind | 'plank';
+  id: MovementKind;
   name: string;
   /** How the dose is expressed — the point of the card. */
   unit: 'reps' | 'duration';
@@ -52,16 +50,16 @@ const MOVEMENTS: Movement[] = [
     unit: 'duration',
     difficulty: 'Sedang',
     judgedBy: 'dinilai dari garis pinggul',
-    available: false,
+    available: true,
   },
 ];
 
 export interface PickerDeps {
   history: TrainingHistory;
-  onContinue: (exercise: ExerciseKind) => void;
+  onContinue: (movement: MovementKind) => void;
   /** Which movement the home screen offered, so the two screens agree. */
-  getSelected: () => ExerciseKind;
-  setSelected: (exercise: ExerciseKind) => void;
+  getSelected: () => MovementKind;
+  setSelected: (movement: MovementKind) => void;
 }
 
 export function createPickerScreen(deps: PickerDeps): Screen {
@@ -86,14 +84,13 @@ export function createPickerScreen(deps: PickerDeps): Screen {
         if (!movement.available) {
           head.append(el('span', { class: 'pick__tag pick__tag--quiet', text: 'SEGERA HADIR' }));
         }
-        if (movement.unit === 'duration' && movement.available) {
+        if (movement.unit === 'duration') {
           head.append(el('span', { class: 'pick__tag pick__tag--quiet', text: 'DURASI' }));
         }
 
-        const dose =
-          movement.unit === 'reps' && movement.available
-            ? `${prefs.setsPerExercise} set × ${deps.history.currentTarget(movement.id as ExerciseKind).targetReps} repetisi`
-            : `${prefs.setsPerExercise} set × 30 detik`;
+        const dose = isHold(movement.id)
+          ? `${prefs.setsPerExercise} set × ${deps.history.currentHoldTarget(movement.id).targetSeconds} detik`
+          : `${prefs.setsPerExercise} set × ${deps.history.currentTarget(movement.id).targetReps} repetisi`;
 
         const card = el(
           'button',
@@ -118,7 +115,7 @@ export function createPickerScreen(deps: PickerDeps): Screen {
 
         if (movement.available) {
           card.addEventListener('click', () => {
-            deps.setSelected(movement.id as ExerciseKind);
+            deps.setSelected(movement.id);
             this.enter?.({});
           });
         }

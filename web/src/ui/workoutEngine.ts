@@ -19,7 +19,7 @@
  * waiting for it.
  */
 
-import { computeJointAngles, primaryAngleForCounting } from '../core/angles.ts';
+import { bilateralMean, computeJointAngles, primaryAngleForCounting } from '../core/angles.ts';
 import { LiveDepthCue } from '../core/liveCue.ts';
 import {
   READY_CUE,
@@ -31,6 +31,7 @@ import {
   type FramingIssue,
 } from '../core/framing.ts';
 import { checkPosture, handsPlanted, postureMessage, type PostureIssue } from '../core/posture.ts';
+import { HoldTracker } from '../core/holdTracker.ts';
 import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
 import { MedianFilter } from '../core/smoothing.ts';
@@ -43,9 +44,15 @@ import {
   primaryCue,
   type RuleErrorCode,
 } from '../core/rules.ts';
-import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
+import {
+  summarizeHold,
+  summarizeSet,
+  toRepRecord,
+  type RepRecord,
+  type SetSummary,
+} from '../core/setSummary.ts';
 import { Voice } from '../audio/voice.ts';
-import type { ExerciseKind } from '../core/types.ts';
+import { isHold, type ExerciseKind, type MovementKind } from '../core/types.ts';
 import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
 import { DEFAULT_SKELETON_STYLE, clearSkeleton, drawSkeleton, highlightFor } from './skeleton.ts';
 
@@ -87,9 +94,13 @@ const READY_HOLD_MS = 1200;
  */
 const MAX_STRIPS = 20;
 
-const MOVEMENT_LABEL: Record<ExerciseKind, string> = {
+/** Progress segments for a held movement — tenths of the target. */
+const HOLD_SEGMENTS = 10;
+
+const MOVEMENT_LABEL: Record<MovementKind, string> = {
   pushup: 'PUSH-UP',
   squat: 'SQUAT',
+  plank: 'PLANK',
 };
 
 export type EngineMode = 'idle' | 'setup' | 'workout';
@@ -145,7 +156,9 @@ export class WorkoutEngine {
   private liveCue: LiveDepthCue;
   private readonly windows = new RepWindowBuilder();
 
-  private exercise: ExerciseKind = 'pushup';
+  private readonly hold = new HoldTracker();
+  private exercise: MovementKind = 'pushup';
+  /** Repetitions for a counted movement, seconds for a held one. */
   private targetReps = 8;
   private setLabel = '';
   private mode: EngineMode = 'idle';
@@ -200,8 +213,10 @@ export class WorkoutEngine {
     if (!ctx) throw new Error('Canvas 2D context unavailable');
     this.ctx = ctx;
 
-    this.counter = new RepCounter(this.exercise);
-    this.liveCue = new LiveDepthCue(this.exercise);
+    // Replaced by `configure` before any set runs; a counted movement is the
+    // safe thing to construct with.
+    this.counter = new RepCounter('pushup');
+    this.liveCue = new LiveDepthCue('pushup');
   }
 
   /**
@@ -230,16 +245,23 @@ export class WorkoutEngine {
     this.targetListener = listener;
   }
 
-  configure(exercise: ExerciseKind, targetReps: number, setLabel: string): void {
+  configure(exercise: MovementKind, target: number, setLabel: string): void {
     this.exercise = exercise;
-    this.targetReps = targetReps;
+    this.targetReps = target;
     this.setLabel = setLabel;
-    // Thresholds and rules are per-exercise, so anything measured under the
-    // previous movement is meaningless now.
-    this.counter = new RepCounter(exercise);
-    this.liveCue = new LiveDepthCue(exercise);
+    // Thresholds and rules are per-movement, so anything measured under the
+    // previous one is meaningless now.
+    if (!isHold(exercise)) {
+      this.counter = new RepCounter(exercise);
+      this.liveCue = new LiveDepthCue(exercise);
+    }
+    this.hold.reset();
     this.strippedDone = -1;
     this.renderLabel();
+  }
+
+  private get isHoldMovement(): boolean {
+    return isHold(this.exercise);
   }
 
   get performance() {
@@ -283,6 +305,7 @@ export class WorkoutEngine {
     this.armed = wasArmed;
     this.setStartedMs = performance.now();
     this.mode = 'workout';
+    if (this.isHoldMovement) this.hold.start(performance.now());
     this.render();
   }
 
@@ -297,9 +320,18 @@ export class WorkoutEngine {
     this.mode = 'setup';
     this.voice.stop();
     const total = this.trackedFrames + this.heldFrames;
+    const durationMs = this.setStartedMs === 0 ? 0 : performance.now() - this.setStartedMs;
 
-    return summarizeSet(this.exercise, this.reps, {
-      durationMs: this.setStartedMs === 0 ? 0 : performance.now() - this.setStartedMs,
+    if (this.isHoldMovement) {
+      const summary = this.hold.summary();
+      return summarizeHold(this.exercise, summary, {
+        durationMs,
+        trackingQuality: summary.trackingQuality,
+      });
+    }
+
+    return summarizeSet(this.exercise as ExerciseKind, this.reps, {
+      durationMs,
       trackingQuality: total === 0 ? 0 : this.trackedFrames / total,
     });
   }
@@ -349,9 +381,13 @@ export class WorkoutEngine {
   }
 
   private resetSetState(): void {
-    this.counter = new RepCounter(this.exercise);
+    if (!this.isHoldMovement) {
+      const exercise = this.exercise as ExerciseKind;
+      this.counter = new RepCounter(exercise);
+      this.liveCue = new LiveDepthCue(exercise);
+    }
     this.smoother = new MedianFilter();
-    this.liveCue = new LiveDepthCue(this.exercise);
+    this.hold.reset();
     this.spokenThisRep.clear();
     this.windows.clear();
     this.reps.length = 0;
@@ -423,7 +459,10 @@ export class WorkoutEngine {
       this.updateArming(framing.ok && posture.plausible, frameStart);
 
       if (this.mode === 'workout') {
-        this.runCounting(detection, angles, plausible, frameStart);
+        if (this.isHoldMovement) this.runHold(angles, posture.plausible, frameStart);
+        // Narrowed here rather than inside: `runCounting` is only ever reached
+        // for a counted movement, and saying so once beats asserting it twice.
+        else this.runCounting(this.exercise as ExerciseKind, detection, angles, plausible, frameStart);
       }
 
       this.perf.recordFastLoop(performance.now() - fastLoopStart);
@@ -458,6 +497,7 @@ export class WorkoutEngine {
   };
 
   private runCounting(
+    exercise: ExerciseKind,
     detection: NonNullable<ReturnType<PoseSource['detect']>>,
     angles: ReturnType<typeof computeJointAngles>,
     plausible: boolean,
@@ -467,7 +507,7 @@ export class WorkoutEngine {
     // armed. The counter already treats null as "hold".
     const countable = plausible && this.armed;
     const angle = this.smoother.push(
-      countable ? primaryAngleForCounting(detection.frame.landmarks, this.exercise) : null,
+      countable ? primaryAngleForCounting(detection.frame.landmarks, exercise) : null,
     );
     this.windows.push(detection.frame.timestampMs, angles);
 
@@ -495,7 +535,7 @@ export class WorkoutEngine {
       this.spokenThisRep.clear();
     } else if (rep) {
       const findings = evaluateRules(
-        this.exercise,
+        exercise,
         this.windows.take(rep),
         {},
         { bestLockoutDeg: this.bestLockoutDeg ?? undefined },
@@ -531,6 +571,36 @@ export class WorkoutEngine {
     if (angle === null) this.nullAngleFrames += 1;
     if (this.counter.status.holding) this.heldFrames += 1;
     else this.trackedFrames += 1;
+  }
+
+  /**
+   * One frame of a held movement.
+   *
+   * The clock is the tracker's; this only feeds it and reacts to what it
+   * announces. A break is spoken once, on the frame it commits.
+   */
+  private runHold(
+    angles: ReturnType<typeof computeJointAngles>,
+    inPosition: boolean,
+    frameStart: number,
+  ): void {
+    const hipAngle = bilateralMean(angles.hipLeft, angles.hipRight);
+    const fault = this.hold.update(hipAngle, inPosition && this.armed, frameStart);
+
+    if (hipAngle === null) this.nullAngleFrames += 1;
+    if (this.hold.status.running) this.trackedFrames += 1;
+    else this.heldFrames += 1;
+
+    if (fault) this.showCue(fault, cueFor(this.exercise, fault), frameStart);
+    // Recovered: drop the amber immediately rather than waiting out the cue
+    // timer, because the clock visibly restarting is the real signal.
+    else if (this.hold.status.running && this.hold.status.fault === null) this.expireCue(frameStart);
+
+    if (!this.targetAnnounced && this.hold.status.heldMs >= this.targetReps * 1000) {
+      this.targetAnnounced = true;
+      this.voice.playCue(TARGET_CUE);
+      this.targetListener?.();
+    }
   }
 
   /**
@@ -602,7 +672,9 @@ export class WorkoutEngine {
 
   private captionText(): string {
     if (!this.armed) return 'BERSIAP';
-    return `DARI ${this.targetReps} REPETISI`;
+    return this.isHoldMovement
+      ? `DARI ${this.targetReps} DETIK`
+      : `DARI ${this.targetReps} REPETISI`;
   }
 
   /**
@@ -654,13 +726,28 @@ export class WorkoutEngine {
   }
 
   private render(): void {
-    const { repCount } = this.counter.status;
-    this.el.repCount.textContent = String(repCount);
-    this.renderStrips(repCount);
+    // Seconds for a hold, repetitions otherwise. Same slot, same size — the
+    // number is the number, and the caption below says what it is out of.
+    const done = this.isHoldMovement
+      ? Math.floor(this.hold.status.heldMs / 1000)
+      : this.counter.status.repCount;
+
+    this.el.repCount.textContent = String(done);
+    this.renderStrips(done);
 
     // The caption is owned by the cue while one is showing.
     if (this.el.hud.dataset.state !== 'correction') {
       this.el.repCaption.textContent = this.captionText();
+    }
+
+    // A paused clock is the plank's amber state: the number simply stops. The
+    // wash and the count colour say why without any text.
+    if (this.isHoldMovement && this.mode === 'workout') {
+      const stalled = !this.hold.status.running && this.armed;
+      if (stalled && this.el.hud.dataset.state !== 'correction') {
+        this.el.hud.dataset.state = 'correction';
+        this.el.hudWash.classList.add('hud__wash--correction');
+      }
     }
   }
 
@@ -672,7 +759,13 @@ export class WorkoutEngine {
    * the kind of waste that shows up as dropped frames on a mid-range phone.
    */
   private renderStrips(done: number): void {
-    const show = this.targetReps <= MAX_STRIPS ? this.targetReps : 0;
+    // A thirty-second plank would be thirty strips, which is a texture rather
+    // than a progress bar. Holds get ten segments of equal share instead.
+    const segments = this.isHoldMovement ? HOLD_SEGMENTS : this.targetReps;
+    const show = segments <= MAX_STRIPS ? segments : 0;
+    const filled = this.isHoldMovement
+      ? Math.min(HOLD_SEGMENTS, Math.floor((done / Math.max(1, this.targetReps)) * HOLD_SEGMENTS))
+      : done;
 
     if (this.el.repStrips.childElementCount !== show) {
       this.el.repStrips.replaceChildren();
@@ -684,12 +777,12 @@ export class WorkoutEngine {
       this.strippedDone = -1;
     }
 
-    if (this.strippedDone === done) return;
-    this.strippedDone = done;
+    if (this.strippedDone === filled) return;
+    this.strippedDone = filled;
 
     const strips = this.el.repStrips.children;
     for (let i = 0; i < strips.length; i += 1) {
-      strips[i].classList.toggle('hud__strip--done', i < done);
+      strips[i].classList.toggle('hud__strip--done', i < filled);
     }
   }
 
