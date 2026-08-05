@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THRESHOLDS, evaluateRules, primaryCue, type RuleErrorCode } from './rules.ts';
+import {
+  DEFAULT_THRESHOLDS,
+  SPEAK_ONCE_PER_SET,
+  evaluateRules,
+  primaryCue,
+  type RuleErrorCode,
+} from './rules.ts';
 import { RepWindowBuilder, type RepWindow } from './repWindow.ts';
 import { DEFAULT_CONFIGS, RepCounter, type RepEvent } from './repCounter.ts';
 import type { ExerciseKind, JointAngles } from './types.ts';
@@ -212,6 +218,69 @@ describe('evaluateRules — squat', () => {
     const found = codes(evaluateRules('squat', w));
     expect(found).not.toContain('hip_sag');
     expect(found).not.toContain('hip_pike');
+  });
+});
+
+describe('partial lockout', () => {
+  const clean = { elbowLeft: 80, elbowRight: 80, hipLeft: 178, hipRight: 178 };
+
+  it('does not fire on a consistent set, whatever the tracker reads as straight', () => {
+    // The reported failure: "luruskan lengan sepenuhnya" and "berdiri tegak
+    // sepenuhnya" on *every* repetition. A pose estimator does not read a
+    // locked joint as 180°, and the absolute threshold sat above whatever this
+    // person's camera angle produced — so the rule fired constantly and
+    // carried no information at all.
+    for (const peak of [163, 166, 164, 165]) {
+      const w = windowAt(clean, { maxAngle: peak });
+      const findings = evaluateRules('pushup', w, {}, { bestLockoutDeg: 166 });
+      expect(codes(findings), `peak ${peak}`).not.toContain('partial_lockout');
+    }
+  });
+
+  it('fires when a rep falls well short of the same lifter’s own best', () => {
+    // This is what the rule is actually for: reps getting shorter as the set
+    // goes on.
+    const w = windowAt(clean, { maxAngle: 148 });
+    const findings = evaluateRules('pushup', w, {}, { bestLockoutDeg: 172 });
+    expect(codes(findings)).toContain('partial_lockout');
+  });
+
+  it('judges each exercise against its own reference', () => {
+    // A squat peaking at 168 is fine next to a best of 174, and short next to
+    // a best of 186 — the same number, two verdicts, which is the point.
+    const bottom = { kneeLeft: 85, kneeRight: 85, trunkLean: 20 };
+    expect(
+      codes(evaluateRules('squat', windowAt(bottom, { maxAngle: 168 }), {}, { bestLockoutDeg: 174 })),
+    ).not.toContain('partial_lockout');
+    expect(
+      codes(evaluateRules('squat', windowAt(bottom, { maxAngle: 168 }), {}, { bestLockoutDeg: 186 })),
+    ).toContain('partial_lockout');
+  });
+
+  it('falls back to the absolute backstop on the first rep', () => {
+    // Nothing to compare against yet. Inventing a reference would flag or
+    // excuse the opening rep arbitrarily.
+    expect(codes(evaluateRules('pushup', windowAt(clean, { maxAngle: 159 })))).toContain(
+      'partial_lockout',
+    );
+    expect(codes(evaluateRules('pushup', windowAt(clean, { maxAngle: 170 })))).not.toContain(
+      'partial_lockout',
+    );
+  });
+
+  it('never lets the reference drift below the absolute backstop', () => {
+    // A set whose best is already poor must not thereby excuse worse reps.
+    const w = windowAt(clean, { maxAngle: 155 });
+    expect(codes(evaluateRules('pushup', w, {}, { bestLockoutDeg: 160 }))).toContain(
+      'partial_lockout',
+    );
+  });
+
+  it('is rationed to once per set', () => {
+    // Actionable on the next rep is coaching; repeated every rep is one
+    // correction shouted twelve times, drowning out the cues that do change.
+    expect(SPEAK_ONCE_PER_SET.has('partial_lockout')).toBe(true);
+    expect(SPEAK_ONCE_PER_SET.has('shallow_depth')).toBe(false);
   });
 });
 

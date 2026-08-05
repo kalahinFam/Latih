@@ -100,7 +100,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (385 tes) |
+| `npm test` | Unit test (391 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
@@ -632,7 +632,7 @@ Hasil ditulis ke `eval/results/rep_accuracy.json`.
 
 ---
 
-## Empat keputusan desain yang perlu diketahui sebelum mengubah kode
+## Lima keputusan desain yang perlu diketahui sebelum mengubah kode
 
 ### 0. Jangan rata-ratakan sisi kiri dan kanan begitu saja
 
@@ -671,6 +671,35 @@ form dan tidak boleh menolak repetisi nyata: squat dalam mencondongkan badan
 jauh ke depan, dan push-up dari sudut serong tidak seterbaca "datar". Yang
 ditolak hanya kasus yang tidak ambigu — orang berbaring, duduk, atau berdiri
 diam. Kalau tidak bisa memastikan, ia mengizinkan.
+
+### 0c. Lockout dinilai relatif, bukan terhadap ambang tetap
+
+Pose estimator **tidak** membaca sendi yang terkunci sebagai 180°. Ia membaca
+apa pun yang dihasilkan penempatan landmark — bergantung pada postur orangnya
+dan sudut kamera. Orang yang sama pada 30° dan 45° serong menghasilkan puncak
+berbeda untuk form yang identik.
+
+Ambang absolut karena itu mengukur tracker-nya sama banyak dengan pelakunya, dan
+uji lapangan menunjukkannya persis: *"berdiri tegak sepenuhnya"* dan *"luruskan
+lengan sepenuhnya"* menyala di **setiap** repetisi — rule yang sama sekali tidak
+membawa informasi.
+
+Sekarang tiap rep dibandingkan dengan puncak terbaik orang itu sendiri, di set
+itu, di bawah kamera itu. Offset sistematisnya saling meniadakan, dan yang
+tersisa justru hal yang layak ditandai: **rep yang memendek seiring set
+berjalan.** Ambang absolut tetap ada sebagai jaring pengaman, dipasang tepat di
+atas gerbang counter.
+
+Satu hal yang perlu diketahui sebelum menghapus rule ini: **gerbang atas counter
+sudah menegakkan sebagian besar isinya.** Rep yang tidak melewati `upEnter` tidak
+pernah dihitung sama sekali, jadi `partial_lockout` hanya bisa menyala di pita
+sempit tepat di atas gerbang itu.
+
+Dan bahkan ketika sah, ia hanya **diucapkan sekali per set**
+(`SPEAK_ONCE_PER_SET`). Kedalaman bisa langsung diperbaiki di rep berikutnya —
+mengulanginya adalah melatih. Lockout adalah kebiasaan sepanjang set; mendengarnya
+dua belas kali bukan dua belas koreksi, melainkan satu koreksi yang diteriakkan
+dua belas kali, dan itu menenggelamkan cue yang benar-benar berubah tiap rep.
 
 ### 1. Gate counter harus lebih longgar daripada ambang rule
 

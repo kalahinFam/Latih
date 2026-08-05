@@ -97,8 +97,32 @@ export interface RuleFinding {
 interface Thresholds {
   /** A rep shallower than this at the bottom is not deep enough. */
   depthMax: number;
-  /** A rep that never extends past this did not lock out. */
+  /**
+   * Absolute backstop for lockout — a rep peaking below this is short however
+   * the rest of the set looked. Deliberately close to the counter's `upEnter`,
+   * because the real check is the relative one below.
+   */
   lockoutMin: number;
+  /**
+   * How far a rep may peak below the lifter's own best extension this set
+   * before it counts as cut short.
+   *
+   * ## Why lockout is judged relatively
+   *
+   * A pose estimator does not read a locked joint as 180°. It reads it as
+   * whatever the landmark placement gives, which depends on the person's build
+   * and on the camera angle — the same lifter at 30° and at 45° oblique
+   * produces different peaks for identical form. An absolute threshold
+   * therefore measures the tracker as much as the lifter, and field testing
+   * showed exactly that: "berdiri tegak sepenuhnya" and "luruskan lengan
+   * sepenuhnya" firing on *every* repetition, which is a rule carrying no
+   * information at all.
+   *
+   * Comparing each rep to the best the same person produced under the same
+   * camera in the same set cancels that offset. What is left is the thing
+   * actually worth flagging: reps getting shorter as the set goes on.
+   */
+  lockoutDropMax: number;
   /** Push-up only: hip angle band around straight (180 deg). */
   hipSagMin?: number;
   hipPikeMax?: number;
@@ -114,9 +138,10 @@ export const DEFAULT_THRESHOLDS: Record<ExerciseKind, Thresholds> = {
     // Counter gate is 135, so reps bottoming between 105 and 135 are counted
     // and flagged — which is exactly the population that needs coaching.
     depthMax: 105,
-    // Elbow at the top. Counter gate is 158; reps peaking between 158 and 168
-    // are counted and flagged as an incomplete lockout.
-    lockoutMin: 168,
+    // Elbow at the top. Counter gate is 158, so this only catches the narrow
+    // band just above it — the relative rule does the real work.
+    lockoutMin: 161,
+    lockoutDropMax: 14,
     // Shoulder-hip-knee. A straight plank is ~180; sagging drops it.
     hipSagMin: 160,
     hipPikeMax: 200,
@@ -126,8 +151,9 @@ export const DEFAULT_THRESHOLDS: Record<ExerciseKind, Thresholds> = {
     // Knee at the bottom. Parallel is ~90; above ~110 is a partial squat.
     // Counter gate is 140, so 110-140 is the coachable band.
     depthMax: 110,
-    // Counter gate is 162; 162-172 is flagged as not standing fully upright.
-    lockoutMin: 172,
+    // Counter gate is 162.
+    lockoutMin: 165,
+    lockoutDropMax: 14,
     // Torso pitch from vertical. Some forward lean is correct in a squat;
     // beyond ~55 deg the load has shifted off the legs.
     trunkLeanMax: 55,
@@ -165,10 +191,27 @@ function elbowAngle(angles: JointAngles): number | null {
  * rep passed every deterministic check — not that the rep was perfect, since
  * the classifier judges what these rules cannot see.
  */
+/** What the rules need to know about the set so far. */
+export interface RuleContext {
+  /**
+   * Best peak extension observed earlier in this set, degrees.
+   *
+   * Undefined on the first repetition, which therefore has only the absolute
+   * backstop to fail against — there is nothing yet to compare it to, and
+   * inventing a reference would flag or excuse it arbitrarily.
+   */
+  bestLockoutDeg?: number;
+}
+
+function round(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 export function evaluateRules(
   exercise: ExerciseKind,
   window: RepWindow,
   overrides: Partial<Thresholds> = {},
+  context: RuleContext = {},
 ): RuleFinding[] {
   const t = { ...DEFAULT_THRESHOLDS[exercise], ...overrides };
   const bottom = bottomFrames(window);
@@ -196,14 +239,21 @@ export function evaluateRules(
 
   // Lockout. maxAngle is the peak extension the counter observed at the top.
   const lockout = window.event.maxAngle;
-  if (Number.isFinite(lockout) && lockout < t.lockoutMin) {
-    findings.push({
-      code: 'partial_lockout',
-      cue: cueFor(exercise, 'partial_lockout'),
-      value: lockout,
-      threshold: t.lockoutMin,
-      severity: severityOf(lockout, t.lockoutMin, t.band, 'below'),
-    });
+  if (Number.isFinite(lockout)) {
+    // Relative to this lifter's own best under this camera, with the absolute
+    // value only as a backstop. See `lockoutDropMax`.
+    const best = context.bestLockoutDeg;
+    const reference = best === undefined ? t.lockoutMin : Math.max(t.lockoutMin, best - t.lockoutDropMax);
+
+    if (lockout < reference) {
+      findings.push({
+        code: 'partial_lockout',
+        cue: cueFor(exercise, 'partial_lockout'),
+        value: lockout,
+        threshold: round(reference),
+        severity: severityOf(lockout, reference, t.band, 'below'),
+      });
+    }
   }
 
   if (exercise === 'pushup') {
@@ -256,6 +306,18 @@ export function evaluateRules(
  * Range of motion comes first because it is the point of the repetition;
  * everything else is a refinement of a rep that was worth doing.
  */
+/**
+ * Corrections worth saying once a set rather than once a repetition.
+ *
+ * Depth is actionable on the very next rep, so repeating it is coaching. Lockout
+ * is a habit across the set — hearing "luruskan lengan sepenuhnya" after every
+ * repetition is not twelve corrections, it is one correction shouted twelve
+ * times, and it drowns out the cues that do change rep to rep.
+ *
+ * Still recorded on every rep it occurs; only the speaking is rationed.
+ */
+export const SPEAK_ONCE_PER_SET: ReadonlySet<RuleErrorCode> = new Set(['partial_lockout']);
+
 const CUE_PRIORITY: RuleErrorCode[] = [
   'shallow_depth',
   'hip_sag',

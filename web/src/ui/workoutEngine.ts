@@ -34,7 +34,14 @@ import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
 import { MedianFilter } from '../core/smoothing.ts';
 import { RepWindowBuilder } from '../core/repWindow.ts';
-import { allCueTexts, cueFor, evaluateRules, primaryCue } from '../core/rules.ts';
+import {
+  SPEAK_ONCE_PER_SET,
+  allCueTexts,
+  cueFor,
+  evaluateRules,
+  primaryCue,
+  type RuleErrorCode,
+} from '../core/rules.ts';
 import { summarizeSet, toRepRecord, type RepRecord, type SetSummary } from '../core/setSummary.ts';
 import { Voice } from '../audio/voice.ts';
 import type { ExerciseKind } from '../core/types.ts';
@@ -162,6 +169,13 @@ export class WorkoutEngine {
    * frames" points straight at the camera setup.
    */
   private nullAngleFrames = 0;
+  /**
+   * Best peak extension seen this set, the reference the lockout rule is judged
+   * against. See `lockoutDropMax` in `core/rules.ts`.
+   */
+  private bestLockoutDeg: number | null = null;
+  /** Codes already spoken once this set, for the say-once corrections. */
+  private readonly spokenThisSet = new Set<RuleErrorCode>();
   private framingSpokenUntilMs = 0;
   private lastSpokenFraming: string | null = null;
   /**
@@ -331,6 +345,8 @@ export class WorkoutEngine {
     this.trackedFrames = 0;
     this.heldFrames = 0;
     this.nullAngleFrames = 0;
+    this.bestLockoutDeg = null;
+    this.spokenThisSet.clear();
     this.cueUntilMs = 0;
     this.lastSpokenFraming = null;
     this.framingSpokenUntilMs = 0;
@@ -451,13 +467,28 @@ export class WorkoutEngine {
     }
 
     if (rep) {
-      const findings = evaluateRules(this.exercise, this.windows.take(rep));
+      const findings = evaluateRules(
+        this.exercise,
+        this.windows.take(rep),
+        {},
+        { bestLockoutDeg: this.bestLockoutDeg ?? undefined },
+      );
       this.reps.push(toRepRecord(rep, findings));
 
+      // Updated after evaluating, so a rep is never compared against itself.
+      if (Number.isFinite(rep.maxAngle)) {
+        this.bestLockoutDeg = Math.max(this.bestLockoutDeg ?? -Infinity, rep.maxAngle);
+      }
+
       // Skip anything already said live for this rep — hearing the same
-      // correction twice makes the coach sound broken.
-      const unspoken = findings.filter((f) => !this.spokenThisRep.has(f.code));
+      // correction twice makes the coach sound broken — and anything rationed
+      // to once per set that has already been used.
+      const unspoken = findings.filter(
+        (f) => !this.spokenThisRep.has(f.code) && !this.spokenThisSet.has(f.code),
+      );
       const cue = primaryCue(unspoken);
+      if (cue && SPEAK_ONCE_PER_SET.has(cue.code)) this.spokenThisSet.add(cue.code);
+
       this.showCue(cue?.code ?? null, cue?.cue ?? null, frameStart);
       this.spokenThisRep.clear();
     }
