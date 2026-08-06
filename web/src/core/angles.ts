@@ -142,6 +142,48 @@ export function trunkLeanDeg(
 }
 
 /**
+ * Signed deviation of a shoulder-hip-knee chain from a straight line.
+ *
+ * `jointAngleDeg` deliberately returns an unsigned 0..180 angle. That is fine
+ * for depth, but it cannot distinguish a sag from a pike: both are simply less
+ * than 180 degrees. Comparing the hip's vertical position with the straight
+ * shoulder-to-knee line supplies the missing direction. World y grows downward,
+ * so a positive result is a sag and a negative result is a pike.
+ */
+export function signedHipLineDeviationDeg(
+  shoulder: Landmark,
+  hip: Landmark,
+  knee: Landmark,
+): number | null {
+  const angle = jointAngleDeg(shoulder, hip, knee);
+  if (angle === null) return null;
+
+  const lineX = knee.x - shoulder.x;
+  const lineZ = knee.z - shoulder.z;
+  const lineLengthSq = lineX ** 2 + lineZ ** 2;
+  if (lineLengthSq < 1e-8) return 0;
+
+  const hipX = hip.x - shoulder.x;
+  const hipZ = hip.z - shoulder.z;
+  const along = (hipX * lineX + hipZ * lineZ) / lineLengthSq;
+  const straightY = shoulder.y + along * (knee.y - shoulder.y);
+  const direction = Math.sign(hip.y - straightY);
+  return direction * (180 - angle);
+}
+
+/** Signed hip-line deviation, or null when its chain is not visible enough. */
+function gatedHipLineDeviation(
+  landmarks: Landmark[],
+  minVisibility: number,
+  shoulder: number,
+  hip: number,
+  knee: number,
+): number | null {
+  if (!visible(landmarks, minVisibility, shoulder, hip, knee)) return null;
+  return signedHipLineDeviationDeg(landmarks[shoulder], landmarks[hip], landmarks[knee]);
+}
+
+/**
  * Torso length in metres — the scale reference that makes distance-based
  * features comparable across body sizes and camera distances.
  */
@@ -214,6 +256,20 @@ export function computeJointAngles(
     shoulderRight: g(LM.RIGHT_ELBOW, LM.RIGHT_SHOULDER, LM.RIGHT_HIP),
     hipLeft: g(LM.LEFT_SHOULDER, LM.LEFT_HIP, LM.LEFT_KNEE),
     hipRight: g(LM.RIGHT_SHOULDER, LM.RIGHT_HIP, LM.RIGHT_KNEE),
+    hipLineLeft: gatedHipLineDeviation(
+      landmarks,
+      minVisibility,
+      LM.LEFT_SHOULDER,
+      LM.LEFT_HIP,
+      LM.LEFT_KNEE,
+    ),
+    hipLineRight: gatedHipLineDeviation(
+      landmarks,
+      minVisibility,
+      LM.RIGHT_SHOULDER,
+      LM.RIGHT_HIP,
+      LM.RIGHT_KNEE,
+    ),
     kneeLeft: g(LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
     kneeRight: g(LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
     trunkLean: trunkLeanDeg(landmarks, minVisibility),

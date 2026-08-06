@@ -39,6 +39,10 @@ export interface HoldConfig {
   hipSagMin: number;
   /** Hip angle above this is a pike — the hips have risen. */
   hipPikeMax: number;
+  /** Signed hip-line deviation used by the live engine: positive is sag. */
+  hipSagMaxDeg: number;
+  /** Absolute signed hip-line deviation used by the live engine: negative is pike. */
+  hipPikeMaxDeg: number;
   /**
    * How long the line must be out of band before the clock stops.
    *
@@ -57,9 +61,18 @@ export interface HoldConfig {
 }
 
 export const DEFAULT_HOLD_CONFIGS: Record<HoldKind, HoldConfig> = {
-  // Shoulder-hip-knee. A straight plank is ~180; the band matches the push-up
-  // rules, because it is the same line judged the same way.
-  plank: { hipSagMin: 160, hipPikeMax: 200, breakGraceMs: 300, recoverMs: 250, maxHoldMs: 2000 },
+  // The old unsigned angle fields remain for the legacy scalar `update` API.
+  // The live engine uses the signed line signal, whose narrow band keeps the
+  // body close to parallel instead of allowing a 20-degree cheat.
+  plank: {
+    hipSagMin: 160,
+    hipPikeMax: 200,
+    hipSagMaxDeg: 12,
+    hipPikeMaxDeg: 12,
+    breakGraceMs: 300,
+    recoverMs: 250,
+    maxHoldMs: 2000,
+  },
 };
 
 export type HoldFault = 'hip_sag' | 'hip_pike';
@@ -144,6 +157,36 @@ export class HoldTracker {
    *   otherwise, including on every frame a known fault continues.
    */
   update(hipAngle: number | null, inPosition: boolean, timestampMs: number): HoldFault | null {
+    return this.updateSignal(hipAngle, inPosition, timestampMs, (value) => this.faultForAngle(value));
+  }
+
+  /**
+   * Live plank update using signed shoulder-hip-knee deviation.
+   *
+   * Positive values mean the hip is below the straight line (sag), negative
+   * values mean it is above it (pike). Keeping this separate preserves the
+   * small scalar API used by older replay fixtures while the product gets a
+   * directional signal that an unsigned 0..180 angle cannot provide.
+   */
+  updateDeviation(
+    deviation: number | null,
+    inPosition: boolean,
+    timestampMs: number,
+  ): HoldFault | null {
+    return this.updateSignal(
+      deviation,
+      inPosition,
+      timestampMs,
+      (value) => this.faultForDeviation(value),
+    );
+  }
+
+  private updateSignal(
+    signal: number | null,
+    inPosition: boolean,
+    timestampMs: number,
+    faultFor: (value: number) => HoldFault | null,
+  ): HoldFault | null {
     this.totalFrames += 1;
 
     const elapsed = this.lastMs === null ? 0 : timestampMs - this.lastMs;
@@ -152,8 +195,8 @@ export class HoldTracker {
     // A long gap means the frames in between are unaccounted for. Crediting
     // them would reward walking out of shot.
     const gapped = elapsed > this.config.maxHoldMs;
-    const usable = hipAngle !== null && inPosition && !gapped;
-    if (hipAngle !== null) this.readableFrames += 1;
+    const usable = signal !== null && inPosition && !gapped;
+    if (signal !== null) this.readableFrames += 1;
 
     if (!usable) {
       // Unreadable is not the same as wrong: no fault is reported, but no time
@@ -164,15 +207,22 @@ export class HoldTracker {
       return null;
     }
 
-    const fault = this.faultFor(hipAngle);
+    const fault = faultFor(signal);
     return fault === null
       ? this.handleGood(elapsed, timestampMs)
       : this.handleFault(fault, elapsed, timestampMs);
   }
 
-  private faultFor(hipAngle: number): HoldFault | null {
+  /** Legacy unsigned-angle interpretation for replay fixtures. */
+  private faultForAngle(hipAngle: number): HoldFault | null {
     if (hipAngle < this.config.hipSagMin) return 'hip_sag';
     if (hipAngle > this.config.hipPikeMax) return 'hip_pike';
+    return null;
+  }
+
+  private faultForDeviation(deviation: number): HoldFault | null {
+    if (deviation > this.config.hipSagMaxDeg) return 'hip_sag';
+    if (deviation < -this.config.hipPikeMaxDeg) return 'hip_pike';
     return null;
   }
 

@@ -165,6 +165,19 @@ describe('evaluateRules — push-up', () => {
     expect(codes(evaluateRules('pushup', w))).toContain('hip_pike');
   });
 
+  it('uses the signed hip-line signal to distinguish a pike from a sag', () => {
+    const w = windowAt({
+      elbowLeft: 80,
+      elbowRight: 80,
+      hipLineLeft: -28,
+      hipLineRight: -28,
+    });
+    expect(codes(evaluateRules('pushup', w))).toContain('hip_pike');
+    expect(codes(evaluateRules('pushup', windowAt({ elbowLeft: 80, hipLineLeft: 28 })))).toContain(
+      'hip_sag',
+    );
+  });
+
   it('never reports sag and pike for the same rep', () => {
     const sag = evaluateRules('pushup', windowAt({ elbowLeft: 80, hipLeft: 140 }));
     const pike = evaluateRules('pushup', windowAt({ elbowLeft: 80, hipLeft: 220 }));
@@ -230,8 +243,8 @@ describe('evaluateRules — squat', () => {
   });
 
   it('leaves depth to the counter', () => {
-    // A squat above parallel never becomes a counted rep in the first place —
-    // `creditMax` is 90 — so there is nothing here for a depth rule to flag.
+     // A squat above parallel never becomes a counted rep in the first place —
+     // `creditMax` is 90 — so there is nothing here for a depth rule to flag.
     const w = windowAt({ kneeLeft: 125, kneeRight: 125, trunkLean: 30 }, { maxAngle: 175 });
     expect(codes(evaluateRules('squat', w))).not.toContain('shallow_depth');
   });

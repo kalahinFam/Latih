@@ -34,6 +34,62 @@ function withTorso(leanDeg: number, visibility = 0.9): Landmark[] {
   return lm;
 }
 
+function squatBody(): Landmark[] {
+  const body = blank();
+  const put = (index: number, x: number, y: number) => {
+    body[index] = { x, y, z: 0, visibility: 0.9 };
+  };
+
+  put(LM.LEFT_SHOULDER, -0.2, -0.5);
+  put(LM.RIGHT_SHOULDER, 0.2, -0.5);
+  put(LM.LEFT_HIP, -0.15, 0);
+  put(LM.RIGHT_HIP, 0.15, 0);
+  put(LM.LEFT_KNEE, -0.2, 0.45);
+  put(LM.RIGHT_KNEE, 0.2, 0.45);
+  put(LM.LEFT_ANKLE, -0.2, 0.9);
+  put(LM.RIGHT_ANKLE, 0.2, 0.9);
+  put(LM.LEFT_FOOT_INDEX, -0.22, 0.95);
+  put(LM.RIGHT_FOOT_INDEX, 0.22, 0.95);
+  put(LM.LEFT_WRIST, -0.45, 0.2);
+  put(LM.RIGHT_WRIST, 0.45, 0.2);
+  return body;
+}
+
+function plankBody(mode: 'bent' | 'straight' | 'folded' = 'bent'): Landmark[] {
+  const body = blank();
+  const put = (index: number, x: number, y: number, z = 0) => {
+    body[index] = { x, y, z, visibility: 0.9 };
+  };
+
+  for (const side of [0, 1]) {
+    const shoulder = side === 0 ? LM.LEFT_SHOULDER : LM.RIGHT_SHOULDER;
+    const elbow = side === 0 ? LM.LEFT_ELBOW : LM.RIGHT_ELBOW;
+    const wrist = side === 0 ? LM.LEFT_WRIST : LM.RIGHT_WRIST;
+    const hip = side === 0 ? LM.LEFT_HIP : LM.RIGHT_HIP;
+    const knee = side === 0 ? LM.LEFT_KNEE : LM.RIGHT_KNEE;
+    const ankle = side === 0 ? LM.LEFT_ANKLE : LM.RIGHT_ANKLE;
+    const z = side === 0 ? -0.08 : 0.08;
+
+    put(shoulder, 0, 0, z);
+    put(hip, 1, 0, z);
+    put(knee, 2, 0, z);
+    put(ankle, 3, 0, z);
+
+    if (mode === 'straight') {
+      put(elbow, 0.25, 0, z);
+      put(wrist, 0.5, 0, z);
+    } else if (mode === 'folded') {
+      put(elbow, 0.25, 0, z);
+      put(wrist, 0.05, 0.05, z);
+    } else {
+      put(elbow, 0.25, 0, z);
+      put(wrist, 0.25, 0.25, z);
+    }
+  }
+
+  return body;
+}
+
 describe('checkPosture — squat', () => {
   it('accepts an upright body', () => {
     expect(checkPosture(withTorso(5), 'squat').plausible).toBe(true);
@@ -116,7 +172,73 @@ describe('handsPlanted', () => {
 
 describe('postureMessage', () => {
   it('says what to do, not what is wrong internally', () => {
-    expect(postureMessage('not-upright')).toContain('Berdiri');
+    expect(postureMessage('not-upright')).toContain('dada');
     expect(postureMessage('not-horizontal')).toContain('plank');
+  });
+});
+
+describe('checkPosture — squat form gates', () => {
+  it('allows a grounded shoulder-width squat', () => {
+    const status = checkPosture(squatBody(), 'squat');
+    expect(status.plausible).toBe(true);
+    expect(status.countable).toBe(true);
+  });
+
+  it('withholds a squat when a hand reaches the floor', () => {
+    const body = squatBody();
+    body[LM.LEFT_WRIST].y = 0.95;
+    const status = checkPosture(body, 'squat');
+    expect(status.issue).toBe('squat-hands-on-floor');
+    expect(status.invalidatesRep).toBe(true);
+  });
+
+  it('withholds a squat when an ankle lifts from the foot', () => {
+    const body = squatBody();
+    body[LM.LEFT_ANKLE].y = 0.7;
+    expect(checkPosture(body, 'squat').issue).toBe('squat-feet-lifted');
+  });
+
+  it('withholds a squat outside shoulder-width stance', () => {
+    const body = squatBody();
+    body[LM.LEFT_ANKLE].x = -0.05;
+    body[LM.RIGHT_ANKLE].x = 0.05;
+    expect(checkPosture(body, 'squat').issue).toBe('squat-stance');
+  });
+
+  it('keeps the squat visible but not countable when the torso leans too far', () => {
+    const status = checkPosture(withTorso(60), 'squat');
+    expect(status.plausible).toBe(true);
+    expect(status.countable).toBe(false);
+    expect(status.invalidatesRep).toBe(false);
+    expect(status.issue).toBe('not-upright');
+  });
+
+  it('rejects an extreme torso lean as an invalid squat attempt', () => {
+    const status = checkPosture(withTorso(72), 'squat');
+    expect(status.plausible).toBe(true);
+    expect(status.invalidatesRep).toBe(true);
+  });
+});
+
+describe('checkPosture — plank support', () => {
+  it('accepts a bent-elbow forearm support', () => {
+    const status = checkPosture(plankBody(), 'plank');
+    expect(status.plausible).toBe(true);
+    expect(status.countable).toBe(true);
+  });
+
+  it('rejects push-up-like straight arms', () => {
+    expect(checkPosture(plankBody('straight'), 'plank').issue).toBe('plank-arms-too-straight');
+  });
+
+  it('rejects tightly folded arms that look like lying prone', () => {
+    expect(checkPosture(plankBody('folded'), 'plank').issue).toBe('plank-arms-too-folded');
+  });
+
+  it('rejects a hip line that is no longer parallel', () => {
+    const body = plankBody();
+    body[LM.LEFT_HIP].y = 0.25;
+    body[LM.RIGHT_HIP].y = 0.25;
+    expect(checkPosture(body, 'plank').issue).toBe('plank-body-not-straight');
   });
 });

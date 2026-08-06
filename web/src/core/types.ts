@@ -90,6 +90,13 @@ export interface JointAngles {
   shoulderRight: number | null;
   hipLeft: number | null;
   hipRight: number | null;
+  /**
+   * Signed deviation of the shoulder-hip-knee line from straight.
+   * Positive means the hip is below the shoulder-knee line (sag); negative
+   * means it is above it (pike). Optional for older synthetic fixtures.
+   */
+  hipLineLeft?: number | null;
+  hipLineRight?: number | null;
   kneeLeft: number | null;
   kneeRight: number | null;
   /** Torso deviation from vertical, degrees. 0 = upright. */

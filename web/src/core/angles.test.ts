@@ -6,6 +6,7 @@ import {
   jointAngleDeg,
   primaryAngle,
   reliableMean,
+  signedHipLineDeviationDeg,
   torsoLength,
   trunkLeanDeg,
 } from './angles.ts';
@@ -108,6 +109,20 @@ describe('trunkLeanDeg', () => {
     body[LM.LEFT_HIP] = lm(-0.15, 0, 0, 0.1);
     body[LM.RIGHT_HIP] = lm(0.15, 0, 0, 0.1);
     expect(trunkLeanDeg(body)).toBeNull();
+  });
+});
+
+describe('signedHipLineDeviationDeg', () => {
+  const shoulder = lm(0, 0, 0);
+  const knee = lm(1, 0, 0);
+
+  it('distinguishes a sag from a pike', () => {
+    expect(signedHipLineDeviationDeg(shoulder, lm(0.5, 0.2, 0), knee)).toBeGreaterThan(0);
+    expect(signedHipLineDeviationDeg(shoulder, lm(0.5, -0.2, 0), knee)).toBeLessThan(0);
+  });
+
+  it('reports zero for a straight shoulder-hip-knee line', () => {
+    expect(signedHipLineDeviationDeg(shoulder, lm(0.5, 0, 0), knee)).toBeCloseTo(0, 6);
   });
 });
 

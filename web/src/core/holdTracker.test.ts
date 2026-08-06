@@ -188,3 +188,17 @@ describe('HoldTracker — summary', () => {
     expect(tracker.summary().faultCounts).toEqual({});
   });
 });
+
+describe('HoldTracker — signed hip direction', () => {
+  it('labels positive deviation as sag and negative deviation as pike', () => {
+    const sag = new HoldTracker();
+    sag.start(0);
+    expect(sag.updateDeviation(20, true, 33)).toBeNull();
+    expect(sag.updateDeviation(20, true, 400)).toBe('hip_sag');
+
+    const pike = new HoldTracker();
+    pike.start(0);
+    expect(pike.updateDeviation(-20, true, 33)).toBeNull();
+    expect(pike.updateDeviation(-20, true, 400)).toBe('hip_pike');
+  });
+});

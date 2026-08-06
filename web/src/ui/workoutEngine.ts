@@ -19,7 +19,7 @@
  * waiting for it.
  */
 
-import { bilateralMean, computeJointAngles, primaryAngleForCounting } from '../core/angles.ts';
+import { computeJointAngles, primaryAngleForCounting, reliableMean } from '../core/angles.ts';
 import { LiveDepthCue } from '../core/liveCue.ts';
 import {
   READY_CUE,
@@ -54,7 +54,13 @@ import {
 import { Voice } from '../audio/voice.ts';
 import { isHold, type ExerciseKind, type MovementKind } from '../core/types.ts';
 import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
-import { DEFAULT_SKELETON_STYLE, clearSkeleton, drawSkeleton, highlightFor } from './skeleton.ts';
+import {
+  DEFAULT_SKELETON_STYLE,
+  SkeletonSmoother,
+  clearSkeleton,
+  drawSkeleton,
+  highlightFor,
+} from './skeleton.ts';
 
 /**
  * How long the person may be undetected before we prompt about framing.
@@ -145,6 +151,7 @@ export class WorkoutEngine {
   private readonly voice = new Voice();
   private readonly ctx: CanvasRenderingContext2D;
   private readonly el: WorkoutEngineElements;
+  private readonly overlaySmoother = new SkeletonSmoother();
 
   private counter: RepCounter;
   /**
@@ -204,6 +211,7 @@ export class WorkoutEngine {
   private goodFramingSinceMs: number | null = null;
   private highlightJoints: readonly number[] = [];
   private strippedDone = -1;
+  private lastPostureIssue: PostureIssue | null = null;
 
   private readinessListener: ((readiness: Readiness) => void) | null = null;
 
@@ -348,6 +356,7 @@ export class WorkoutEngine {
     this.voice.stop();
 
     clearSkeleton(this.ctx);
+    this.overlaySmoother.reset();
     this.el.cameraLayer.hidden = true;
     if (this.status.kind !== 'error') this.setStatus({ kind: 'idle' });
   }
@@ -416,6 +425,8 @@ export class WorkoutEngine {
     this.armed = false;
     this.goodFramingSinceMs = null;
     this.strippedDone = -1;
+    this.lastPostureIssue = null;
+    this.overlaySmoother.reset();
     this.clearCue();
     this.renderLabel();
   }
@@ -439,12 +450,14 @@ export class WorkoutEngine {
         this.heldFrames += 1;
       }
       this.smoother.push(null);
+      this.overlaySmoother.reset();
       clearSkeleton(this.ctx);
 
       if (frameStart - this.lastPoseSeenMs > NO_POSE_GRACE_MS) {
         const issue: FramingIssue = { kind: 'no-pose' };
         this.setStatus({ kind: 'framing', message: framingMessage(issue, this.exercise) });
         this.speakFraming(issue, frameStart);
+        this.lastPostureIssue = null;
         this.goodFramingSinceMs = null;
         this.emitReadiness({ hasPose: false, framingOk: false, postureOk: true, bodyFill: 0 });
       }
@@ -463,23 +476,41 @@ export class WorkoutEngine {
 
       // Is the body even in this movement? A knee that bends and straightens
       // reads the same lying down as standing.
-      const posture = checkPosture(detection.frame.landmarks, this.exercise);
-      const plausible =
+      const posture = checkPosture(detection.frame.landmarks, this.exercise, angles);
+      const movementPlausible =
         posture.plausible &&
         (this.exercise !== 'pushup' || handsPlanted(detection.frame.landmarks));
+      const formValid = posture.countable;
+      const plausible = movementPlausible && formValid;
 
-      this.updateArming(framing.ok && posture.plausible, frameStart);
+      this.updateArming(framing.ok && plausible, frameStart);
 
       if (this.mode === 'workout') {
-        if (this.isHoldMovement) this.runHold(angles, posture.plausible, frameStart);
+        if (this.isHoldMovement) {
+          // Let HoldTracker see a broken hip line so it can emit the directional
+          // sag/pike cue. Other posture failures, such as straight arms, stop
+          // the clock without pretending they are hip faults.
+          const holdPosition =
+            posture.plausible &&
+            (posture.issue === null || posture.issue === 'plank-body-not-straight');
+          this.runHold(angles, holdPosition, frameStart);
+        }
         // Narrowed here rather than inside: `runCounting` is only ever reached
         // for a counted movement, and saying so once beats asserting it twice.
-        else this.runCounting(this.exercise as ExerciseKind, detection, angles, plausible, frameStart);
+        else
+          this.runCounting(
+            this.exercise as ExerciseKind,
+            detection,
+            angles,
+            movementPlausible,
+            posture.invalidatesRep,
+            frameStart,
+          );
       }
 
       this.perf.recordFastLoop(performance.now() - fastLoopStart);
 
-      drawSkeleton(this.ctx, detection.normalized, {
+      drawSkeleton(this.ctx, this.overlaySmoother.update(detection.normalized), {
         ...DEFAULT_SKELETON_STYLE,
         highlight: this.highlightJoints,
       });
@@ -487,6 +518,7 @@ export class WorkoutEngine {
       // Framing outranks low confidence: a cropped body is *why* confidence is
       // low, and "step back" is something the user can act on.
       this.setStatus(this.framingOrTrackingStatus(framing.issue, posture.issue));
+      this.showPostureCue(posture.issue, frameStart);
       // Only nag while framing still blocks the set. Once armed, a transient
       // issue is reported on screen and left alone.
       if (!this.armed) this.speakFraming(framing.issue, frameStart);
@@ -494,7 +526,7 @@ export class WorkoutEngine {
       this.emitReadiness({
         hasPose: true,
         framingOk: framing.ok,
-        postureOk: posture.plausible,
+        postureOk: posture.plausible && posture.countable,
         bodyFill: framing.bodyFill,
       });
     }
@@ -513,6 +545,7 @@ export class WorkoutEngine {
     detection: NonNullable<ReturnType<PoseSource['detect']>>,
     angles: ReturnType<typeof computeJointAngles>,
     plausible: boolean,
+    invalidatesRep: boolean,
     frameStart: number,
   ): void {
     // Feed null when the body is not in the movement, or before the set is
@@ -524,6 +557,7 @@ export class WorkoutEngine {
     this.windows.push(detection.frame.timestampMs, angles);
 
     const phaseBefore = this.counter.status.phase;
+    if (invalidatesRep && phaseBefore === 'down') this.counter.invalidateCurrentAttempt();
     const rep = this.counter.update(angle, detection.frame.timestampMs);
 
     // Live depth check runs during the descent, so the correction lands as the
@@ -596,10 +630,15 @@ export class WorkoutEngine {
     inPosition: boolean,
     frameStart: number,
   ): void {
-    const hipAngle = bilateralMean(angles.hipLeft, angles.hipRight);
-    const fault = this.hold.update(hipAngle, inPosition && this.armed, frameStart);
+    const deviation = reliableMean(
+      angles.hipLineLeft ?? null,
+      angles.hipLineRight ?? null,
+      angles.confidence.hipLeft,
+      angles.confidence.hipRight,
+    );
+    const fault = this.hold.updateDeviation(deviation, inPosition && this.armed, frameStart);
 
-    if (hipAngle === null) this.nullAngleFrames += 1;
+    if (deviation === null) this.nullAngleFrames += 1;
     if (this.hold.status.running) this.trackedFrames += 1;
     else this.heldFrames += 1;
 
@@ -647,6 +686,20 @@ export class WorkoutEngine {
   }
 
   /* ------------------------------------------------------------------- cues */
+
+  /** Speak the existing squat cue when its count gate is violated live. */
+  private showPostureCue(issue: PostureIssue | null, nowMs: number): void {
+    if (issue === this.lastPostureIssue) return;
+    this.lastPostureIssue = issue;
+
+    if (
+      (issue === 'not-upright' || issue === 'squat-hands-on-floor') &&
+      this.exercise === 'squat' &&
+      this.mode === 'workout'
+    ) {
+      this.showCue('excessive_trunk_lean', cueFor('squat', 'excessive_trunk_lean'), nowMs);
+    }
+  }
 
   /**
    * Show a correction.

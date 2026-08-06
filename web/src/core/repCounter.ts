@@ -54,6 +54,8 @@ export interface RepCounterConfig {
   creditMax: number;
   /** Angle must rise above this to return to the top, degrees. */
   upEnter: number;
+  /** The angle must remain at credit depth this long before it counts. */
+  minCreditMs: number;
   /** The angle must stay past a threshold this long before the phase commits. */
   minPhaseMs: number;
   /**
@@ -89,10 +91,25 @@ export const DEFAULT_CONFIGS: Record<ExerciseKind, RepCounterConfig> = {
   // Elbow: ~170 deg locked out at the top, ~70-90 deg at a good bottom.
   // 135 marks an unmistakable descent; 105 is the chest-down position that
   // earns the count.
-  pushup: { downEnter: 135, creditMax: 105, upEnter: 158, minPhaseMs: 120, maxHoldMs: 2000 },
-  // Knee: ~175 deg standing, ~90 deg at parallel. Parallel is the standard the
-  // count is held to, so 90 is the credit threshold.
-  squat: { downEnter: 140, creditMax: 90, upEnter: 162, minPhaseMs: 120, maxHoldMs: 2000 },
+  pushup: {
+    downEnter: 135,
+    creditMax: 105,
+    upEnter: 158,
+    minCreditMs: 90,
+    minPhaseMs: 120,
+    maxHoldMs: 2000,
+  },
+  // Knee: ~175 deg standing, ~90 deg at parallel. Keep 90 as the product
+  // boundary, but require it to persist so tracker noise cannot credit a half
+  // squat that only dips below the threshold for one or two frames.
+  squat: {
+    downEnter: 140,
+    creditMax: 90,
+    upEnter: 162,
+    minCreditMs: 90,
+    minPhaseMs: 120,
+    maxHoldMs: 2000,
+  },
 };
 
 /** One completed attempt at a repetition. */
@@ -163,6 +180,11 @@ export class RepCounter {
   private bottom: Extreme | null = null;
   /** Null until the machine has actually observed a descent commit. */
   private descentObserved = false;
+  /** Form gate failed during the in-flight attempt, so it must not be credited. */
+  private attemptInvalid = false;
+  /** Continuous dwell at the credit threshold. */
+  private creditSinceMs: number | null = null;
+  private creditReached = false;
 
   private lastValidMs: number | null = null;
   private holding = false;
@@ -189,6 +211,17 @@ export class RepCounter {
     this.abandonRep();
     this.lastValidMs = null;
     this.holding = false;
+  }
+
+  /**
+   * Mark the current descent invalid without destroying its event timing.
+   *
+   * The counter still emits the attempt when the lifter returns to the top, so
+   * the caller can coach it, but `counted` remains false and the rep total does
+   * not reward a squat performed with support or a lifted foot.
+   */
+  invalidateCurrentAttempt(): void {
+    if (this.phase === 'down') this.attemptInvalid = true;
   }
 
   /**
@@ -222,6 +255,7 @@ export class RepCounter {
 
       case 'down':
         this.trackBottom(angle, timestampMs);
+        this.updateCredit(angle, timestampMs);
         if (this.dwelled('up', angle >= this.config.upEnter, timestampMs)) {
           return this.enterUp(angle, timestampMs);
         }
@@ -231,6 +265,7 @@ export class RepCounter {
 
   private handleMissingPose(timestampMs: number): null {
     this.holding = true;
+    if (!this.creditReached) this.creditSinceMs = null;
     // Losing the person mid-rep makes the tempo meaningless. Drop the rep
     // instead of reporting a duration that spans the blind window.
     if (this.lastValidMs !== null && timestampMs - this.lastValidMs > this.config.maxHoldMs) {
@@ -278,6 +313,9 @@ export class RepCounter {
     this.phase = 'down';
     this.candidate = null;
     this.bottom = { angle, timestampMs };
+    this.creditSinceMs = null;
+    this.creditReached = false;
+    this.updateCredit(angle, timestampMs);
     // Adopting 'down' straight from 'unknown' means the descent happened before
     // we were watching, so this rep is not creditable.
     this.descentObserved = this.top !== null;
@@ -296,7 +334,7 @@ export class RepCounter {
       const bottom = this.bottom!;
       // Depth decides credit. Everything else about the attempt is reported
       // either way.
-      const counted = bottom.angle <= this.config.creditMax;
+      const counted = this.creditReached && !this.attemptInvalid;
 
       if (counted) this.repCount += 1;
       else this.rejectedCount += 1;
@@ -318,6 +356,9 @@ export class RepCounter {
     this.candidate = null;
     this.bottom = null;
     this.descentObserved = false;
+    this.attemptInvalid = false;
+    this.creditSinceMs = null;
+    this.creditReached = false;
     // The next rep's top is measured from this lockout onward.
     this.top = { angle, timestampMs };
 
@@ -328,5 +369,21 @@ export class RepCounter {
     this.top = null;
     this.bottom = null;
     this.descentObserved = false;
+    this.attemptInvalid = false;
+    this.creditSinceMs = null;
+    this.creditReached = false;
+  }
+
+  private updateCredit(angle: number, timestampMs: number): void {
+    if (this.creditReached) return;
+    if (angle > this.config.creditMax) {
+      this.creditSinceMs = null;
+      return;
+    }
+
+    this.creditSinceMs ??= timestampMs;
+    if (timestampMs - this.creditSinceMs >= this.config.minCreditMs) {
+      this.creditReached = true;
+    }
   }
 }

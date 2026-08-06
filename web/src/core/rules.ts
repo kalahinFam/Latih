@@ -140,6 +140,9 @@ interface Thresholds {
   /** Push-up only: hip angle band around straight (180 deg). */
   hipSagMin?: number;
   hipPikeMax?: number;
+  /** Signed shoulder-hip-knee deviation: positive sag, negative pike. */
+  hipSagDeviationMax?: number;
+  hipPikeDeviationMax?: number;
   /** Squat only: trunk lean beyond this is excessive. */
   trunkLeanMax?: number;
   /** Width of the band used to normalise severity. */
@@ -155,6 +158,8 @@ export const DEFAULT_THRESHOLDS: Record<ExerciseKind, Thresholds> = {
     // Shoulder-hip-knee. A straight plank is ~180; sagging drops it.
     hipSagMin: 160,
     hipPikeMax: 200,
+    hipSagDeviationMax: 20,
+    hipPikeDeviationMax: 20,
     band: 25,
   },
   squat: {
@@ -179,6 +184,18 @@ function severityOf(value: number, threshold: number, band: number, direction: '
 function hipAngle(angles: JointAngles): number | null {
   const c = angles.confidence;
   return reliableMean(angles.hipLeft, angles.hipRight, c.hipLeft, c.hipRight);
+}
+
+/** Signed line deviation when the caller was built from current landmarks. */
+function hipLineDeviation(angles: JointAngles): number | null | undefined {
+  if (angles.hipLineLeft === undefined && angles.hipLineRight === undefined) return undefined;
+  const c = angles.confidence;
+  return reliableMean(
+    angles.hipLineLeft ?? null,
+    angles.hipLineRight ?? null,
+    c.hipLeft,
+    c.hipRight,
+  );
 }
 
 
@@ -237,24 +254,54 @@ export function evaluateRules(
 
   if (exercise === 'pushup') {
     // Hip line, judged at the bottom where the plank is hardest to hold.
-    const hip = medianOf(bottom, hipAngle);
-    if (hip !== null && t.hipSagMin !== undefined && hip < t.hipSagMin) {
+    const deviation = medianOf(bottom, (angles) => hipLineDeviation(angles) ?? null);
+    if (deviation !== null && t.hipSagDeviationMax !== undefined && deviation > t.hipSagDeviationMax) {
       findings.push({
         code: 'hip_sag',
         cue: cueFor(exercise, 'hip_sag'),
-        value: hip,
-        threshold: t.hipSagMin,
-        severity: severityOf(hip, t.hipSagMin, t.band, 'below'),
+        value: deviation,
+        threshold: t.hipSagDeviationMax,
+        severity: severityOf(deviation, t.hipSagDeviationMax, t.band, 'above'),
       });
     }
-    if (hip !== null && t.hipPikeMax !== undefined && hip > t.hipPikeMax) {
+    if (
+      deviation !== null &&
+      t.hipPikeDeviationMax !== undefined &&
+      deviation < -t.hipPikeDeviationMax
+    ) {
+      const threshold = -t.hipPikeDeviationMax;
       findings.push({
         code: 'hip_pike',
         cue: cueFor(exercise, 'hip_pike'),
-        value: hip,
-        threshold: t.hipPikeMax,
-        severity: severityOf(hip, t.hipPikeMax, t.band, 'above'),
+        value: deviation,
+        threshold,
+        severity: severityOf(deviation, threshold, t.band, 'below'),
       });
+    }
+
+    // Synthetic fixtures written before the signed signal existed still carry
+    // the old unsigned hip angle. Keep those fixtures meaningful while all
+    // live MediaPipe frames use the directional calculation above.
+    if (deviation === null && t.hipSagMin !== undefined && t.hipPikeMax !== undefined) {
+      const hip = medianOf(bottom, hipAngle);
+      if (hip !== null && hip < t.hipSagMin) {
+        findings.push({
+          code: 'hip_sag',
+          cue: cueFor(exercise, 'hip_sag'),
+          value: hip,
+          threshold: t.hipSagMin,
+          severity: severityOf(hip, t.hipSagMin, t.band, 'below'),
+        });
+      }
+      if (hip !== null && hip > t.hipPikeMax) {
+        findings.push({
+          code: 'hip_pike',
+          cue: cueFor(exercise, 'hip_pike'),
+          value: hip,
+          threshold: t.hipPikeMax,
+          severity: severityOf(hip, t.hipPikeMax, t.band, 'above'),
+        });
+      }
     }
   } else {
     const lean = extremeOf(bottom, (a) => a.trunkLean, 'max');

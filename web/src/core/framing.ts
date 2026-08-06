@@ -49,6 +49,10 @@ const REQUIRED: Record<MovementKind, number[]> = {
     LM.RIGHT_KNEE,
     LM.LEFT_ANKLE,
     LM.RIGHT_ANKLE,
+    LM.LEFT_WRIST,
+    LM.RIGHT_WRIST,
+    LM.LEFT_FOOT_INDEX,
+    LM.RIGHT_FOOT_INDEX,
   ],
   /**
    * The judged line is shoulder-hip-knee, so all three are required — a plank
@@ -78,7 +82,11 @@ const ANY_OF: Record<MovementKind, number[][]> = {
     [LM.LEFT_WRIST, LM.RIGHT_WRIST],
   ],
   squat: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
-  plank: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
+  plank: [
+    [LM.LEFT_ANKLE, LM.RIGHT_ANKLE],
+    [LM.LEFT_ELBOW, LM.RIGHT_ELBOW],
+    [LM.LEFT_WRIST, LM.RIGHT_WRIST],
+  ],
 };
 
 /** Below this, treat the landmark as not meaningfully observed. */
@@ -125,7 +133,7 @@ function isUsable(lm: Landmark | undefined): boolean {
  */
 function classifyMissing(missing: number[]): 'feet' | 'hands' | 'body' {
   const feet: number[] = [LM.LEFT_ANKLE, LM.RIGHT_ANKLE];
-  const hands: number[] = [LM.LEFT_WRIST, LM.RIGHT_WRIST];
+  const hands: number[] = [LM.LEFT_WRIST, LM.RIGHT_WRIST, LM.LEFT_ELBOW, LM.RIGHT_ELBOW];
   if (missing.some((i) => feet.includes(i))) return 'feet';
   if (missing.some((i) => hands.includes(i))) return 'hands';
   return 'body';
@@ -272,7 +280,8 @@ export const CAMERA_GUIDANCE: Record<MovementKind, CameraGuidance> = {
     height: 'Setinggi pinggul, ±1 meter',
     distance: '2–3 meter',
     orientation: 'Portrait (HP berdiri)',
-    note: 'Kedalaman paling terbaca dari samping, tapi lutut yang masuk ke dalam hanya terlihat dari depan. Serong adalah kompromi terbaik.',
+    note:
+      'Kedalaman paling terbaca dari samping, tapi lutut yang masuk ke dalam hanya terlihat dari depan. Serong adalah kompromi terbaik. Jaga tangan tidak menyentuh lantai, kaki selebar bahu, dan telapak tetap menempel.',
   },
   plank: {
     // Unlike the other two this really does want a side view. The only thing
@@ -282,6 +291,7 @@ export const CAMERA_GUIDANCE: Record<MovementKind, CameraGuidance> = {
     height: 'Rendah, ±30–50 cm dari lantai',
     distance: '2–3 meter',
     orientation: 'Landscape (HP tidur)',
-    note: 'Garis bahu–pinggul–lutut adalah satu-satunya yang dinilai, dan garis paling sulit dibaca dari arah ia menunjuk. Ambil dari samping penuh.',
+    note:
+      'Garis bahu–pinggul–lutut adalah satu-satunya yang dinilai, dan garis paling sulit dibaca dari arah ia menunjuk. Ambil dari samping penuh dengan siku menekuk, bukan tangan lurus.',
   },
 };

@@ -134,3 +134,76 @@ export function highlightFor(exercise: MovementKind, code: string | null): reado
 export function clearSkeleton(ctx: CanvasRenderingContext2D): void {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
+
+/**
+ * Low-pass filter for the visual overlay only.
+ *
+ * Pose decisions continue to use the raw detection. The overlay benefits from
+ * temporal continuity, especially when the far foot is briefly fitted on top
+ * of the near foot during a side-on plank.
+ */
+export class SkeletonSmoother {
+  private previous: Landmark[] | null = null;
+  private readonly alpha: number;
+  private readonly pairedFeet = [
+    [LM.LEFT_ANKLE, LM.RIGHT_ANKLE],
+    [LM.LEFT_FOOT_INDEX, LM.RIGHT_FOOT_INDEX],
+  ] as const;
+
+  constructor(alpha = 0.45) {
+    this.alpha = alpha;
+  }
+
+  update(landmarks: Landmark[]): Landmark[] {
+    if (this.previous === null || this.previous.length !== landmarks.length) {
+      this.previous = landmarks.map((landmark) => ({ ...landmark }));
+      return this.previous.map((landmark) => ({ ...landmark }));
+    }
+
+    const current = landmarks.map((landmark) => ({ ...landmark }));
+    for (const [leftIndex, rightIndex] of this.pairedFeet) {
+      this.keepFootIdentity(current, leftIndex, rightIndex);
+    }
+
+    this.previous = current.map((landmark, index) => {
+      const old = this.previous![index];
+      // Low-confidence points are usually the unstable extrapolation. Let them
+      // move more slowly instead of making the entire skeleton jump.
+      const factor = landmark.visibility < DRAW_VISIBILITY_FLOOR ? this.alpha * 0.35 : this.alpha;
+      return {
+        x: old.x + (landmark.x - old.x) * factor,
+        y: old.y + (landmark.y - old.y) * factor,
+        z: old.z + (landmark.z - old.z) * factor,
+        visibility: landmark.visibility,
+      };
+    });
+
+    return this.previous.map((landmark) => ({ ...landmark }));
+  }
+
+  private keepFootIdentity(current: Landmark[], leftIndex: number, rightIndex: number): void {
+    const oldLeft = this.previous![leftIndex];
+    const oldRight = this.previous![rightIndex];
+    const nextLeft = current[leftIndex];
+    const nextRight = current[rightIndex];
+    if (!oldLeft || !oldRight || !nextLeft || !nextRight) return;
+    if (nextLeft.visibility < DRAW_VISIBILITY_FLOOR || nextRight.visibility < DRAW_VISIBILITY_FLOOR) {
+      return;
+    }
+
+    const direct = pointDistance(oldLeft, nextLeft) + pointDistance(oldRight, nextRight);
+    const swapped = pointDistance(oldLeft, nextRight) + pointDistance(oldRight, nextLeft);
+    if (swapped >= direct) return;
+
+    current[leftIndex] = nextRight;
+    current[rightIndex] = nextLeft;
+  }
+
+  reset(): void {
+    this.previous = null;
+  }
+}
+
+function pointDistance(a: Landmark, b: Landmark): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
