@@ -30,7 +30,14 @@ import {
   framingSpeech,
   type FramingIssue,
 } from '../core/framing.ts';
-import { checkPosture, handsPlanted, postureMessage, type PostureIssue } from '../core/posture.ts';
+import {
+  checkPosture,
+  handsPlanted,
+  allPostureCueTexts,
+  postureCueFor,
+  postureMessage,
+  type PostureIssue,
+} from '../core/posture.ts';
 import { HoldTracker } from '../core/holdTracker.ts';
 import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
@@ -184,6 +191,8 @@ export class WorkoutEngine {
    * live at the reversal is not repeated by the post-rep rules a moment later.
    */
   private readonly spokenThisRep = new Set<string>();
+  /** Prevents a support-form rejection from being narrated as shallow depth. */
+  private repInvalidatedThisRep = false;
   /**
    * Frames where the counting angle was unavailable. Surfaced because "reps are
    * being missed" is not actionable and "the angle was readable in 61% of
@@ -236,7 +245,7 @@ export class WorkoutEngine {
    */
   unlockAudio(): void {
     this.voice.unlock();
-    this.voice.preloadCues([...allCueTexts(), ...allSetupSpeech()]);
+    this.voice.preloadCues([...allCueTexts(), ...allSetupSpeech(), ...allPostureCueTexts()]);
   }
 
   onReadiness(listener: (readiness: Readiness) => void): void {
@@ -410,6 +419,7 @@ export class WorkoutEngine {
     this.smoother = new MedianFilter();
     this.hold.reset();
     this.spokenThisRep.clear();
+    this.repInvalidatedThisRep = false;
     this.windows.clear();
     this.reps.length = 0;
     this.setStartedMs = 0;
@@ -557,12 +567,15 @@ export class WorkoutEngine {
     this.windows.push(detection.frame.timestampMs, angles);
 
     const phaseBefore = this.counter.status.phase;
-    if (invalidatesRep && phaseBefore === 'down') this.counter.invalidateCurrentAttempt();
+    if (invalidatesRep && phaseBefore === 'down') {
+      this.repInvalidatedThisRep = true;
+      this.counter.invalidateCurrentAttempt();
+    }
     const rep = this.counter.update(angle, detection.frame.timestampMs);
 
     // Live depth check runs during the descent, so the correction lands as the
     // lifter starts back up rather than after the rep is already done.
-    if (this.liveCue.update(angle, phaseBefore === 'down')) {
+    if (this.liveCue.update(angle, phaseBefore === 'down') && !this.repInvalidatedThisRep) {
       this.spokenThisRep.add('shallow_depth');
       this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
     }
@@ -575,10 +588,11 @@ export class WorkoutEngine {
       //
       // `liveCue` usually says this first, at the reversal, which is earlier
       // and better; `spokenThisRep` stops it being said twice.
-      if (!this.spokenThisRep.has('shallow_depth')) {
+      if (!this.repInvalidatedThisRep && !this.spokenThisRep.has('shallow_depth')) {
         this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
       }
       this.spokenThisRep.clear();
+      this.repInvalidatedThisRep = false;
     } else if (rep) {
       const findings = evaluateRules(
         exercise,
@@ -609,9 +623,10 @@ export class WorkoutEngine {
       // polled, so the transition lands on the frame the target was met.
       if (!this.targetAnnounced && this.counter.status.repCount >= this.targetReps) {
         this.targetAnnounced = true;
-        this.voice.playCue(TARGET_CUE);
         this.targetListener?.();
+        this.voice.playCue(TARGET_CUE);
       }
+      this.repInvalidatedThisRep = false;
     }
 
     if (angle === null) this.nullAngleFrames += 1;
@@ -649,8 +664,8 @@ export class WorkoutEngine {
 
     if (!this.targetAnnounced && this.hold.status.heldMs >= this.targetReps * 1000) {
       this.targetAnnounced = true;
-      this.voice.playCue(TARGET_CUE);
       this.targetListener?.();
+      this.voice.playCue(TARGET_CUE);
     }
   }
 
@@ -687,18 +702,15 @@ export class WorkoutEngine {
 
   /* ------------------------------------------------------------------- cues */
 
-  /** Speak the existing squat cue when its count gate is violated live. */
+  /** Speak posture gates without turning them into a competing HUD correction. */
   private showPostureCue(issue: PostureIssue | null, nowMs: number): void {
     if (issue === this.lastPostureIssue) return;
     this.lastPostureIssue = issue;
 
-    if (
-      (issue === 'not-upright' || issue === 'squat-hands-on-floor') &&
-      this.exercise === 'squat' &&
-      this.mode === 'workout'
-    ) {
-      this.showCue('excessive_trunk_lean', cueFor('squat', 'excessive_trunk_lean'), nowMs);
-    }
+    if (issue === null || this.mode === 'idle') return;
+    void nowMs;
+    this.clearCue();
+    this.voice.playCue(postureCueFor(issue));
   }
 
   /**
@@ -770,7 +782,9 @@ export class WorkoutEngine {
     posture: PostureIssue | null,
   ): Status {
     if (issue) return { kind: 'framing', message: framingMessage(issue, this.exercise) };
-    if (posture) return { kind: 'posture', message: postureMessage(posture) };
+    // Posture restrictions are spoken, not rendered as a second visual cue.
+    // Framing remains visual because it describes what the camera can see.
+    if (posture === 'not-horizontal') return { kind: 'posture', message: postureMessage(posture) };
     if (this.mode === 'workout' && this.counter.status.holding) return { kind: 'low-confidence' };
     return { kind: 'running' };
   }

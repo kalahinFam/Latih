@@ -1,6 +1,6 @@
 import './style.css';
 import { registerServiceWorker } from './pwa.ts';
-import { Router, parseHash, type Route } from './app/router.ts';
+import { Router, type Route } from './app/router.ts';
 import { WorkoutSession } from './app/workoutSession.ts';
 import { TrainingHistory, toSetRecord } from './session/history.ts';
 import { loadPreferences } from './session/profile.ts';
@@ -67,26 +67,14 @@ function startWorkout(): void {
   lastSummary = null;
 }
 
-/**
- * Beat between hitting the target and the sheet arriving.
- *
- * Long enough to see the final number land and hear "target tercapai"; short
- * enough that it reads as the app finishing for you rather than lagging.
- */
-const TARGET_CLOSE_DELAY_MS = 1500;
-
 let closing = false;
 
-/** The set met its target — close it without making the user reach for a button. */
+/** The set met its target: stop counting and release the camera immediately. */
 function autoFinishSet(): void {
   if (closing) return;
   closing = true;
-  window.setTimeout(() => {
-    // Only if they are still on the workout screen: tapping "Selesai set"
-    // during the pause, or backing out, must not be overridden.
-    if (parseHash(window.location.hash).name === 'latihan') finishSet();
-    closing = false;
-  }, TARGET_CLOSE_DELAY_MS);
+  finishSet(true);
+  closing = false;
 }
 
 /**
@@ -96,10 +84,11 @@ function autoFinishSet(): void {
  * request — and before the trend is read, so the deltas compare this session
  * with the last one rather than the last two.
  */
-function finishSet(): void {
+function finishSet(stopCamera = false): void {
   if (!workout) return;
 
   const summary = engine.endSet();
+  if (stopCamera) engine.stopCamera();
   const workedTo = isHold(exercise)
     ? history.currentHoldTarget(exercise)
     : history.currentTarget(exercise);
@@ -268,7 +257,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-back]')
   button.addEventListener('click', () => window.history.back());
 }
 
-required<HTMLButtonElement>('#finishSet').addEventListener('click', finishSet);
+required<HTMLButtonElement>('#finishSet').addEventListener('click', () => finishSet());
 
 router.start();
 registerServiceWorker();

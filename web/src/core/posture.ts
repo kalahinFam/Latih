@@ -87,6 +87,27 @@ export type PostureIssue =
   | 'plank-arms-too-folded'
   | 'plank-arms-unreadable';
 
+/** Spoken-only guidance for posture gates. These are not HUD corrections. */
+export const POSTURE_CUE_TEXT: Record<PostureIssue, string> = {
+  'not-upright': 'Jaga dada tetap tegak',
+  'not-horizontal': 'Ambil posisi plank, badan lurus mendatar',
+  'squat-hands-on-floor': 'Jangan bertumpu pada tangan',
+  'squat-feet-lifted': 'Jaga telapak kaki tetap menempel',
+  'squat-stance': 'Buka kaki selebar bahu',
+  'plank-body-not-straight': 'Jaga badan tetap sejajar lantai',
+  'plank-arms-too-straight': 'Tekuk siku, jangan tangan lurus',
+  'plank-arms-too-folded': 'Buka siku sedikit',
+  'plank-arms-unreadable': 'Pastikan siku terlihat kamera',
+};
+
+export function postureCueFor(issue: PostureIssue): string {
+  return POSTURE_CUE_TEXT[issue];
+}
+
+export function allPostureCueTexts(): string[] {
+  return [...new Set(Object.values(POSTURE_CUE_TEXT))].sort();
+}
+
 export interface PostureStatus {
   /** False only when the body is clearly not in this movement. */
   plausible: boolean;
