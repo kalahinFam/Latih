@@ -103,6 +103,8 @@ repetisi dan cue tetap berjalan penuh.
 | `npm run dev` | Server pengembangan |
 | `npm test` | Unit test (411 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
+| `npm run tts:lab` | Contoh suara pelatih untuk dibandingkan (folder `tts-lab/`) |
+| `npm run gen:cues -- --force` | Membangkitkan ulang klip cue setelah ganti suara |
 | `npm run typecheck` | Pemeriksaan tipe tanpa build |
 | `npm run build` | Build produksi ke `dist/` |
 | `npm run preview` | Menyajikan hasil build (untuk uji PWA) |
@@ -590,6 +592,38 @@ mengucapkan koreksi yang sudah tidak berlaku.
 **Narasi antar-set: TTS runtime.** Teksnya ditulis ulang oleh pelatih AI setiap
 set, jadi tidak bisa dipra-render. Ini diputar saat pengguna beristirahat, di
 mana latensi ~3 detik tidak berbiaya apa-apa.
+
+### Kalau suaranya terdengar kaku
+
+Tiga kemungkinan, dan yang pertama paling sering.
+
+**1. Yang terdengar bukan suara OpenAI.** Kalau klip cue gagal diputar, atau
+`/api/tts` tidak bisa dihubungi, playback jatuh ke `speechSynthesis` bawaan
+browser — dan di Android suara `id-ID` bawaan memang jauh lebih sintetis.
+Gejalanya identik dengan "suaranya robotik", padahal sebabnya suara yang kita
+buat tidak pernah diputar. Cek langsung di konsol perangkat:
+
+```js
+latih.engine.audioSource   // 'clip' | 'server' | 'browser' | null
+```
+
+`'browser'` berarti kamu sedang mendengar cadangan, bukan pelatihnya.
+
+**2. Arahannya kurang spesifik.** `gpt-4o-mini-tts` bisa diarahkan, tapi arahan
+pendek hampir tidak mengarahkan apa pun — "hangat dan jelas" meninggalkannya
+pada suara baca-nyaring bawaannya, dan itulah yang orang sebut robotik. Yang
+menggerakkannya adalah mendeskripsikan **pertunjukannya**: siapa yang bicara,
+kepada siapa, sedekat apa, di mana nadanya naik-turun, di mana napasnya. Lihat
+`api/_voice.ts`.
+
+**3. Suaranya memang tidak cocok.** Ini keputusan telinga, bukan keputusan yang
+bisa diambil dari deskripsi. `npm run tts:lab` merender kalimat yang sama di
+beberapa suara × beberapa gaya ke folder `tts-lab/`; dengarkan, lalu isi
+`TTS_VOICE` dan `TTS_STYLE` di `.env`.
+
+Satu jebakan: nama berkas klip di-hash dari **frasanya**, bukan dari suaranya.
+Ganti suara tanpa `--force` dan narasi akan berubah sementara cue tetap memakai
+suara lama — dua pelatih dalam satu sesi.
 
 **Cadangan:** kalau `/api/tts` gagal — offline, kunci belum diset, kuota habis —
 sistem jatuh ke `speechSynthesis` bawaan browser dengan voice `id-ID`. Kualitas

@@ -13,18 +13,10 @@
  */
 
 import { errorResponse, json } from './_llm.ts';
+import { TTS_MODEL, ttsInstructions, ttsVoice } from './_voice.ts';
 import OpenAI from 'openai';
 
 export const config = { runtime: 'nodejs' };
-
-const MODEL = 'gpt-4o-mini-tts';
-/** Matches the pre-rendered cue clips, so one coach speaks throughout. */
-const VOICE = 'coral';
-
-const INSTRUCTIONS =
-  'Bicara dalam Bahasa Indonesia yang hangat dan jelas, seperti pelatih ' +
-  'kebugaran yang sedang memberi evaluasi singkat setelah satu set selesai. ' +
-  'Tempo santai, nada mendukung.';
 
 /**
  * Two or three sentences of coaching is comfortably under this. The cap exists
@@ -67,10 +59,13 @@ export default async function handler(request: Request): Promise<Response> {
 
   try {
     const speech = await getClient().audio.speech.create({
-      model: MODEL,
-      voice: VOICE,
+      model: TTS_MODEL,
+      // Shared with the pre-rendered cues, so one coach speaks throughout —
+      // two different deliveries in one session sound more synthetic than
+      // either would alone.
+      voice: ttsVoice(),
       input: text,
-      instructions: INSTRUCTIONS,
+      instructions: ttsInstructions('narration'),
       response_format: 'mp3',
     });
 

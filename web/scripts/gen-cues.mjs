@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
+import { TTS_MODEL, ttsInstructions, ttsVoice } from '../../api/_voice.ts';
 import { allCueTexts } from '../src/core/rules.ts';
 import { allSetupSpeech } from '../src/core/framing.ts';
 import { cueFileName } from '../src/audio/cueId.ts';
@@ -32,13 +33,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, '..', 'public', 'cues');
 const ENV_PATH = join(HERE, '..', '..', '.env');
 
-const MODEL = 'gpt-4o-mini-tts';
-/** Warm, clear, and holds up over a phone speaker in a noisy room. */
-const VOICE = 'coral';
-const INSTRUCTIONS =
-  'Bicara dalam Bahasa Indonesia yang jelas dan tegas, seperti pelatih kebugaran ' +
-  'yang memberi aba-aba singkat di tengah latihan. Nada memberi semangat, tidak ' +
-  'membentak. Tempo agak cepat.';
+// Voice and delivery come from api/_voice.ts so the pre-rendered cues and the
+// runtime narration are the same person. Changing one without the other is how
+// a product ends up with two coaches.
+const MODEL = TTS_MODEL;
+const VOICE = ttsVoice();
+const INSTRUCTIONS = ttsInstructions('cue');
 
 function loadKey() {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
@@ -53,7 +53,18 @@ function loadKey() {
   return null;
 }
 
+/**
+ * Regenerate everything, ignoring what is already on disk.
+ *
+ * The filename is a hash of the *phrase*, so changing the voice or the delivery
+ * leaves every existing clip looking current while sounding like the previous
+ * coach. Without this flag a voice change would silently apply to the narration
+ * and not to the cues.
+ */
+const FORCE = process.argv.includes('--force');
+
 async function exists(path) {
+  if (FORCE) return false;
   try {
     return (await stat(path)).size > 1000;
   } catch {

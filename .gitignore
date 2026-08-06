@@ -31,3 +31,4 @@ Thumbs.db
 eval/results/*.json
 eval/results/*.png
 !eval/results/.gitkeep
+tts-lab/

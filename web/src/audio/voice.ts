@@ -12,11 +12,30 @@
 
 import { cueUrl } from './cueId.ts';
 
+/** Which path produced the last sound. */
+export type AudioSource = 'clip' | 'server' | 'browser' | null;
+
 export class Voice {
   private readonly cache = new Map<string, HTMLAudioElement>();
   private current: HTMLAudioElement | null = null;
   private unlocked = false;
   private narrationUrl: string | null = null;
+  private source: AudioSource = null;
+  private browserVoice: SpeechSynthesisVoice | null = null;
+
+  /**
+   * What actually played last.
+   *
+   * Exposed because the failure it reveals is silent and easy to misread: when
+   * a clip is missing or `/api/tts` is unreachable, playback falls through to
+   * the browser's own synthesiser, which on Android sounds markedly more
+   * synthetic than the generated voice. "The audio sounds robotic" and "the
+   * generated audio never played" produce the same complaint, and only this
+   * tells them apart.
+   */
+  get lastSource(): AudioSource {
+    return this.source;
+  }
 
   /**
    * Prime playback. Must be called synchronously inside a user-gesture
@@ -42,7 +61,32 @@ export class Voice {
       // Chrome needs the queue touched during a gesture before later
       // programmatic calls are allowed to speak.
       window.speechSynthesis.cancel();
+      this.pickBrowserVoice();
+      // The list often arrives asynchronously, and the first call returns
+      // nothing at all on Chrome.
+      window.speechSynthesis.addEventListener('voiceschanged', () => this.pickBrowserVoice(), {
+        once: true,
+      });
     }
+  }
+
+  /**
+   * Choose the least synthetic Indonesian voice available.
+   *
+   * Left to itself the browser picks the first match, which is usually the
+   * built-in compact voice — the most robotic option on the device. A
+   * non-local voice is served from the vendor's servers and is markedly
+   * better, so it wins when one exists.
+   */
+  private pickBrowserVoice(): void {
+    if (!('speechSynthesis' in window)) return;
+
+    const indonesian = window.speechSynthesis
+      .getVoices()
+      .filter((voice) => voice.lang.toLowerCase().startsWith('id'));
+    if (indonesian.length === 0) return;
+
+    this.browserVoice = indonesian.find((voice) => !voice.localService) ?? indonesian[0];
   }
 
   /** Preload every cue so the first correction of a set is not the slow one. */
@@ -72,6 +116,7 @@ export class Voice {
     this.stop();
     audio.currentTime = 0;
     this.current = audio;
+    this.source = 'clip';
     audio.play().catch(() => {
       // A missing clip (phrase edited without regenerating) or a blocked
       // autoplay. The on-screen cue already carries the message, so degrade
@@ -105,18 +150,30 @@ export class Voice {
 
       const audio = new Audio(this.narrationUrl);
       this.current = audio;
+      this.source = 'server';
       await audio.play();
     } catch {
       this.speakFallback(text);
     }
   }
 
-  /** Browser-native synthesis. Lower quality, but always available offline. */
+  /**
+   * Browser-native synthesis. Markedly more synthetic, but always available
+   * offline — a mute demo is worse than a plainer voice.
+   */
   private speakFallback(text: string): void {
     if (!('speechSynthesis' in window)) return;
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'id-ID';
-    utterance.rate = 1.05;
+    if (this.browserVoice) utterance.voice = this.browserVoice;
+    // Just under natural speed and very slightly low: the default rate on
+    // Android reads Indonesian faster than anyone speaks it, which is most of
+    // what makes it sound mechanical.
+    utterance.rate = 0.98;
+    utterance.pitch = 0.95;
+
+    this.source = 'browser';
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }
