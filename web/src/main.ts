@@ -90,6 +90,15 @@ function autoFinishSet(): void {
   }, TARGET_CLOSE_DELAY_MS);
 }
 
+/** Start the workout flow from the persistent centre navigation action. */
+function startTrainingFlow(): void {
+  // Keep this inside the click gesture so the first coaching cue may play.
+  engine.unlockAudio();
+  // Ask for camera permission and warm the real inference path before setup.
+  void engine.warmUp();
+  router.go('pilih');
+}
+
 /**
  * End the set, persist it, and attach the session context the coach needs.
  *
@@ -139,16 +148,6 @@ const screens = {
   beranda: createHomeScreen({
     history,
     defaultExercise: exercise,
-    onStart: () => {
-      // Inside the gesture, before any await: otherwise the activation is spent
-      // and the first cue plays silently.
-      engine.unlockAudio();
-      // Warm the camera and model now so the camera screen opens instantly and
-      // the permission prompt (one-time per browser) does not land mid-flow.
-      void engine.warmUp();
-      router.go('pilih');
-    },
-    onSettings: () => router.go('pengaturan'),
   }),
 
   pilih: createPickerScreen({
@@ -290,6 +289,7 @@ for (const node of document.querySelectorAll<HTMLElement>('[data-screen]')) {
 
 const tabs = required('#tabs');
 const tabButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+const startTrainingButton = required<HTMLButtonElement>('[data-action="start-workout"]');
 
 /**
  * Fill every icon slot declared in the markup.
@@ -308,7 +308,7 @@ for (const slot of document.querySelectorAll<HTMLElement>('[data-icon]')) {
 /** Screens that show the camera; everything else releases it. */
 const CAMERA_SCREENS = new Set(['kamera', 'latihan']);
 /** Screens the tab bar belongs on. Not during a workout — nothing to switch to. */
-const TABBED = new Set(['beranda', 'riwayat', 'gizi']);
+const TABBED = new Set(['beranda', 'riwayat', 'gizi', 'pengaturan']);
 
 /** Screens reachable before onboarding has been completed. */
 const PRE_ONBOARDING = new Set(['mulai', 'onboarding']);
@@ -350,6 +350,7 @@ function guard(route: Route): void {
 for (const button of tabButtons) {
   button.addEventListener('click', () => router.go(button.dataset.tab!));
 }
+startTrainingButton.addEventListener('click', startTrainingFlow);
 
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-back]')) {
   button.addEventListener('click', () => window.history.back());

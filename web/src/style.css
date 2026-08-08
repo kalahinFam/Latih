@@ -155,6 +155,10 @@ body {
   padding: max(2.4rem, env(safe-area-inset-top)) 1.6rem 0;
 }
 
+.screen__bar--home .screen__date {
+  margin-left: auto;
+}
+
 /*
  * A scrim, because there is no controlling what is behind it. Photographed
  * against a lit wall the white title was very nearly invisible, and a browser
@@ -933,10 +937,13 @@ body {
 .tabs {
   z-index: 2;
   display: flex;
+  align-items: flex-end;
   flex: none;
+  padding-top: 0.45rem;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--paper);
   border-top: 1px solid var(--line-soft);
+  box-shadow: 0 -8px 28px rgb(21 29 40 / 6%);
 }
 
 .tabs[hidden] {
@@ -955,12 +962,13 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.2rem;
-  height: 60px;
+  min-width: 0;
+  height: 64px;
   font: inherit;
   color: var(--grey);
   background: transparent;
   border: none;
-  border-top: 2px solid transparent;
+  border: none;
   cursor: pointer;
 }
 
@@ -971,18 +979,34 @@ body {
 }
 
 .tab[aria-selected='true'] {
-  color: var(--ink);
-  border-top-color: var(--sage);
+  color: #549c89;
 }
 
 .tab[aria-selected='true'] .tab__label {
   font-weight: 700;
 }
 
-/* The selected tab's icon takes the accent; the label stays ink so the two do
-   not both shout. */
-.tab[aria-selected='true'] .icon {
-  color: var(--sage);
+.tab--primary {
+  position: relative;
+  overflow: visible;
+  color: var(--ink);
+}
+
+/* The sole accent in the navigation: a raised, thumb-sized workout action. */
+.tab--primary .icon {
+  width: 54px;
+  height: 54px;
+  margin-top: -27px;
+  padding: 15px;
+  color: #fff;
+  background: #549c89;
+  border-radius: 50%;
+  box-shadow: 0 8px 20px rgb(84 156 137 / 30%);
+}
+
+.tab--primary .tab__label {
+  margin-top: 0.05rem;
+  font-weight: 700;
 }
 
 /* --------------------------------------------------------------- banner */

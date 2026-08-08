@@ -108,16 +108,9 @@
 
       <!-- ============================= 1 · Beranda ========================= -->
       <section class="screen" data-screen="beranda" hidden>
-        <header class="screen__bar">
+        <header class="screen__bar screen__bar--home">
           <span class="wordmark">LATIH</span>
           <span class="screen__date" id="homeDate"></span>
-          <button
-            class="iconbtn"
-            type="button"
-            id="homeSettings"
-            data-icon="pengaturan"
-            aria-label="Pengaturan"
-          ></button>
         </header>
 
         <div class="screen__body">
@@ -150,9 +143,6 @@
           </div>
         </div>
 
-        <div class="screen__actions">
-          <button class="btn btn--primary" id="homeStart" type="button">Mulai latihan</button>
-        </div>
       </section>
 
       <!-- ========================= 2 · Pilih gerakan ======================= -->
@@ -384,7 +374,6 @@
            body profile, schedule, and reminders all need somewhere to live. -->
       <section class="screen" data-screen="pengaturan" hidden>
         <header class="screen__bar">
-          <button class="iconbtn" type="button" data-back data-icon="kembali" aria-label="Kembali"></button>
           <h1 class="screen__title">Pengaturan</h1>
         </header>
         <div class="screen__body" id="settingsBody"></div>
@@ -392,14 +381,20 @@
     </main>
 
     <nav class="tabs" id="tabs" hidden>
-      <button class="tab" type="button" data-tab="beranda" data-icon="latihan">
-        <span class="tab__label">Latihan</span>
+      <button class="tab" type="button" data-tab="beranda" data-icon="beranda">
+        <span class="tab__label">Beranda</span>
       </button>
       <button class="tab" type="button" data-tab="riwayat" data-icon="riwayat">
         <span class="tab__label">Riwayat</span>
       </button>
+      <button class="tab tab--primary" type="button" data-action="start-workout" data-icon="latihan">
+        <span class="tab__label">Latihan</span>
+      </button>
       <button class="tab" type="button" data-tab="gizi" data-icon="gizi">
         <span class="tab__label">Gizi</span>
+      </button>
+      <button class="tab" type="button" data-tab="pengaturan" data-icon="pengaturan">
+        <span class="tab__label">Pengaturan</span>
       </button>
     </nav>
 

@@ -19,8 +19,6 @@ export interface HomeDeps {
   history: TrainingHistory;
   /** Movement the home screen offers first. */
   defaultExercise: MovementKind;
-  onStart: () => void;
-  onSettings: () => void;
 }
 
 export function createHomeScreen(deps: HomeDeps): Screen {
@@ -33,9 +31,6 @@ export function createHomeScreen(deps: HomeDeps): Screen {
   const targetReason = required('#homeTargetReason');
   const streak = required('#homeStreak');
   const quality = required('#homeQuality');
-
-  required<HTMLButtonElement>('#homeStart').addEventListener('click', deps.onStart);
-  required<HTMLButtonElement>('#homeSettings').addEventListener('click', deps.onSettings);
 
   return {
     enter() {

@@ -28,6 +28,8 @@ const NS = 'http://www.w3.org/2000/svg';
 
 /** Stroked paths, drawn on a 24×24 grid. */
 const PATHS: Record<string, string[]> = {
+  // Home outline.
+  beranda: ['M3.5 10.5L12 3.5l8.5 7', 'M5.5 9.5V21h13V9.5', 'M9.5 21v-6h5v6'],
   // Dumbbell: two end weights and a bar.
   latihan: ['M6.5 6.5v11', 'M3.5 9.5v5', 'M17.5 6.5v11', 'M20.5 9.5v5', 'M6.5 12h11'],
   // Bars of increasing height — the history screen is charts.
