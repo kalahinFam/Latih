@@ -42,7 +42,14 @@ import {
   type OnboardingExtras,
 } from '../../core/onboarding.ts';
 import { CATEGORY_LABELS, PANTRY_CODES, PANTRY_LABELS, type PantryCategory } from '../../core/pantry.ts';
-import { MAX_DAYS_PER_WEEK, MIN_DAYS_PER_WEEK } from '../../core/plan.ts';
+import {
+  MAX_DAYS_PER_WEEK,
+  MIN_DAYS_PER_WEEK,
+  WEEKDAY_LABELS,
+  WEEKDAY_SHORT,
+  normaliseWeekdays,
+  planWeekdays,
+} from '../../core/plan.ts';
 import { TrainingHistory } from '../../session/history.ts';
 import {
   loadExtras,
@@ -137,6 +144,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   const sub = required('#onboardSub');
   const body = required('#onboardBody');
   const next = required<HTMLButtonElement>('#onboardNext');
+  const later = required<HTMLButtonElement>('#onboardLater');
 
   let step = 1;
   /**
@@ -164,7 +172,14 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     goal: 'lose',
   };
   let extras: OnboardingExtras = loadExtras();
-  let daysPerWeek = loadPreferences().daysPerWeek;
+  /**
+   * The weekdays picked, 0 = Monday.
+   *
+   * Seeded from whatever the plan would train on today — the stored choice if
+   * there is one, the even spread otherwise — so a returning user sees the
+   * schedule they are actually on rather than an empty week.
+   */
+  let trainingDays: number[] = planWeekdays(loadPreferences());
 
   /* -------------------------------------------------- body-draft helpers */
 
@@ -197,9 +212,21 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     return bodyProfile() !== null;
   }
 
+  /** Is the picked week one the plan can actually be built from? */
+  function daysComplete(): boolean {
+    return trainingDays.length >= MIN_DAYS_PER_WEEK && trainingDays.length <= MAX_DAYS_PER_WEEK;
+  }
+
   backButton.append(icon('kembali'));
   mark.append(logoMark(26, false));
   next.addEventListener('click', () => advance());
+  // "Nanti dulu" — everything is already saved by the time this screen is
+  // reachable, so this is a route change, not an abandoned onboarding: the
+  // schedule, the calorie target and the first rep target all survive it.
+  later.addEventListener('click', () => {
+    commit();
+    deps.onDone();
+  });
   backButton.addEventListener('click', () => {
     if (step > 1) {
       step -= 1;
@@ -465,19 +492,45 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         text: 'Menentukan target repetisi sesi pertama. Setelah itu targetnya diatur dari hasil, bukan dari jawaban ini.',
       }),
 
-      el('div', { class: 'fieldlabel', text: 'HARI LATIHAN PER MINGGU' }),
+      el('div', { class: 'fieldlabel', text: 'HARI LATIHAN' }),
       el(
         'div',
-        { class: 'segments' },
-        ...Array.from({ length: MAX_DAYS_PER_WEEK - MIN_DAYS_PER_WEEK + 1 }, (_, i) => {
-          const days = MIN_DAYS_PER_WEEK + i;
-          return segment(String(days), daysPerWeek === days, () => {
-            daysPerWeek = days;
+        { class: 'chipwrap' },
+        ...WEEKDAY_SHORT.map((label, weekday) => {
+          const chosen = trainingDays.includes(weekday);
+          const chip = el('button', {
+            class: 'chip',
+            type: 'button',
+            'aria-pressed': String(chosen),
+            'aria-label': `Latihan hari ${WEEKDAY_LABELS[weekday]}`,
+            text: label,
           });
+          chip.addEventListener('click', () => {
+            trainingDays = normaliseWeekdays(
+              chosen ? trainingDays.filter((d) => d !== weekday) : [...trainingDays, weekday],
+            );
+            render();
+          });
+          return chip;
         }),
       ),
+      el('p', { class: 'onboard__sub', text: daysNote() }),
     );
-    next.disabled = false;
+    // The plan needs a week it can actually be built from: below two sessions
+    // the progression rules have nothing to read, and seven leaves no rest day.
+    next.disabled = !daysComplete();
+  }
+
+  /** What the picked week says — or what is still wrong with it. */
+  function daysNote(): string {
+    if (trainingDays.length < MIN_DAYS_PER_WEEK) {
+      return `Pilih minimal ${MIN_DAYS_PER_WEEK} hari. Di bawah itu belum cukup untuk menaikkan target.`;
+    }
+    if (trainingDays.length > MAX_DAYS_PER_WEEK) {
+      return 'Sisakan minimal satu hari istirahat — pemulihan terjadi di antara sesi, bukan setelahnya.';
+    }
+    const names = trainingDays.map((day) => WEEKDAY_LABELS[day]).join(', ');
+    return `${trainingDays.length}× seminggu — ${names}. Bisa diubah kapan saja lewat Pengaturan.`;
   }
 
   function renderFood(): void {
@@ -588,7 +641,8 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     if (!profile) return;
 
     const goalLabel = GOAL_CHOICES.find((g) => g.value === draft.goal)?.name ?? '';
-    sub.textContent = `${goalLabel} · ${daysPerWeek} hari latihan per minggu`;
+    const dayNames = trainingDays.map((day) => WEEKDAY_SHORT[day]).join(', ');
+    sub.textContent = `${goalLabel} · ${trainingDays.length}× seminggu — ${dayNames}`;
 
     const target = energyTarget(profile, false);
     const macros = macroTargets(target);
@@ -648,6 +702,13 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
           text: `Angka awal untuk tingkat "${EXPERIENCE_LABELS[extras.experience].toLowerCase()}". Naik atau turun setelah sesi pertama, tergantung berapa repetisi yang formnya bersih.`,
         }),
       ),
+
+      el('p', {
+        class: 'notebox',
+        // The exit next to the primary button, explained: nobody should have to
+        // guess whether leaving now throws the answers away.
+        text: 'Semua ini sudah tersimpan. Kalau belum sempat latihan sekarang, pilih "Nanti dulu" — menu dan jadwal tetap jalan, dan sesi pertama bisa dimulai kapan saja dari Beranda.',
+      }),
     );
 
     next.textContent = 'Mulai sesi pertama';
@@ -661,7 +722,16 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     if (!profile) return;
     saveProfile(profile);
     saveExtras({ ...extras, name: extras.name.trim() });
-    savePreferences({ ...loadPreferences(), daysPerWeek });
+    // Only a week the plan can be built from. An out-of-range pick is not
+    // written at all, so the previous schedule keeps working rather than being
+    // replaced by one with no rest day or no stimulus.
+    if (daysComplete()) {
+      savePreferences({
+        ...loadPreferences(),
+        daysPerWeek: trainingDays.length,
+        trainingDays,
+      });
+    }
 
     // The experience answer becomes the target actually worked to, not a new
     // default — after one set the session loop reads real results and takes
@@ -677,6 +747,12 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     // Step two can be revisited after later steps; clearing a figure there
     // must halt the walk forward, not skip past an unanswered question.
     if (step === 2 && !bodyComplete()) {
+      render();
+      return;
+    }
+    // Same rule for the schedule: a week with fewer than two sessions, or with
+    // no rest day, is not a plan this app knows how to run.
+    if (step === 4 && !daysComplete()) {
       render();
       return;
     }
@@ -704,6 +780,9 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     // and returning there would look like the app restarting.
     backButton.hidden = step === 1;
     next.textContent = 'Lanjut';
+    // Offered only on the last step. Earlier it would read as "skip the rest of
+    // the questions", which is what the splash screen's "Lewati dulu" is for.
+    later.hidden = step !== STEPS;
 
     const steps = [renderName, renderBody, renderGoal, renderActivity, renderFood, renderPlan];
     steps[step - 1]();
@@ -738,7 +817,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
       draft = loadProfile() ?? draft;
       extras = loadExtras();
-      daysPerWeek = loadPreferences().daysPerWeek;
+      trainingDays = planWeekdays(loadPreferences());
       // The goal previews and the summary compute real calories; without a
       // complete body the arithmetic has nothing to run on, so a deep link
       // lands on the question that needs answering.

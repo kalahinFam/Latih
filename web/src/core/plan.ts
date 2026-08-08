@@ -22,6 +22,16 @@ import type { ExerciseKind } from './types.ts';
 export interface PlanPreferences {
   /** Training days per week, 2..6. */
   daysPerWeek: number;
+  /**
+   * The weekdays actually chosen, 0 = Monday.
+   *
+   * Empty means "no preference" and the even spread below decides. Kept
+   * alongside `daysPerWeek` rather than replacing it because a count is still
+   * what the progression rules and the copy talk about; when both are present
+   * the explicit list wins, and `loadPreferences` makes the count agree with it
+   * so the two can never tell the user different things.
+   */
+  trainingDays: number[];
   /** Preferred start time, "HH:MM" in the device's local zone. */
   timeOfDay: string;
   exercises: ExerciseKind[];
@@ -30,6 +40,7 @@ export interface PlanPreferences {
 
 export const DEFAULT_PREFERENCES: PlanPreferences = {
   daysPerWeek: 3,
+  trainingDays: [],
   timeOfDay: '18:00',
   exercises: ['pushup', 'squat'],
   setsPerExercise: 3,
@@ -56,6 +67,9 @@ export const WEEKDAY_LABELS = [
   'Sabtu',
   'Minggu',
 ] as const;
+
+/** The same days, short enough to fit seven side by side on a phone. */
+export const WEEKDAY_SHORT = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'] as const;
 
 export interface PlannedExercise {
   exercise: ExerciseKind;
@@ -113,6 +127,31 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
+/** Weekdays as the rest of the app expects them: whole, 0..6, unique, sorted. */
+export function normaliseWeekdays(days: readonly number[]): number[] {
+  const chosen = new Set<number>();
+  for (const day of days) {
+    if (Number.isInteger(day) && day >= 0 && day <= 6) chosen.add(day);
+  }
+  return [...chosen].sort((a, b) => a - b);
+}
+
+/**
+ * The weekdays this plan trains on.
+ *
+ * A chosen list is honoured as given — someone who trains Saturday and Sunday
+ * because that is when they are free should get Saturday and Sunday, not the
+ * evenly spaced week the app would have picked for them. It is ignored only
+ * when it falls outside the frequency bounds, which is storage that has been
+ * hand-edited or written by an older version, and the even spread is the safer
+ * thing to fall back to than a week with one session or none.
+ */
+export function planWeekdays(preferences: PlanPreferences): number[] {
+  const chosen = normaliseWeekdays(preferences.trainingDays ?? []);
+  if (chosen.length >= MIN_DAYS_PER_WEEK && chosen.length <= MAX_DAYS_PER_WEEK) return chosen;
+  return trainingWeekdays(preferences.daysPerWeek);
+}
+
 /** Midnight local on the Monday of the week containing `at`. */
 export function startOfWeek(at: number): number {
   const date = new Date(at);
@@ -147,7 +186,7 @@ export function buildWeeklyPlan(
   now: number = Date.now(),
 ): WeeklyPlan {
   const weekStart = startOfWeek(now);
-  const trainingDays = new Set(trainingWeekdays(preferences.daysPerWeek));
+  const trainingDays = new Set(planWeekdays(preferences));
   const sets = clamp(preferences.setsPerExercise, 1, 6);
 
   // One decision per exercise for the whole week. Recomputing per day would

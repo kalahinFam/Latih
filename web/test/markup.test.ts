@@ -16,7 +16,7 @@
  * an id literal is present, and that is a text question.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const root = new URL('../', import.meta.url);
@@ -34,7 +34,20 @@ function requiredSelectors(source: string): string[] {
   return [...source.matchAll(/required(?:<[^>]+>)?\('([^']+)'\)/g)].map((m) => m[1]);
 }
 
-const PAGES: [entry: string, html: string][] = [['src/main.ts', 'index.html']];
+/**
+ * Every module that resolves an element, not only the entry.
+ *
+ * `main.ts` was the original list, but the screens moved out of it and took
+ * their `required('#id')` calls with them — which meant a control could be
+ * deleted from the markup while its screen still demanded it, and nothing here
+ * would notice until the screen was opened in a browser.
+ */
+const PAGES: [entry: string, html: string][] = [
+  ['src/main.ts', 'index.html'],
+  ...readdirSync(new URL('src/ui/screens/', root))
+    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+    .map((file): [string, string] => [`src/ui/screens/${file}`, 'index.html']),
+];
 
 /** Every screen the router can land on must exist as a section. */
 const SCREENS = [

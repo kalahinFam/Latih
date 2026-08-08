@@ -13,7 +13,16 @@
  */
 
 import { ACTIVITY_LABELS, INPUT_LIMITS, type BodyProfile } from '../../core/energy.ts';
-import { MAX_DAYS_PER_WEEK, MIN_DAYS_PER_WEEK, explainPlan, buildWeeklyPlan } from '../../core/plan.ts';
+import {
+  MAX_DAYS_PER_WEEK,
+  MIN_DAYS_PER_WEEK,
+  WEEKDAY_LABELS,
+  WEEKDAY_SHORT,
+  buildWeeklyPlan,
+  explainPlan,
+  normaliseWeekdays,
+  planWeekdays,
+} from '../../core/plan.ts';
 import { TrainingHistory } from '../../session/history.ts';
 import {
   loadPreferences,
@@ -81,14 +90,47 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
 
     /* ------------------------------------------------------------- schedule */
 
-    const days = select(
-      'setDays',
-      Array.from({ length: MAX_DAYS_PER_WEEK - MIN_DAYS_PER_WEEK + 1 }, (_, i) => {
-        const n = MIN_DAYS_PER_WEEK + i;
-        return [String(n), `${n} hari`] as [string, string];
-      }),
-      String(prefs.daysPerWeek),
-    );
+    // Which days, not how many: the count is what the picked days add up to.
+    // Offering both would let the two disagree, and then one of them is wrong.
+    let chosenDays = planWeekdays(prefs);
+    const dayChips = el('div', { class: 'chipwrap' });
+    const dayNote = el('p', { class: 'card__foot' });
+
+    const daysValid = () =>
+      chosenDays.length >= MIN_DAYS_PER_WEEK && chosenDays.length <= MAX_DAYS_PER_WEEK;
+
+    function renderDays(): void {
+      dayChips.replaceChildren(
+        ...WEEKDAY_SHORT.map((label, weekday) => {
+          const chosen = chosenDays.includes(weekday);
+          const chip = el('button', {
+            class: 'chip',
+            type: 'button',
+            'aria-pressed': String(chosen),
+            'aria-label': `Latihan hari ${WEEKDAY_LABELS[weekday]}`,
+            text: label,
+          });
+          chip.addEventListener('click', () => {
+            chosenDays = normaliseWeekdays(
+              chosen ? chosenDays.filter((d) => d !== weekday) : [...chosenDays, weekday],
+            );
+            renderDays();
+          });
+          return chip;
+        }),
+      );
+
+      dayNote.textContent =
+        chosenDays.length < MIN_DAYS_PER_WEEK
+          ? `Pilih minimal ${MIN_DAYS_PER_WEEK} hari.`
+          : chosenDays.length > MAX_DAYS_PER_WEEK
+            ? 'Sisakan minimal satu hari istirahat.'
+            : `${chosenDays.length}× seminggu — ${chosenDays
+                .map((day) => WEEKDAY_LABELS[day])
+                .join(', ')}`;
+      saveSchedule.disabled = !daysValid();
+    }
+
     const time = el('input', {
       class: 'field__input',
       id: 'setTime',
@@ -112,10 +154,14 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
       type: 'button',
       text: 'Simpan jadwal',
     });
+    renderDays();
+
     saveSchedule.addEventListener('click', () => {
+      if (!daysValid()) return;
       savePreferences({
         ...prefs,
-        daysPerWeek: Number(days.value),
+        daysPerWeek: chosenDays.length,
+        trainingDays: chosenDays,
         timeOfDay: time.value || prefs.timeOfDay,
         setsPerExercise: Number(sets.value),
       });
@@ -129,10 +175,12 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
         'section',
         { class: 'card' },
         el('div', { class: 'card__eyebrow', text: 'JADWAL LATIHAN' }),
+        el('div', { class: 'fieldlabel', text: 'HARI LATIHAN' }),
+        dayChips,
+        dayNote,
         el(
           'div',
           { class: 'fields' },
-          field('Latihan per minggu', days),
           field('Jam latihan', time),
           field('Set per gerakan', sets),
         ),

@@ -25,6 +25,7 @@ import {
   DEFAULT_PREFERENCES,
   MAX_DAYS_PER_WEEK,
   MIN_DAYS_PER_WEEK,
+  normaliseWeekdays,
   type PlanPreferences,
 } from '../core/plan.ts';
 import {
@@ -113,13 +114,29 @@ export function loadPreferences(): PlanPreferences {
       ? stored.exercises.filter((e): e is ExerciseKind => EXERCISES.includes(e))
       : [];
 
+    // Chosen weekdays are the stronger answer, so the count follows them
+    // rather than being stored independently and drifting: a schedule that
+    // says "3 hari" while the plan trains four days is a bug the user reads
+    // as the app lying.
+    const trainingDays = Array.isArray(stored.trainingDays)
+      ? normaliseWeekdays(stored.trainingDays)
+      : [];
+    const chosenDays =
+      trainingDays.length >= MIN_DAYS_PER_WEEK && trainingDays.length <= MAX_DAYS_PER_WEEK
+        ? trainingDays
+        : [];
+
     return {
-      daysPerWeek: clampInt(
-        stored.daysPerWeek,
-        MIN_DAYS_PER_WEEK,
-        MAX_DAYS_PER_WEEK,
-        DEFAULT_PREFERENCES.daysPerWeek,
-      ),
+      daysPerWeek:
+        chosenDays.length > 0
+          ? chosenDays.length
+          : clampInt(
+              stored.daysPerWeek,
+              MIN_DAYS_PER_WEEK,
+              MAX_DAYS_PER_WEEK,
+              DEFAULT_PREFERENCES.daysPerWeek,
+            ),
+      trainingDays: chosenDays,
       timeOfDay:
         typeof stored.timeOfDay === 'string' && /^\d{1,2}:\d{2}$/.test(stored.timeOfDay)
           ? stored.timeOfDay

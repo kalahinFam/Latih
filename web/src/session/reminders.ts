@@ -14,7 +14,7 @@
  * more useful than a toggle that silently does nothing.
  */
 
-import { trainingWeekdays, type PlanPreferences } from '../core/plan.ts';
+import { planWeekdays, type PlanPreferences } from '../core/plan.ts';
 
 const SUBSCRIPTION_ID_KEY = 'latih.reminder.id.v1';
 
@@ -124,7 +124,7 @@ export async function enableReminders(preferences: PlanPreferences): Promise<voi
       id: existingId ?? undefined,
       endpoint: subscription.endpoint,
       timeOfDay: preferences.timeOfDay,
-      weekdays: trainingWeekdays(preferences.daysPerWeek),
+      weekdays: planWeekdays(preferences),
       // Negated: getTimezoneOffset() counts minutes to *subtract* from local
       // time to reach UTC, which is the opposite sign of what the server adds.
       utcOffsetMinutes: -new Date().getTimezoneOffset(),

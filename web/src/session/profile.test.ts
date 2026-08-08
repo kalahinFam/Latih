@@ -101,6 +101,29 @@ describe('preference storage', () => {
     expect(loadPreferences().daysPerWeek).toBe(6);
   });
 
+  it('keeps the day count in step with the days picked', () => {
+    const store = installStorage();
+    // The two disagree; the explicit days are the stronger answer, and a
+    // schedule that says "3 hari" while training four days reads as a lie.
+    store.set(
+      'latih.preferences.v1',
+      JSON.stringify({ daysPerWeek: 3, trainingDays: [0, 2, 4, 6] }),
+    );
+
+    const loaded = loadPreferences();
+    expect(loaded.trainingDays).toEqual([0, 2, 4, 6]);
+    expect(loaded.daysPerWeek).toBe(4);
+  });
+
+  it('discards picked days that are out of range or not days', () => {
+    const store = installStorage();
+    store.set('latih.preferences.v1', JSON.stringify({ daysPerWeek: 4, trainingDays: [9, 'senin'] }));
+
+    const loaded = loadPreferences();
+    expect(loaded.trainingDays).toEqual([]);
+    expect(loaded.daysPerWeek).toBe(4);
+  });
+
   it('drops unknown exercises and never leaves the list empty', () => {
     const store = installStorage();
     // Training days with nothing to do on them would be worse than defaults.

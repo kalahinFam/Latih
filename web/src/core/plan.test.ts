@@ -5,6 +5,8 @@ import {
   buildWeeklyPlan,
   isTrainingDay,
   nextSessionAt,
+  normaliseWeekdays,
+  planWeekdays,
   startOfWeek,
   trainingWeekdays,
   type PlanPreferences,
@@ -62,6 +64,43 @@ describe('trainingWeekdays', () => {
       const days = trainingWeekdays(n);
       expect(new Set(days).size).toBe(days.length);
     }
+  });
+});
+
+describe('planWeekdays', () => {
+  it('trains on the days the user picked, spacing be damned', () => {
+    // Weekend-only is badly spaced and entirely legitimate: it is when this
+    // person is free, and a schedule they cannot keep trains nobody.
+    expect(planWeekdays(prefs({ trainingDays: [5, 6] }))).toEqual([5, 6]);
+  });
+
+  it('tidies a stored list before using it', () => {
+    expect(planWeekdays(prefs({ trainingDays: [4, 0, 4, 2] }))).toEqual([0, 2, 4]);
+  });
+
+  it('falls back to the even spread when no days were picked', () => {
+    expect(planWeekdays(prefs({ daysPerWeek: 4, trainingDays: [] }))).toEqual(trainingWeekdays(4));
+  });
+
+  it('ignores a list outside the frequency bounds', () => {
+    // Hand-edited storage or an older version. A week with one session, or
+    // with no rest day, is not a plan this app knows how to run.
+    expect(planWeekdays(prefs({ daysPerWeek: 3, trainingDays: [1] }))).toEqual(trainingWeekdays(3));
+    expect(planWeekdays(prefs({ daysPerWeek: 3, trainingDays: [0, 1, 2, 3, 4, 5, 6] }))).toEqual(
+      trainingWeekdays(3),
+    );
+  });
+
+  it('drops weekdays that are not weekdays', () => {
+    expect(normaliseWeekdays([-1, 0, 3, 7, 2.5, Number.NaN])).toEqual([0, 3]);
+  });
+
+  it('builds the week from the picked days', () => {
+    const plan = buildWeeklyPlan(prefs({ trainingDays: [1, 3] }), [], MONDAY);
+    expect(plan.days.filter((day) => day.isTraining).map((day) => day.weekday)).toEqual([1, 3]);
+    expect(plan.plannedDays).toBe(2);
+    // Monday is not one of them, so today is a rest day.
+    expect(isTrainingDay(plan)).toBe(false);
   });
 });
 

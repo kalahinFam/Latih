@@ -1551,6 +1551,20 @@ body {
   outline-offset: 2px;
 }
 
+/*
+  The way out of the last step, under the primary button.
+  `:not([hidden])` so the attribute still wins — a display rule on the element
+  itself would keep it visible on every step.
+*/
+.onboard__later:not([hidden]) {
+  display: block;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--grey-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* The step chrome: mark, progress, counter. */
 .onboard__bar {
   gap: 0.85rem;
