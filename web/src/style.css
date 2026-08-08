@@ -34,7 +34,7 @@
    * the tab bar — use it, so they separate from the content above without
    * picking up a tint.
    */
-  --bar-shadow: 0 -8px 20px rgb(21 29 40 / 8%);
+  --bar-shadow: 0 -4px 14px rgb(21 29 40 / 8%);
 
   /* Legacy aliases, kept so the annotation tool still resolves. */
   --surface: #131c31;
@@ -52,7 +52,9 @@
 html,
 body {
   margin: 0;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 /*
@@ -70,7 +72,8 @@ body {
   color: var(--ink);
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+  touch-action: pan-y;
 }
 
 /* ------------------------------------------------------------ camera layer */
@@ -119,6 +122,8 @@ body {
   /* min-height:0 lets the inner scroller shrink instead of pushing the tab
      bar off the bottom of the viewport. */
   min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .screen {
@@ -126,7 +131,8 @@ body {
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding-bottom: env(safe-area-inset-bottom);
+  max-width: 100%;
+  overflow: hidden;
   /* A gentle sage lift from the bottom, per the design's light screens. */
   background-image: linear-gradient(
     to top,
@@ -207,7 +213,10 @@ body {
   flex: 1;
   min-height: 0;
   padding: 1.5rem 1.6rem 1.5rem;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -222,7 +231,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  padding: 1.1rem 1.6rem 1.6rem;
+  padding: 1.1rem 1.6rem max(1.6rem, env(safe-area-inset-bottom));
 }
 
 /*
@@ -267,6 +276,12 @@ body {
   font-size: 0.94rem;
   font-weight: 800;
   letter-spacing: 0.22em;
+}
+
+.logo-image {
+  display: block;
+  object-fit: cover;
+  border-radius: 22%;
 }
 
 /* ------------------------------------------------------------------ controls */

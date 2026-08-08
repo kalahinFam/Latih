@@ -111,6 +111,18 @@ export function hasIcon(name: string): name is IconName {
   return name in PATHS;
 }
 
+/** Product logo shipped as a public raster asset. */
+export function logoImage(size = 96): HTMLImageElement {
+  const image = document.createElement('img');
+  image.src = '/logo.jpg';
+  image.width = size;
+  image.height = size;
+  image.alt = '';
+  image.decoding = 'async';
+  image.className = 'logo-image';
+  return image;
+}
+
 /* ---------------------------------------------------------------------- logo */
 
 /**

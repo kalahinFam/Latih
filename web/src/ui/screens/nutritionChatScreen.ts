@@ -186,7 +186,7 @@ export function createNutritionChatScreen(deps: NutritionChatDeps): Screen {
     }
 
     if (pending) {
-      log.append(el('div', { class: 'chatbubble chatbubble--bot', text: 'Mencari di tabel TKPI…' }));
+      log.append(el('div', { class: 'chatbubble chatbubble--bot', text: 'Sedang berpikir...' }));
     }
 
     // The newest exchange is what the user came back for.

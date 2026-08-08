@@ -66,7 +66,7 @@ import {
   saveProfile,
 } from '../../session/profile.ts';
 import { el, required } from '../dom.ts';
-import { icon, logoMark } from '../icons.ts';
+import { icon, logoImage } from '../icons.ts';
 import type { Screen } from '../../app/router.ts';
 
 const STEPS = 6;
@@ -245,7 +245,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   }
 
   backButton.append(icon('kembali'));
-  mark.append(logoMark(26, false));
+  mark.append(logoImage(26));
   next.addEventListener('click', () => advance());
   // "Nanti dulu" — everything is already saved by the time this screen is
   // reachable, so this is a route change, not an abandoned onboarding: the
