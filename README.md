@@ -889,7 +889,7 @@ melainkan syarat aplikasi ini berfungsi sama sekali.
 | `LLM_DAILY_QUOTA` | plafon harian memakai default 1500 panggilan |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limit dan langganan pengingat jatuh ke memori per-instance |
 | `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` / `VAPID_SUBJECT` | tombol pengingat menyembunyikan diri |
-| `CRON_SECRET` | diisi Vercel sendiri; melindungi `/api/cron-reminders` |
+| `CRON_SECRET` | `/api/cron-reminders` terbuka untuk siapa saja — nilainya kamu yang buat, Vercel hanya mengirimkannya kembali |
 
 Penjelasan tiap variabel ada di `.env.example`.
 
