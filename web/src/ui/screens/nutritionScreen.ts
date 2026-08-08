@@ -1,11 +1,9 @@
 /**
  * 7 · Gizi.
  *
- * ## Every number carries its source on the same line
- *
- * Each ingredient shows its TKPI code beside it, not in a footnote — the code
- * is what can be matched against panganku.org, and a citation nobody can find
- * is not a citation.
+ * TKPI codes remain in the response and validation pipeline, but the meal cards
+ * keep that implementation detail out of the interface and show only the
+ * ingredient name, portion, and computed energy.
  *
  * Meal totals are computed on the device from the cited rows, never taken from
  * the model's answer. That is the whole reason the endpoint returns codes and
@@ -92,8 +90,7 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
           'div',
           { class: 'row__body' },
           el('div', { class: 'row__title', text: item.name }),
-          // The code sits with the number it justifies.
-          el('div', { class: 'row__sub', text: `TKPI ${item.code} · ${item.grams} g` }),
+          el('div', { class: 'row__sub', text: `${item.grams} g` }),
         ),
         el('div', { class: 'bar__count', text: `${Math.round(item.nutrients.energyKcal)} kkal` }),
       ),
