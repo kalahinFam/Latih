@@ -22,7 +22,7 @@ import {
   proteinCoverage,
   type ChosenOption,
 } from '../src/core/meals.ts';
-import { PANTRY_CODES, pantryEntries, formatPantryForPrompt } from '../src/core/pantry.ts';
+import { PANTRY_CODES, PANTRY_LABELS, pantryEntries, formatPantryForPrompt } from '../src/core/pantry.ts';
 import {
   allowedValuesForPortions,
   scaleToPortion,
@@ -44,6 +44,17 @@ describe('pantry', () => {
 
     // A typo here would silently shrink the menu instead of failing.
     expect(missing).toEqual([]);
+  });
+
+  it('labels every curated food with its real name', () => {
+    // The onboarding picker shows PANTRY_LABELS to the user. A label that has
+    // drifted from the shipped row is a menu that names one thing and serves
+    // another, so each label must equal the TKPI name (English gloss stripped).
+    const byCode = new Map(table.foods.map((food) => [food.code, food]));
+    for (const code of Object.values(PANTRY_CODES).flat()) {
+      const expected = byCode.get(code)?.name.split(' (')[0];
+      expect(PANTRY_LABELS[code], `${code}`).toBe(expected);
+    }
   });
 
   it('curates no row the grounding contract excludes', () => {

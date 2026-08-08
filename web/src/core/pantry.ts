@@ -60,6 +60,48 @@ export const TYPICAL_PORTION_G: Record<PantryCategory, [number, number]> = {
 export const MIN_PORTION_G = 5;
 export const MAX_PORTION_G = 500;
 
+/**
+ * Display names for the curated pantry, keyed by TKPI code.
+ *
+ * The web app is browser-only and never reads `tkpi.json` (the server does),
+ * but the onboarding screen offers the pantry as a searchable picker, and the
+ * picker has to show a name. These are the TKPI names with the English gloss
+ * stripped off; the test suite asserts each one matches the shipped row, so a
+ * rename in the table fails the build rather than quietly showing stale names.
+ */
+export const PANTRY_LABELS: Record<string, string> = {
+  AP001: 'Nasi',
+  AP005: 'Nasi beras merah',
+  AP024: 'Roti putih',
+  BR013: 'Kentang, segar',
+  AP010: 'Jagung muda, rebus',
+  BP075: 'Ubi Cilembu',
+  HR002: 'Telur ayam ras, segar',
+  FR005: 'Ayam, daging, segar',
+  FR025: 'Sapi, daging, kurus, segar',
+  GR070: 'Ikan tongkol, segar',
+  GR050: 'Ikan oci, kembung, segar',
+  GR084: 'Udang, segar',
+  JR006: 'Susu sapi, segar',
+  CP077: 'Tempe kedelai murni, mentah',
+  CP061: 'Tahu, mentah',
+  CP060: 'Susu kedelai',
+  DR100: 'Kangkung, segar',
+  DP001: 'Bayam, kukus',
+  DR166: 'Wortel, segar',
+  DR013: 'Buncis, segar',
+  DR097: 'Kacang panjang, segar',
+  DR141: 'Sawi, segar',
+  ER074: 'Pisang ambon, segar',
+  ER073: 'Pepaya, segar',
+  ER004: 'Apel, segar',
+  ER054: 'Mangga, segar',
+  ER105: 'Semangka, segar',
+  ER001: 'Alpukat, segar',
+  KR011: 'Minyak kelapa',
+  KR014: 'Minyak Zaitun',
+};
+
 export const PANTRY_CODES: Record<PantryCategory, string[]> = {
   pokok: [
     'AP001', // Nasi

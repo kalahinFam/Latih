@@ -134,7 +134,7 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
             // person and a list of food codes is a fact about a menu. Only the
             // second needs to leave the phone.
             excludeCodes: excludedCodes(extras.restrictions),
-            preferCodes: preferredCodes(extras.homeProteins),
+            preferCodes: preferredCodes(extras.homeFoods),
           });
           return { slot, options: response.options, message: response.message ?? null };
         } catch (error) {
