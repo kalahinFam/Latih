@@ -146,6 +146,13 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
    * and on a six-step form that is worth saying.
    */
   let direction: 'forward' | 'back' = 'forward';
+  /**
+   * Step the slide was last played for.
+   *
+   * `render` re-runs on every tap, not only when the step advances, so without
+   * this the page slid sideways each time somebody picked an option.
+   */
+  let animatedStep = 0;
   // Working copies. Nothing is persisted until the final step, so abandoning
   // onboarding halfway leaves no half-answered profile behind.
   let draft: BodyDraft = loadProfile() ?? {
@@ -701,19 +708,31 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     const steps = [renderName, renderBody, renderGoal, renderActivity, renderFood, renderPlan];
     steps[step - 1]();
 
-    // Replayed by rebuilding the class, since a CSS animation does not restart
-    // on an element that already carries it. The step functions replace the
-    // body's children, so the wrapper class is applied to the body itself.
-    body.classList.remove('onboard__step');
-    void body.offsetWidth;
-    body.dataset.dir = direction;
-    body.classList.add('onboard__step');
+    // Only when the step actually changed.
+    //
+    // `render` runs again on every tap — picking a sex, a goal, a chip — so
+    // replaying unconditionally slid the whole page sideways each time
+    // somebody chose an option. The animation is meant to say "this is a
+    // different question", and a selection within the same question is not
+    // that.
+    if (step !== animatedStep) {
+      animatedStep = step;
+      // Rebuilt rather than toggled: a CSS animation does not restart on an
+      // element that already carries the class, and reading `offsetWidth`
+      // forces the style flush that makes the removal take effect first.
+      body.classList.remove('onboard__step');
+      void body.offsetWidth;
+      body.dataset.dir = direction;
+      body.classList.add('onboard__step');
+    }
   }
 
   return {
     enter(params) {
       // `?langkah=6` lets Settings send someone straight to the summary. Any
       // other value starts from the beginning.
+      // Re-entering resets it, so arriving at the screen always animates once.
+      animatedStep = 0;
       const requested = Number(params.langkah);
       step = Number.isInteger(requested) && requested >= 1 && requested <= STEPS ? requested : 1;
 

@@ -231,6 +231,24 @@ describe('motion', () => {
     }
   });
 
+  it('replays the onboarding slide only when the step changes', () => {
+    // Onboarding re-renders on every tap — picking a sex, a goal, a chip — not
+    // only when the step advances. Stamping the animation class at the end of
+    // `render` therefore slid the whole page sideways each time somebody chose
+    // an option, which is how this shipped and how it was reported.
+    //
+    // The animation says "this is a different question". A selection within the
+    // same question is not that, so the stamp has to sit behind a step guard.
+    const source = read('src/ui/screens/onboardingScreen.ts');
+    const stamp = source.indexOf("classList.add('onboard__step')");
+    expect(stamp, 'the step slide is gone').toBeGreaterThan(-1);
+
+    const guard = source.lastIndexOf('step !== animatedStep', stamp);
+    expect(guard, 'the slide is stamped without a step-change guard').toBeGreaterThan(
+      source.indexOf('function render('),
+    );
+  });
+
   it('adds no motion to the workout HUD beyond the count and the voice dot', () => {
     // The design gives one number and one colour the job of carrying the signal
     // there. A third moving thing would compete for the attention those need.
