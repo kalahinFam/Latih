@@ -124,7 +124,7 @@ describe('buildWeeklyPlan', () => {
     const plan = buildWeeklyPlan(prefs(), [], MONDAY);
     const targets = plan.days
       .filter((day) => day.isTraining)
-      .map((day) => day.exercises.find((e) => e.exercise === 'pushup')?.targetReps);
+      .map((day) => day.exercises.find((e) => e.movement === 'pushup')?.amount);
 
     // A target that drifted mid-week would change on days the user has not
     // trained yet, which reads as the app changing its mind.
@@ -142,7 +142,8 @@ describe('buildWeeklyPlan', () => {
     const pushup = plan.days.find((d) => d.isTraining)!.exercises[0];
 
     // Two clean sessions at 12 with no prior target: adopt 12, then progress.
-    expect(pushup.targetReps).toBe(13);
+    expect(pushup.amount).toBe(13);
+    expect(pushup.unit).toBe('reps');
     expect(pushup.reason).toBe('progressed');
   });
 
@@ -177,7 +178,7 @@ describe('buildWeeklyPlan', () => {
 
   it('plans only the exercises asked for', () => {
     const plan = buildWeeklyPlan(prefs({ exercises: ['squat'] }), [], MONDAY);
-    expect(plan.days[0].exercises.map((e) => e.exercise)).toEqual(['squat']);
+    expect(plan.days[0].exercises.map((e) => e.movement)).toEqual(['squat']);
   });
 });
 

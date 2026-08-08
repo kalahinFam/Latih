@@ -162,6 +162,7 @@ web/src/
 │   ├── setSummary.ts   agregasi per set + kontrak privasi
 │   ├── sessionLoop.ts  adaptasi target dari riwayat antar-sesi
 │   ├── plan.ts         rencana mingguan dari target + preferensi
+│   ├── split.ts        gerakan per hari latihan, dari jawaban onboarding
 │   ├── energy.ts       Mifflin-St Jeor → target kalori & protein
 │   ├── pantry.ts       bahan pangan terkurasi, per kode TKPI
 │   ├── meals.ts        validasi opsi menu + perhitungan total
@@ -523,9 +524,20 @@ mendaftar ulang.
 1.133 bisa disitir; 11 dikecualikan karena angkanya tidak konsisten **di
 sumbernya sendiri** (lihat [`data/tkpi/README.md`](data/tkpi/README.md)).
 
-Ketik pertanyaan di panel **Tanya gizi**. Jawabannya muncul **beserta baris
-TKPI yang dipakai**, lengkap dengan angka dan sumbernya, supaya siapa pun —
-termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
+**Tanya gizi** adalah layar sendiri, dibuka dari Gizi. Tiap jawaban muncul
+**beserta baris TKPI yang dipakai**, lengkap dengan angka dan sumbernya, supaya
+siapa pun — termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan
+halaman.
+
+Bisa **diketik atau dipilih**, karena keduanya gagal dengan cara berbeda.
+Ketikan menjangkau seluruh 1.144 baris tabel, tapi juga bisa meleset — kalau
+retrieval tidak menemukan apa pun, jawabannya adalah penolakan. Pertanyaan yang
+ditawarkan tidak mungkin meleset: katalognya ada di
+`core/nutritionQuestions.ts`, dan setiap pertanyaan yang bisa dihasilkannya
+diuji terhadap tabel TKPI asli di `test/nutritionQuestions.test.ts` — saran yang
+tidak bisa dijawab menggagalkan build, bukan percakapan. Kartu di layar Gizi
+menawarkan tiga di antaranya; sekali tap langsung membuka layar chat dengan
+pertanyaan itu sudah terkirim.
 
 **Alur, dan kenapa tiap langkahnya ada:**
 
@@ -533,6 +545,11 @@ termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
    cocok, model **tidak dipanggil sama sekali** — tanpa baris data, tidak ada
    yang bisa menjadi dasar jawaban, dan bertanya tetap adalah persis cara
    sebuah angka karangan diproduksi.
+   Khusus percakapan: pertanyaan susulan sering tidak menyebut bahannya sama
+   sekali ("kalau tahu?", "berapa kalorinya?"), jadi kalau pertanyaannya sendiri
+   tidak menemukan baris, retrieval diulang bersama pertanyaan sebelumnya —
+   hanya kalau perlu, karena tiap baris tambahan memperluas himpunan angka yang
+   diterima verifier, dan himpunan itulah jaminannya.
 2. **Model hanya menerima baris hasil retrieval**, dengan larangan eksplisit
    menghitung, mengalikan, atau memakai pengetahuannya sendiri.
 3. **Verifier memeriksa setiap angka** di jawaban terhadap baris tersebut.
@@ -542,6 +559,13 @@ termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
 Langkah terakhir itu intinya. Asisten gizi yang sesekali mengarang angka masuk
 akal lebih buruk daripada yang kadang menolak menulis prosa, karena pengguna
 tidak bisa membedakan keduanya. Menolak adalah kegagalan yang jujur.
+
+Yang ikut dikirim bersama pertanyaan hanyalah **angka turunan**: target energi
+dan protein harian yang sudah dihitung di perangkat. Berat, tinggi, usia, dan
+jenis kelamin tidak punya tempat di tipe permintaannya — sama seperti
+`MealsRequest`. Karena target itu hitungan aplikasi sendiri, angkanya ikut
+masuk daftar nilai yang boleh dikutip verifier: menolak jawaban yang menyebut
+angka yang sedang tercetak di layar yang sama akan menolak jawaban yang benar.
 
 **Yang diperiksa hanya angka berunit.** Klaim gizi selalu punya satuan —
 "20,8 gram protein", "201 kkal". Angka telanjang adalah hitungan dan urutan

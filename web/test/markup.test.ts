@@ -60,6 +60,7 @@ const SCREENS = [
   'umpanbalik',
   'ringkasan',
   'gizi',
+  'tanya',
   'riwayat',
   'pengaturan',
 ];

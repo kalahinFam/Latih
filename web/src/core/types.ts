@@ -65,6 +65,20 @@ export type HoldKind = 'plank';
 /** Anything the app can train. */
 export type MovementKind = ExerciseKind | HoldKind;
 
+/**
+ * Names as the user reads them.
+ *
+ * Here rather than in the UI layer because `core/split.ts` builds the sentence
+ * explaining a week's training and needs the same words the screens use. Two
+ * tables would eventually disagree, and the one place that would show is the
+ * paragraph telling somebody what they are about to do.
+ */
+export const MOVEMENT_NAMES: Record<MovementKind, string> = {
+  pushup: 'Push-up',
+  squat: 'Squat',
+  plank: 'Plank',
+};
+
 const HOLDS: readonly MovementKind[] = ['plank'];
 
 export function isHold(movement: MovementKind): movement is HoldKind {

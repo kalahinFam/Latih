@@ -30,6 +30,8 @@ import {
   savePreferences,
   saveProfile,
 } from '../../session/profile.ts';
+import { currentSplit } from '../../session/planner.ts';
+import { describeSession, estimatedMinutes } from '../../core/split.ts';
 import {
   ReminderError,
   disableReminders,
@@ -144,8 +146,35 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
     );
 
     const planSummary = el('p', { class: 'card__foot' });
+    // The split the saved schedule produces. Shown here because this is the
+    // screen that changes it: pick a fourth day and the week stops being
+    // full-body, and finding that out on the home screen tomorrow would be a
+    // surprise rather than a decision.
+    const splitList = el('div', { class: 'splitlist' });
+    const splitReason = el('p', { class: 'card__foot' });
+
     const refreshPlanSummary = () => {
-      planSummary.textContent = explainPlan(buildWeeklyPlan(loadPreferences(), deps.history.all()));
+      const saved = loadPreferences();
+      planSummary.textContent = explainPlan(buildWeeklyPlan(saved, deps.history.all()));
+
+      const split = currentSplit();
+      splitList.replaceChildren(
+        ...split.sessions.map((session) =>
+          el(
+            'div',
+            { class: 'splitlist__row' },
+            el('span', { class: 'splitlist__day', text: WEEKDAY_SHORT[session.weekday] }),
+            el(
+              'span',
+              { class: 'splitlist__body' },
+              el('span', { class: 'splitlist__focus', text: session.label }),
+              el('span', { class: 'splitlist__moves', text: describeSession(session) }),
+            ),
+            el('span', { class: 'splitlist__time', text: `±${estimatedMinutes(split, session)}′` }),
+          ),
+        ),
+      );
+      splitReason.textContent = split.reason;
     };
     refreshPlanSummary();
 
@@ -186,6 +215,9 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
         ),
         saveSchedule,
         planSummary,
+        el('div', { class: 'fieldlabel', text: 'ISI TIAP SESI' }),
+        splitList,
+        splitReason,
       ),
     );
 
