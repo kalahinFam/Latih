@@ -65,6 +65,24 @@ describe('RepCounter', () => {
     expect(counter.status.repCount).toBe(0);
   });
 
+  it('does not credit a brief noisy dip through the depth threshold', () => {
+    const counter = new RepCounter('squat');
+    const events = run(counter, [
+      ...Array(12).fill(175),
+      ...sweep(175, 85, 12),
+      ...Array(2).fill(85),
+      ...sweep(95, 175, 12),
+      ...Array(10).fill(175),
+    ]);
+
+    // The minimum angle is deep enough, but it was not held for the credit
+    // dwell. A one-off tracker dip must not turn a half/unstable attempt into
+    // a credited repetition.
+    expect(events).toHaveLength(1);
+    expect(events[0].counted).toBe(false);
+    expect(counter.status.repCount).toBe(0);
+  });
+
   it('counts a shallow rep so the rules can coach it', () => {
     const counter = new RepCounter('pushup');
     // 120 deg is a poor push-up, not a non-event. Counting it is what lets the
@@ -87,6 +105,20 @@ describe('RepCounter', () => {
       ...Array(10).fill(130),
     ]);
     expect(events).toHaveLength(0);
+  });
+
+  it('does not credit an otherwise full rep invalidated by a form gate', () => {
+    const counter = new RepCounter('squat');
+    let event: RepEvent | null = null;
+    pushupRep().forEach((angle, index) => {
+      if (counter.status.phase === 'down') counter.invalidateCurrentAttempt();
+      event = counter.update(angle, index * 33) ?? event;
+    });
+
+    expect(event).not.toBeNull();
+    expect(event!.counted).toBe(false);
+    expect(counter.status.repCount).toBe(0);
+    expect(counter.status.rejectedCount).toBe(1);
   });
 
   it('rejects threshold jitter instead of double-counting', () => {

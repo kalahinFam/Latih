@@ -94,13 +94,13 @@ describe('checkFraming', () => {
     expect(status.issue).toEqual({ kind: 'too-small' });
   });
 
-  it('does not require wrists for a squat', () => {
-    // A squat is judged from hips, knees and ankles; demanding wrists would
-    // reject perfectly usable footage.
+  it('requires wrists for a squat form gate', () => {
+    // Hand placement is now part of the anti-cheat gate, so the camera must be
+    // able to see both wrists before a squat can be counted.
     const body = framedBody();
     body[LM.LEFT_WRIST] = lm(-0.5, 0.5, 0.1);
     body[LM.RIGHT_WRIST] = lm(1.5, 0.5, 0.1);
-    expect(checkFraming(body, 'squat').ok).toBe(true);
+    expect(checkFraming(body, 'squat').issue).toMatchObject({ missing: 'hands' });
   });
 
   it('does not require ankles for a push-up', () => {

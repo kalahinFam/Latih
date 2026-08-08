@@ -49,6 +49,10 @@ const REQUIRED: Record<MovementKind, number[]> = {
     LM.RIGHT_KNEE,
     LM.LEFT_ANKLE,
     LM.RIGHT_ANKLE,
+    LM.LEFT_WRIST,
+    LM.RIGHT_WRIST,
+    LM.LEFT_FOOT_INDEX,
+    LM.RIGHT_FOOT_INDEX,
   ],
   /**
    * The judged line is shoulder-hip-knee, so all three are required — a plank
@@ -272,7 +276,7 @@ export const CAMERA_GUIDANCE: Record<MovementKind, CameraGuidance> = {
     height: 'Setinggi pinggul, ±1 meter',
     distance: '2–3 meter',
     orientation: 'Portrait (HP berdiri)',
-    note: 'Kedalaman paling terbaca dari samping, tapi lutut yang masuk ke dalam hanya terlihat dari depan. Serong adalah kompromi terbaik.',
+    note: 'Kedalaman paling terbaca dari samping, tapi lutut yang masuk ke dalam hanya terlihat dari depan. Serong adalah kompromi terbaik. Jaga tangan tidak menyentuh lantai, kaki selebar bahu, dan telapak tetap menempel.',
   },
   plank: {
     // Unlike the other two this really does want a side view. The only thing

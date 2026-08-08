@@ -30,7 +30,14 @@ import {
   framingSpeech,
   type FramingIssue,
 } from '../core/framing.ts';
-import { checkPosture, handsPlanted, postureMessage, type PostureIssue } from '../core/posture.ts';
+import {
+  allPostureCueTexts,
+  checkPosture,
+  handsPlanted,
+  postureCueFor,
+  postureMessage,
+  type PostureIssue,
+} from '../core/posture.ts';
 import { HoldTracker } from '../core/holdTracker.ts';
 import { PerfMonitor } from '../core/metrics.ts';
 import { RepCounter } from '../core/repCounter.ts';
@@ -177,6 +184,8 @@ export class WorkoutEngine {
    * live at the reversal is not repeated by the post-rep rules a moment later.
    */
   private readonly spokenThisRep = new Set<string>();
+  /** Prevents a support-form rejection from being narrated as shallow depth. */
+  private repInvalidatedThisRep = false;
   /**
    * Frames where the counting angle was unavailable. Surfaced because "reps are
    * being missed" is not actionable and "the angle was readable in 61% of
@@ -204,6 +213,7 @@ export class WorkoutEngine {
   private goodFramingSinceMs: number | null = null;
   private highlightJoints: readonly number[] = [];
   private strippedDone = -1;
+  private lastPostureIssue: PostureIssue | null = null;
 
   private readinessListener: ((readiness: Readiness) => void) | null = null;
 
@@ -228,7 +238,7 @@ export class WorkoutEngine {
    */
   unlockAudio(): void {
     this.voice.unlock();
-    this.voice.preloadCues([...allCueTexts(), ...allSetupSpeech()]);
+    this.voice.preloadCues([...allCueTexts(), ...allSetupSpeech(), ...allPostureCueTexts()]);
   }
 
   onReadiness(listener: (readiness: Readiness) => void): void {
@@ -401,6 +411,7 @@ export class WorkoutEngine {
     this.smoother = new MedianFilter();
     this.hold.reset();
     this.spokenThisRep.clear();
+    this.repInvalidatedThisRep = false;
     this.windows.clear();
     this.reps.length = 0;
     this.setStartedMs = 0;
@@ -416,6 +427,7 @@ export class WorkoutEngine {
     this.armed = false;
     this.goodFramingSinceMs = null;
     this.strippedDone = -1;
+    this.lastPostureIssue = null;
     this.clearCue();
     this.renderLabel();
   }
@@ -445,6 +457,7 @@ export class WorkoutEngine {
         const issue: FramingIssue = { kind: 'no-pose' };
         this.setStatus({ kind: 'framing', message: framingMessage(issue, this.exercise) });
         this.speakFraming(issue, frameStart);
+        this.lastPostureIssue = null;
         this.goodFramingSinceMs = null;
         this.emitReadiness({ hasPose: false, framingOk: false, postureOk: true, bodyFill: 0 });
       }
@@ -464,17 +477,27 @@ export class WorkoutEngine {
       // Is the body even in this movement? A knee that bends and straightens
       // reads the same lying down as standing.
       const posture = checkPosture(detection.frame.landmarks, this.exercise);
-      const plausible =
+      const movementPlausible =
         posture.plausible &&
         (this.exercise !== 'pushup' || handsPlanted(detection.frame.landmarks));
+      const formValid = posture.countable;
+      const plausible = movementPlausible && formValid;
 
-      this.updateArming(framing.ok && posture.plausible, frameStart);
+      this.updateArming(framing.ok && plausible, frameStart);
 
       if (this.mode === 'workout') {
         if (this.isHoldMovement) this.runHold(angles, posture.plausible, frameStart);
         // Narrowed here rather than inside: `runCounting` is only ever reached
         // for a counted movement, and saying so once beats asserting it twice.
-        else this.runCounting(this.exercise as ExerciseKind, detection, angles, plausible, frameStart);
+        else
+          this.runCounting(
+            this.exercise as ExerciseKind,
+            detection,
+            angles,
+            movementPlausible,
+            posture.invalidatesRep,
+            frameStart,
+          );
       }
 
       this.perf.recordFastLoop(performance.now() - fastLoopStart);
@@ -487,6 +510,7 @@ export class WorkoutEngine {
       // Framing outranks low confidence: a cropped body is *why* confidence is
       // low, and "step back" is something the user can act on.
       this.setStatus(this.framingOrTrackingStatus(framing.issue, posture.issue));
+      this.showPostureCue(posture.issue);
       // Only nag while framing still blocks the set. Once armed, a transient
       // issue is reported on screen and left alone.
       if (!this.armed) this.speakFraming(framing.issue, frameStart);
@@ -494,7 +518,7 @@ export class WorkoutEngine {
       this.emitReadiness({
         hasPose: true,
         framingOk: framing.ok,
-        postureOk: posture.plausible,
+        postureOk: posture.plausible && posture.countable,
         bodyFill: framing.bodyFill,
       });
     }
@@ -512,39 +536,49 @@ export class WorkoutEngine {
     exercise: ExerciseKind,
     detection: NonNullable<ReturnType<PoseSource['detect']>>,
     angles: ReturnType<typeof computeJointAngles>,
-    plausible: boolean,
+    movementPlausible: boolean,
+    invalidatesRep: boolean,
     frameStart: number,
   ): void {
     // Feed null when the body is not in the movement, or before the set is
     // armed. The counter already treats null as "hold".
-    const countable = plausible && this.armed;
+    const countable = movementPlausible && this.armed;
     const angle = this.smoother.push(
       countable ? primaryAngleForCounting(detection.frame.landmarks, exercise) : null,
     );
     this.windows.push(detection.frame.timestampMs, angles);
 
     const phaseBefore = this.counter.status.phase;
+    // A support cheat discovered mid-descent must not let the rep count. Marked
+    // before the counter consumes the frame so an attempt that ends on the very
+    // frame the cheat appears is rejected too.
+    if (invalidatesRep && phaseBefore === 'down') {
+      this.repInvalidatedThisRep = true;
+      this.counter.invalidateCurrentAttempt();
+    }
     const rep = this.counter.update(angle, detection.frame.timestampMs);
 
     // Live depth check runs during the descent, so the correction lands as the
     // lifter starts back up rather than after the rep is already done.
-    if (this.liveCue.update(angle, phaseBefore === 'down')) {
+    if (this.liveCue.update(angle, phaseBefore === 'down') && !this.repInvalidatedThisRep) {
       this.spokenThisRep.add('shallow_depth');
       this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
     }
 
     if (rep && !rep.counted) {
-      // An attempt that reversed before reaching depth. Flagged, spoken, and
-      // deliberately not counted — a counter that credits half reps tells the
-      // lifter something untrue about the work they did, and inflates the
-      // target the session loop then progresses from.
+      // An attempt that reversed before reaching depth — or was rejected by a
+      // support gate — is flagged, spoken, and deliberately not counted: a
+      // counter that credits half reps tells the lifter something untrue about
+      // the work they did, and inflates the target the session loop then
+      // progresses from.
       //
       // `liveCue` usually says this first, at the reversal, which is earlier
       // and better; `spokenThisRep` stops it being said twice.
-      if (!this.spokenThisRep.has('shallow_depth')) {
+      if (!this.repInvalidatedThisRep && !this.spokenThisRep.has('shallow_depth')) {
         this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
       }
       this.spokenThisRep.clear();
+      this.repInvalidatedThisRep = false;
     } else if (rep) {
       const findings = evaluateRules(
         exercise,
@@ -570,6 +604,7 @@ export class WorkoutEngine {
 
       this.showCue(cue?.code ?? null, cue?.cue ?? null, frameStart);
       this.spokenThisRep.clear();
+      this.repInvalidatedThisRep = false;
 
       // The set has done what it set out to do. Announced here rather than
       // polled, so the transition lands on the frame the target was met.
@@ -648,6 +683,16 @@ export class WorkoutEngine {
 
   /* ------------------------------------------------------------------- cues */
 
+  /** Speak posture gates without turning them into a competing HUD correction. */
+  private showPostureCue(issue: PostureIssue | null): void {
+    if (issue === this.lastPostureIssue) return;
+    this.lastPostureIssue = issue;
+
+    if (issue === null || this.mode === 'idle') return;
+    this.clearCue();
+    this.voice.playCue(postureCueFor(issue));
+  }
+
   /**
    * Show a correction.
    *
@@ -717,7 +762,9 @@ export class WorkoutEngine {
     posture: PostureIssue | null,
   ): Status {
     if (issue) return { kind: 'framing', message: framingMessage(issue, this.exercise) };
-    if (posture) return { kind: 'posture', message: postureMessage(posture) };
+    // Posture restrictions are spoken, not rendered as a second visual cue.
+    // Framing remains visual because it describes what the camera can see.
+    if (posture === 'not-horizontal') return { kind: 'posture', message: postureMessage(posture) };
     if (this.mode === 'workout' && this.counter.status.holding) return { kind: 'low-confidence' };
     return { kind: 'running' };
   }

@@ -117,7 +117,6 @@ export const HIGHLIGHT_JOINTS: Record<string, readonly number[]> = {
   'pushup:hip_sag': [LM.LEFT_HIP, LM.RIGHT_HIP],
   'pushup:hip_pike': [LM.LEFT_HIP, LM.RIGHT_HIP],
   'squat:shallow_depth': [LM.LEFT_KNEE, LM.RIGHT_KNEE],
-  'squat:partial_lockout': [LM.LEFT_KNEE, LM.RIGHT_KNEE],
   // Trunk lean is measured shoulder-to-hip, so both ends are the fault.
   'squat:excessive_trunk_lean': [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP],
   // The plank's whole judgement is the hip line, so the hips are always where

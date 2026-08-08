@@ -34,6 +34,28 @@ function withTorso(leanDeg: number, visibility = 0.9): Landmark[] {
   return lm;
 }
 
+/** A grounded, shoulder-width squat with the hands well clear of the floor. */
+function squatBody(): Landmark[] {
+  const body = blank();
+  const put = (index: number, x: number, y: number) => {
+    body[index] = { x, y, z: 0, visibility: 0.9 };
+  };
+
+  put(LM.LEFT_SHOULDER, -0.2, -0.5);
+  put(LM.RIGHT_SHOULDER, 0.2, -0.5);
+  put(LM.LEFT_HIP, -0.15, 0);
+  put(LM.RIGHT_HIP, 0.15, 0);
+  put(LM.LEFT_KNEE, -0.2, 0.45);
+  put(LM.RIGHT_KNEE, 0.2, 0.45);
+  put(LM.LEFT_ANKLE, -0.2, 0.9);
+  put(LM.RIGHT_ANKLE, 0.2, 0.9);
+  put(LM.LEFT_FOOT_INDEX, -0.22, 0.95);
+  put(LM.RIGHT_FOOT_INDEX, 0.22, 0.95);
+  put(LM.LEFT_WRIST, -0.45, 0.2);
+  put(LM.RIGHT_WRIST, 0.45, 0.2);
+  return body;
+}
+
 describe('checkPosture — squat', () => {
   it('accepts an upright body', () => {
     expect(checkPosture(withTorso(5), 'squat').plausible).toBe(true);
@@ -116,7 +138,50 @@ describe('handsPlanted', () => {
 
 describe('postureMessage', () => {
   it('says what to do, not what is wrong internally', () => {
-    expect(postureMessage('not-upright')).toContain('Berdiri');
+    expect(postureMessage('not-upright')).toContain('dada');
     expect(postureMessage('not-horizontal')).toContain('plank');
+  });
+});
+
+describe('checkPosture — squat form gates', () => {
+  it('allows a grounded shoulder-width squat', () => {
+    const status = checkPosture(squatBody(), 'squat');
+    expect(status.plausible).toBe(true);
+    expect(status.countable).toBe(true);
+  });
+
+  it('withholds a squat when a hand reaches the floor', () => {
+    const body = squatBody();
+    body[LM.LEFT_WRIST].y = 0.95;
+    const status = checkPosture(body, 'squat');
+    expect(status.issue).toBe('squat-hands-on-floor');
+    expect(status.invalidatesRep).toBe(true);
+  });
+
+  it('withholds a squat when an ankle lifts from the foot', () => {
+    const body = squatBody();
+    body[LM.LEFT_ANKLE].y = 0.7;
+    expect(checkPosture(body, 'squat').issue).toBe('squat-feet-lifted');
+  });
+
+  it('withholds a squat outside shoulder-width stance', () => {
+    const body = squatBody();
+    body[LM.LEFT_ANKLE].x = -0.05;
+    body[LM.RIGHT_ANKLE].x = 0.05;
+    expect(checkPosture(body, 'squat').issue).toBe('squat-stance');
+  });
+
+  it('keeps the squat visible but not countable when the torso leans too far', () => {
+    const status = checkPosture(withTorso(60), 'squat');
+    expect(status.plausible).toBe(true);
+    expect(status.countable).toBe(false);
+    expect(status.invalidatesRep).toBe(false);
+    expect(status.issue).toBe('not-upright');
+  });
+
+  it('rejects an extreme torso lean as an invalid squat attempt', () => {
+    const status = checkPosture(withTorso(72), 'squat');
+    expect(status.plausible).toBe(true);
+    expect(status.invalidatesRep).toBe(true);
   });
 });

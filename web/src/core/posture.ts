@@ -39,6 +39,10 @@ import { LM, type Landmark, type MovementKind } from './types.ts';
  */
 const SQUAT_MAX_TRUNK_LEAN = 75;
 
+/** Above this, the squat is a form-invalid attempt rather than a rep. */
+const SQUAT_COUNTABLE_TRUNK_LEAN = 55;
+const SQUAT_REJECT_TRUNK_LEAN = 70;
+
 /**
  * Trunk lean at or beyond which the body counts as horizontal for a push-up.
  *
@@ -55,17 +59,61 @@ const PUSHUP_MIN_TRUNK_LEAN = 55;
  */
 const MIN_VISIBILITY = 0.4;
 
-export type PostureIssue = 'not-upright' | 'not-horizontal';
+/** A hand this close to the foot plane is being used as support. */
+const HAND_FLOOR_MARGIN_RATIO = 0.18;
+const HAND_FLOOR_MARGIN_MIN = 0.08;
+
+/** A lifted ankle separates from its toe by much more than a grounded foot. */
+const MAX_ANKLE_LIFT_RATIO = 0.3;
+const MIN_ANKLE_LIFT_METERS = 0.08;
+
+/** Squat stance tolerance around shoulder width. */
+const MIN_STANCE_RATIO = 0.75;
+const MAX_STANCE_RATIO = 1.5;
+
+export type PostureIssue =
+  | 'not-upright'
+  | 'not-horizontal'
+  | 'squat-hands-on-floor'
+  | 'squat-feet-lifted'
+  | 'squat-stance';
+
+/** Spoken-only guidance for posture gates. These are not HUD corrections. */
+export const POSTURE_CUE_TEXT: Record<PostureIssue, string> = {
+  'not-upright': 'Jaga dada tetap tegak',
+  'not-horizontal': 'Ambil posisi plank, badan lurus mendatar',
+  'squat-hands-on-floor': 'Jangan bertumpu pada tangan',
+  'squat-feet-lifted': 'Jaga telapak kaki tetap menempel',
+  'squat-stance': 'Buka kaki selebar bahu',
+};
+
+export function postureCueFor(issue: PostureIssue): string {
+  return POSTURE_CUE_TEXT[issue];
+}
+
+export function allPostureCueTexts(): string[] {
+  return [...new Set(Object.values(POSTURE_CUE_TEXT))].sort();
+}
 
 export interface PostureStatus {
   /** False only when the body is clearly not in this movement. */
   plausible: boolean;
+  /** False when the body is present but the attempt violates a count gate. */
+  countable: boolean;
+  /** True when the current repetition must be rejected, not merely warned. */
+  invalidatesRep: boolean;
   issue: PostureIssue | null;
   /** Trunk deviation from vertical, degrees, or null if unreadable. */
   trunkLeanDeg: number | null;
 }
 
-const UNKNOWN: PostureStatus = { plausible: true, issue: null, trunkLeanDeg: null };
+const UNKNOWN: PostureStatus = {
+  plausible: true,
+  countable: true,
+  invalidatesRep: false,
+  issue: null,
+  trunkLeanDeg: null,
+};
 
 /**
  * Does the body's orientation match the exercise?
@@ -80,25 +128,95 @@ export function checkPosture(
   if (!landmarks || landmarks.length === 0) return UNKNOWN;
 
   const lean = trunkLeanDeg(landmarks, MIN_VISIBILITY);
-  if (lean === null) return UNKNOWN;
 
   if (exercise === 'squat') {
     // Lying down reads near 90 and can produce a perfectly clean knee-angle
     // trace, which is the whole problem.
-    const plausible = lean <= SQUAT_MAX_TRUNK_LEAN;
-    return { plausible, issue: plausible ? null : 'not-upright', trunkLeanDeg: lean };
+    const plausible = lean === null || lean <= SQUAT_MAX_TRUNK_LEAN;
+
+    // Concrete support cheats. Checked before the torso warning so a
+    // hand-assisted squat is rejected even when the lean and the knee angle
+    // look otherwise plausible.
+    const constraint = squatConstraintIssue(landmarks);
+    if (constraint !== null) {
+      return {
+        plausible,
+        countable: false,
+        invalidatesRep: true,
+        issue: constraint,
+        trunkLeanDeg: lean,
+      };
+    }
+
+    if (!plausible) {
+      return {
+        plausible,
+        countable: false,
+        invalidatesRep: true,
+        issue: 'not-upright',
+        trunkLeanDeg: lean,
+      };
+    }
+
+    if (lean !== null && lean > SQUAT_REJECT_TRUNK_LEAN) {
+      return {
+        plausible: true,
+        countable: false,
+        invalidatesRep: true,
+        issue: 'not-upright',
+        trunkLeanDeg: lean,
+      };
+    }
+
+    // A large forward lean is still recognisably a squat. Keep the knee angle
+    // available so a valid deep squat is not lost to a transient lean, while
+    // the live warning tells the user what to correct.
+    if (lean !== null && lean > SQUAT_COUNTABLE_TRUNK_LEAN) {
+      return {
+        plausible: true,
+        countable: false,
+        invalidatesRep: false,
+        issue: 'not-upright',
+        trunkLeanDeg: lean,
+      };
+    }
+
+    return {
+      plausible: true,
+      countable: true,
+      invalidatesRep: false,
+      issue: null,
+      trunkLeanDeg: lean,
+    };
   }
 
-  // Push-up and plank are the same question: is the body horizontal.
-  const plausible = lean >= PUSHUP_MIN_TRUNK_LEAN;
-  return { plausible, issue: plausible ? null : 'not-horizontal', trunkLeanDeg: lean };
+  // Push-up and plank are the same question: is the body horizontal. Kept
+  // exactly as before — only the squat carries count gates, and push-up and
+  // plank never reject a rep already in flight.
+  const plausible = lean === null || lean >= PUSHUP_MIN_TRUNK_LEAN;
+  return {
+    plausible,
+    countable: plausible,
+    invalidatesRep: false,
+    issue: plausible ? null : 'not-horizontal',
+    trunkLeanDeg: lean,
+  };
 }
 
 /** What to do about it, in the user's terms. */
 export function postureMessage(issue: PostureIssue): string {
-  return issue === 'not-upright'
-    ? 'Berdiri dulu — hitungan squat butuh badan tegak.'
-    : 'Ambil posisi plank, badan lurus mendatar.';
+  switch (issue) {
+    case 'not-upright':
+      return 'Jaga dada tetap tegak — hitungan squat ditahan.';
+    case 'not-horizontal':
+      return 'Ambil posisi plank, badan lurus mendatar.';
+    case 'squat-hands-on-floor':
+      return 'Jangan bertumpu pada tangan. Biarkan tangan tetap melayang.';
+    case 'squat-feet-lifted':
+      return 'Jaga telapak kaki tetap menempel lantai.';
+    case 'squat-stance':
+      return 'Buka kaki selebar bahu.';
+  }
 }
 
 /**
@@ -123,4 +241,87 @@ export function handsPlanted(landmarks: Landmark[] | null): boolean {
   // A small allowance: at the top of a push-up the shoulders sit well above the
   // hands, at the bottom they are nearly level.
   return wristY >= shoulderY - 0.1;
+}
+
+/* ------------------------------------------------------ squat count gates */
+
+function visible(landmarks: Landmark[], ...indices: number[]): boolean {
+  return indices.every((index) => landmarks[index]?.visibility >= MIN_VISIBILITY);
+}
+
+function distance(a: Landmark, b: Landmark): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+function horizontalDistance(a: Landmark, b: Landmark): number {
+  return Math.hypot(a.x - b.x, a.z - b.z);
+}
+
+function handOnFloor(
+  landmarks: Landmark[],
+  wristIndex: number,
+  ankleIndex: number,
+  footIndex: number,
+  kneeIndex: number,
+): boolean | null {
+  if (!visible(landmarks, wristIndex, ankleIndex, footIndex, kneeIndex)) return null;
+
+  const wrist = landmarks[wristIndex];
+  const ankle = landmarks[ankleIndex];
+  const foot = landmarks[footIndex];
+  const knee = landmarks[kneeIndex];
+  const lowerLeg = distance(knee, ankle);
+  const margin = Math.max(HAND_FLOOR_MARGIN_MIN, lowerLeg * HAND_FLOOR_MARGIN_RATIO);
+  const floorY = Math.max(ankle.y, foot.y);
+  return wrist.y >= floorY - margin;
+}
+
+function ankleLifted(
+  landmarks: Landmark[],
+  ankleIndex: number,
+  footIndex: number,
+  kneeIndex: number,
+): boolean | null {
+  if (!visible(landmarks, ankleIndex, footIndex, kneeIndex)) return null;
+
+  const lowerLeg = distance(landmarks[kneeIndex], landmarks[ankleIndex]);
+  const ankleToToeRise = landmarks[footIndex].y - landmarks[ankleIndex].y;
+  return ankleToToeRise > Math.max(MIN_ANKLE_LIFT_METERS, lowerLeg * MAX_ANKLE_LIFT_RATIO);
+}
+
+function stanceOutsideShoulderWidth(landmarks: Landmark[]): boolean | null {
+  const required = [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_ANKLE, LM.RIGHT_ANKLE];
+  if (!visible(landmarks, ...required)) return null;
+
+  const shoulders = horizontalDistance(landmarks[LM.LEFT_SHOULDER], landmarks[LM.RIGHT_SHOULDER]);
+  const ankles = horizontalDistance(landmarks[LM.LEFT_ANKLE], landmarks[LM.RIGHT_ANKLE]);
+  if (shoulders < 1e-6) return null;
+
+  const ratio = ankles / shoulders;
+  return ratio < MIN_STANCE_RATIO || ratio > MAX_STANCE_RATIO;
+}
+
+function squatConstraintIssue(landmarks: Landmark[]): PostureIssue | null {
+  const leftHand = handOnFloor(
+    landmarks,
+    LM.LEFT_WRIST,
+    LM.LEFT_ANKLE,
+    LM.LEFT_FOOT_INDEX,
+    LM.LEFT_KNEE,
+  );
+  const rightHand = handOnFloor(
+    landmarks,
+    LM.RIGHT_WRIST,
+    LM.RIGHT_ANKLE,
+    LM.RIGHT_FOOT_INDEX,
+    LM.RIGHT_KNEE,
+  );
+  if (leftHand === true || rightHand === true) return 'squat-hands-on-floor';
+
+  const leftLifted = ankleLifted(landmarks, LM.LEFT_ANKLE, LM.LEFT_FOOT_INDEX, LM.LEFT_KNEE);
+  const rightLifted = ankleLifted(landmarks, LM.RIGHT_ANKLE, LM.RIGHT_FOOT_INDEX, LM.RIGHT_KNEE);
+  if (leftLifted === true || rightLifted === true) return 'squat-feet-lifted';
+
+  if (stanceOutsideShoulderWidth(landmarks) === true) return 'squat-stance';
+  return null;
 }

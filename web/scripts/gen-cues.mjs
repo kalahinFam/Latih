@@ -27,6 +27,7 @@ import { readFileSync } from 'node:fs';
 import { TTS_MODEL, ttsInstructions, ttsVoice } from '../../api/_voice.ts';
 import { allCueTexts } from '../src/core/rules.ts';
 import { allSetupSpeech } from '../src/core/framing.ts';
+import { allPostureCueTexts } from '../src/core/posture.ts';
 import { cueFileName } from '../src/audio/cueId.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -72,10 +73,10 @@ async function exists(path) {
   }
 }
 
-// Corrective cues and setup instructions alike. Both are spoken mid-session
-// with the phone across the room, so both need the pre-rendered voice rather
-// than the browser's fallback synthesiser.
-const texts = [...new Set([...allCueTexts(), ...allSetupSpeech()])].sort();
+// Corrective cues, setup instructions, and posture gates alike. All are spoken
+// mid-session with the phone across the room, so all need the pre-rendered
+// voice rather than the browser's fallback synthesiser.
+const texts = [...new Set([...allCueTexts(), ...allSetupSpeech(), ...allPostureCueTexts()])].sort();
 await mkdir(OUT_DIR, { recursive: true });
 
 const wanted = new Map(texts.map((text) => [cueFileName(text), text]));

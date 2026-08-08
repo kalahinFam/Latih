@@ -75,7 +75,6 @@ export const CUE_TEXT: Record<string, string> = {
   'pushup:hip_sag': 'Angkat pinggul, jaga badan lurus',
   'pushup:hip_pike': 'Turunkan pinggul, jaga badan lurus',
   'squat:shallow_depth': 'Turun lebih dalam',
-  'squat:partial_lockout': 'Berdiri tegak sepenuhnya',
   'squat:excessive_trunk_lean': 'Jaga dada tetap tegak',
   // Same line, judged the same way, so the same words — and therefore no extra
   // audio clip: `allCueTexts` deduplicates by phrase.
@@ -112,14 +111,18 @@ export interface RuleFinding {
 
 interface Thresholds {
   /**
-   * Absolute backstop for lockout — a rep peaking below this is short however
-   * the rest of the set looked. Deliberately close to the counter's `upEnter`,
-   * because the real check is the relative one below.
+   * Push-up only. Absolute backstop for lockout — a rep peaking below this is
+   * short however the rest of the set looked. Deliberately close to the
+   * counter's `upEnter`, because the real check is the relative one below.
+   *
+   * The squat rule was removed entirely: its signal was the standing pose,
+   * which the counter's `upEnter` gate already enforces, and the camera reads
+   * a full stand low enough that the rule fired on clean reps.
    */
-  lockoutMin: number;
+  lockoutMin?: number;
   /**
-   * How far a rep may peak below the lifter's own best extension this set
-   * before it counts as cut short.
+   * Push-up only. How far a rep may peak below the lifter's own best extension
+   * this set before it counts as cut short.
    *
    * ## Why lockout is judged relatively
    *
@@ -128,15 +131,14 @@ interface Thresholds {
    * and on the camera angle — the same lifter at 30° and at 45° oblique
    * produces different peaks for identical form. An absolute threshold
    * therefore measures the tracker as much as the lifter, and field testing
-   * showed exactly that: "berdiri tegak sepenuhnya" and "luruskan lengan
-   * sepenuhnya" firing on *every* repetition, which is a rule carrying no
-   * information at all.
+   * showed exactly that: "luruskan lengan sepenuhnya" firing on *every*
+   * repetition, which is a rule carrying no information at all.
    *
    * Comparing each rep to the best the same person produced under the same
    * camera in the same set cancels that offset. What is left is the thing
    * actually worth flagging: reps getting shorter as the set goes on.
    */
-  lockoutDropMax: number;
+  lockoutDropMax?: number;
   /** Push-up only: hip angle band around straight (180 deg). */
   hipSagMin?: number;
   hipPikeMax?: number;
@@ -158,9 +160,9 @@ export const DEFAULT_THRESHOLDS: Record<ExerciseKind, Thresholds> = {
     band: 25,
   },
   squat: {
-    // Counter gate is 162.
-    lockoutMin: 165,
-    lockoutDropMax: 14,
+    // No lockout rule: a straight stand is enforced by the counter's `upEnter`
+    // gate, and the camera reads a full stand low enough that an absolute
+    // floor flagged clean reps. Depth and trunk lean do the quality judging.
     // Torso pitch from vertical. Some forward lean is correct in a squat;
     // beyond ~55 deg the load has shifted off the legs.
     trunkLeanMax: 55,
@@ -216,22 +218,27 @@ export function evaluateRules(
   const bottom = bottomFrames(window);
   const findings: RuleFinding[] = [];
 
-  // Lockout. maxAngle is the peak extension the counter observed at the top.
-  const lockout = window.event.maxAngle;
-  if (Number.isFinite(lockout)) {
-    // Relative to this lifter's own best under this camera, with the absolute
-    // value only as a backstop. See `lockoutDropMax`.
-    const best = context.bestLockoutDeg;
-    const reference = best === undefined ? t.lockoutMin : Math.max(t.lockoutMin, best - t.lockoutDropMax);
+  // Lockout, push-up only. The squat rule was removed: its signal was the
+  // standing pose, which the counter's `upEnter` gate already enforces, and the
+  // camera reads a full stand low enough that the rule fired on clean reps.
+  if (exercise === 'pushup' && t.lockoutMin !== undefined && t.lockoutDropMax !== undefined) {
+    // Lockout. maxAngle is the peak extension the counter observed at the top.
+    const lockout = window.event.maxAngle;
+    if (Number.isFinite(lockout)) {
+      // Relative to this lifter's own best under this camera, with the absolute
+      // value only as a backstop. See `lockoutDropMax`.
+      const best = context.bestLockoutDeg;
+      const reference = best === undefined ? t.lockoutMin : Math.max(t.lockoutMin, best - t.lockoutDropMax);
 
-    if (lockout < reference) {
-      findings.push({
-        code: 'partial_lockout',
-        cue: cueFor(exercise, 'partial_lockout'),
-        value: lockout,
-        threshold: round(reference),
-        severity: severityOf(lockout, reference, t.band, 'below'),
-      });
+      if (lockout < reference) {
+        findings.push({
+          code: 'partial_lockout',
+          cue: cueFor(exercise, 'partial_lockout'),
+          value: lockout,
+          threshold: round(reference),
+          severity: severityOf(lockout, reference, t.band, 'below'),
+        });
+      }
     }
   }
 
