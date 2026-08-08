@@ -20,7 +20,7 @@ import {
   resetMemoryCounters,
   type Counter,
   type LimitPolicy,
-} from '../../api/_ratelimit.ts';
+} from '../../server/_ratelimit.ts';
 
 const POLICY: LimitPolicy = { bucket: 'test', perHour: 3 };
 

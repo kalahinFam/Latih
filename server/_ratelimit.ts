@@ -3,7 +3,7 @@
  *
  * ## Why this exists
  *
- * `coach`, `tts`, `nutrition` and `meals` are unauthenticated by design — the
+ * `coach`, `nutrition` and `meals` are unauthenticated by design — the
  * product has no accounts, and adding them to protect a key would be a large
  * feature answering a small question. But unauthenticated plus billable means
  * anyone who reads the network tab in DevTools can spend the project's OpenAI
@@ -50,14 +50,12 @@ export interface LimitPolicy {
  * Per-endpoint allowances.
  *
  * Sized against what one real session spends. A set produces exactly one
- * `/api/coach` call and one `/api/tts` call, so thirty coach calls is roughly
- * six full sessions in an hour — far past the point of exercise, and still short
- * of anything that costs real money. TTS is given more headroom only because a
- * narration can be replayed.
+ * `/api/coach` call, so thirty is roughly six full sessions in an hour — far
+ * past the point of exercise, and still short of anything that costs real
+ * money.
  */
 export const LIMITS: Record<string, LimitPolicy> = {
   coach: { bucket: 'coach', perHour: 30 },
-  tts: { bucket: 'tts', perHour: 40 },
   nutrition: { bucket: 'nutrition', perHour: 30 },
   meals: { bucket: 'meals', perHour: 30 },
 };

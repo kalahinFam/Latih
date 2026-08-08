@@ -13,7 +13,7 @@
 import { createPublicKey, createVerify, generateKeyPairSync } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { isDue, sendPush, vapidConfig, type PushSubscriptionRecord } from '../../api/_push.ts';
+import { isDue, sendPush, vapidConfig, type PushSubscriptionRecord } from '../../server/_push.ts';
 
 /** Monday 3 August 2026, 11:00 UTC = 18:00 in WIB (UTC+7). */
 const MONDAY_11_UTC = Date.UTC(2026, 7, 3, 11, 0, 0);

@@ -1,5 +1,5 @@
 {
-  "//": "Serverless functions under api/. The web app has its own tsconfig; without this file api/ was compiled by Vite and Vercel but type-checked by nothing.",
+  "//": "Serverless function sources in server/, bundled into api/ for deployment. The web app has its own tsconfig; without this file these were compiled by Vite and Vercel but type-checked by nothing.",
   "compilerOptions": {
     "target": "es2023",
     "module": "esnext",
@@ -17,5 +17,5 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
   },
-  "include": ["api"]
+  "include": ["server"]
 }

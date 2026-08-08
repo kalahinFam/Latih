@@ -24,7 +24,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
-import { TTS_MODEL, ttsInstructions, ttsVoice } from '../../api/_voice.ts';
+import { TTS_MODEL, ttsInstructions, ttsVoice } from '../../server/_voice.ts';
 import { allCueTexts } from '../src/core/rules.ts';
 import { allSetupSpeech } from '../src/core/framing.ts';
 import { allPostureCueTexts } from '../src/core/posture.ts';
@@ -34,7 +34,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, '..', 'public', 'cues');
 const ENV_PATH = join(HERE, '..', '..', '.env');
 
-// Voice and delivery come from api/_voice.ts so the pre-rendered cues and the
+// Voice and delivery come from server/_voice.ts so the pre-rendered cues and the
 // runtime narration are the same person. Changing one without the other is how
 // a product ends up with two coaches.
 const MODEL = TTS_MODEL;

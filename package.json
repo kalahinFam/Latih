@@ -2,10 +2,11 @@
   "name": "latih",
   "private": true,
   "type": "module",
-  "description": "LATIH — pelatih pribadi AI. Root package: serverless functions under api/.",
+  "description": "LATIH — pelatih pribadi AI. Root package: serverless functions in server/, bundled into api/ for deployment.",
   "scripts": {
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",
+    "build:api": "node scripts/build-api.mjs",
     "test": "npm --prefix web run test",
     "typecheck": "tsc --noEmit && npm --prefix web run typecheck",
     "eval:reps": "node --experimental-strip-types eval/eval_reps.mjs",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "esbuild": "^0.28.0",
     "typescript": "~6.0.2"
   }
 }

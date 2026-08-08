@@ -669,7 +669,7 @@ pendek hampir tidak mengarahkan apa pun — "hangat dan jelas" meninggalkannya
 pada suara baca-nyaring bawaannya, dan itulah yang orang sebut robotik. Yang
 menggerakkannya adalah mendeskripsikan **pertunjukannya**: siapa yang bicara,
 kepada siapa, sedekat apa, di mana nadanya naik-turun, di mana napasnya. Lihat
-`api/_voice.ts`.
+`server/_voice.ts`.
 
 **3. Suaranya memang tidak cocok.** Ini keputusan telinga, bukan keputusan yang
 bisa diambil dari deskripsi. `npm run tts:lab` merender kalimat yang sama di
@@ -877,6 +877,39 @@ Disajikan sebagai berkas statis plus serverless function di Vercel;
 aman, jadi alamat LAN tidak akan pernah cukup — domain ber-TLS bukan pemanis,
 melainkan syarat aplikasi ini berfungsi sama sekali.
 
+### Fungsi serverless ditulis di `server/`, dikirim dari `api/`
+
+`npm run build:api` mem-bundle tiap endpoint di `server/` menjadi satu berkas
+mandiri di `api/`, dan `api/` sendiri tidak ikut di-commit. Vercel hanya melihat
+hasil bundelnya; yang layak dibaca dan direview adalah sumbernya.
+
+Ini bukan preferensi gaya, melainkan jawaban atas satu ketidaksepakatan yang
+nyata. Setiap import relatif di proyek ini menulis ekstensi `.ts` secara
+eksplisit, dan itu menopang harness evaluasi: skrip Node mengimpor modul `core/`
+yang sama persis dengan yang dipakai produk, sedangkan resolver ESM Node tidak
+menebak ekstensi seperti bundler. Vercel mengompilasi tiap berkas terpisah dan
+membiarkan spesifiernya apa adanya, jadi `nutrition.js` hasil kompilasi tetap
+meminta `'./_llm.ts'` — berkas yang sudah tidak ada. Deploy-nya sukses; setiap
+permintaan mati dengan `ERR_MODULE_NOT_FOUND`.
+
+Dua perbaikan yang tampak jelas sudah dicoba dan ditolak berdasarkan bukti,
+bukan dugaan:
+
+- `rewriteRelativeImportExtensions` di tsconfig melakukan persis hal yang benar,
+  dan `tsc` mematuhinya. **esbuild tidak**, dan esbuild-lah yang dijalankan
+  Vercel.
+- Menulis `.js` di spesifiernya memuaskan TypeScript dan Vercel, lalu merusak
+  Node: ia tidak memetakan spesifier `.js` ke berkas `.ts`, jadi giliran skrip
+  evaluasi yang gagal.
+
+Mem-bundle menghindari perdebatan itu alih-alih memihak salah satunya. Tiap
+fungsi jadi satu berkas tanpa satu pun import relatif tersisa, sehingga tidak
+ada lagi yang bisa salah diresolve saat runtime.
+
+`includeFiles` di `vercel.json` membawa serta `data/tkpi/**`: jalur berkasnya
+dihitung saat runtime, jadi penelusuran dependensi tidak bisa melihatnya dan
+tabel gizinya akan hilang dari bundel tanpa itu.
+
 ### Environment variables
 
 | Var | Tanpa ini |
@@ -892,11 +925,11 @@ Penjelasan tiap variabel ada di `.env.example`.
 
 ### Batas belanja pada endpoint berbayar
 
-Keempat endpoint yang memanggil model — `/api/coach`, `/api/tts`,
-`/api/nutrition`, `/api/meals` — tidak memakai autentikasi, karena produk ini
-tidak punya akun dan menambahkannya hanya demi melindungi sebuah kunci adalah
-fitur besar untuk pertanyaan kecil. Yang menggantikannya ada di
-`api/_ratelimit.ts`, dua lapis, karena keduanya gagal dengan cara berbeda:
+Ketiga endpoint yang memanggil model — `/api/coach`, `/api/nutrition`,
+`/api/meals` — tidak memakai autentikasi, karena produk ini tidak punya akun
+dan menambahkannya hanya demi melindungi sebuah kunci adalah fitur besar untuk
+pertanyaan kecil. Yang menggantikannya ada di `server/_ratelimit.ts`, dua
+lapis, karena keduanya gagal dengan cara berbeda:
 
 - **Per klien, per jam** menghentikan kasus biasa: satu orang, satu skrip, satu
   sore. Longgar terhadap latihan sungguhan — satu set menghasilkan tepat satu

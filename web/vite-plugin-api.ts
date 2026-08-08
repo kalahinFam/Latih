@@ -4,8 +4,12 @@ import { pathToFileURL } from 'node:url';
 import type { Plugin, ViteDevServer } from 'vite';
 
 /**
- * Serves `api/*.ts` during `vite dev`, so the whole product runs from one
+ * Serves `server/*.ts` during `vite dev`, so the whole product runs from one
  * command.
+ *
+ * The sources live in `server/`; `npm run build:api` bundles them into `api/`
+ * for deployment. Dev reads the sources directly, so there is no build step
+ * between saving a handler and calling it.
  *
  * Without this a teammate would need the Vercel CLI running alongside Vite just
  * to see coaching feedback, and the setup instructions would grow a step that
@@ -16,7 +20,7 @@ import type { Plugin, ViteDevServer } from 'vite';
  * places. Nothing here ships to production.
  */
 
-const API_DIR_FROM_WEB = '../api';
+const API_DIR_FROM_WEB = '../server';
 
 interface ApiHandler {
   (request: Request): Promise<Response> | Response;
@@ -77,7 +81,7 @@ export function apiPlugin(): Plugin {
           const handler = module.default;
           if (typeof handler !== 'function') {
             res.statusCode = 500;
-            res.end(`api/${match}.ts tidak mengekspor default handler`);
+            res.end(`server/${match}.ts tidak mengekspor default handler`);
             return;
           }
 

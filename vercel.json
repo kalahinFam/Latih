@@ -1,11 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm --prefix web install && npm --prefix web run build",
+  "buildCommand": "npm --prefix web install && npm --prefix web run build && npm run build:api",
   "outputDirectory": "web/dist",
   "framework": null,
   "functions": {
-    "api/**/*.ts": {
-      "maxDuration": 30
+    "api/**/*.js": {
+      "maxDuration": 30,
+      "includeFiles": "data/tkpi/**"
     }
   }
 }
