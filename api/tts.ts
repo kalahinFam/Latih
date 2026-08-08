@@ -13,6 +13,7 @@
  */
 
 import { errorResponse, json } from './_llm.ts';
+import { LIMITS, checkLimit } from './_ratelimit.ts';
 import { TTS_MODEL, ttsInstructions, ttsVoice } from './_voice.ts';
 import OpenAI from 'openai';
 
@@ -42,6 +43,9 @@ export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return json({ error: 'Gunakan POST.' }, 405);
   }
+
+  const limited = await checkLimit(request, LIMITS.tts);
+  if (limited) return limited;
 
   let text: unknown;
   try {

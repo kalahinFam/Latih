@@ -21,7 +21,7 @@ import {
 import type { SetSummary } from '../core/setSummary.ts';
 import { isHold, type ExerciseKind, type HoldKind, type MovementKind } from '../core/types.ts';
 
-const STORAGE_KEY = 'latih.history.v1';
+export const HISTORY_KEY = 'latih.history.v1';
 
 /**
  * Cap on retained sets. Roughly a year of training three times a week, and
@@ -55,7 +55,7 @@ function empty(): StoredHistory {
  */
 function read(): StoredHistory {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return empty();
     const parsed = JSON.parse(raw) as StoredHistory;
     if (parsed.version !== 1 || !Array.isArray(parsed.sets)) return empty();
@@ -67,7 +67,7 @@ function read(): StoredHistory {
 
 function write(history: StoredHistory): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   } catch {
     // Private browsing, or a full quota. The session loop degrades to
     // baseline targets; the rest of the product is unaffected, so failing
@@ -161,7 +161,7 @@ export class TrainingHistory {
 
   clear(): void {
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(HISTORY_KEY);
     } catch {
       /* nothing to do */
     }

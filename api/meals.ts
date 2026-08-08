@@ -29,6 +29,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { completeJson, errorResponse, json } from './_llm.ts';
+import { LIMITS, checkLimit } from './_ratelimit.ts';
 import { verifyGrounding } from '../web/src/core/grounding.ts';
 import { buildOptions, type ChosenOption, type MealOption } from '../web/src/core/meals.ts';
 import { formatPantryForPrompt } from '../web/src/core/pantry.ts';
@@ -235,6 +236,9 @@ function stripUngroundedNotes(options: MealOption[], table: TkpiTable): MealOpti
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'Gunakan POST.' }, 405);
+
+  const limited = await checkLimit(request, LIMITS.meals);
+  if (limited) return limited;
 
   let body: unknown;
   try {

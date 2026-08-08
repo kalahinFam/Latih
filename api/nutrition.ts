@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { completeJson, errorResponse, json } from './_llm.ts';
+import { LIMITS, checkLimit } from './_ratelimit.ts';
 import { numbersInQuestion, verifyGrounding } from '../web/src/core/grounding.ts';
 import {
   MAX_QUESTION_CHARS,
@@ -134,6 +135,9 @@ function toCitations(foods: TkpiFood[]) {
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'Gunakan POST.' }, 405);
+
+  const limited = await checkLimit(request, LIMITS.nutrition);
+  if (limited) return limited;
 
   let payload: { question?: unknown; history?: unknown; context?: unknown };
   try {

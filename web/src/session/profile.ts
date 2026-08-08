@@ -39,9 +39,12 @@ import {
 import { PANTRY_CODES } from '../core/pantry.ts';
 import type { ExerciseKind } from '../core/types.ts';
 
-const PROFILE_KEY = 'latih.profile.v1';
-const PREFERENCES_KEY = 'latih.preferences.v1';
-const EXTRAS_KEY = 'latih.onboarding.v1';
+// Exported because `backup.ts` needs the exact set of keys that make up a
+// user's data. Naming them in two places is how a backup silently starts
+// omitting a field nobody notices until a restore.
+export const PROFILE_KEY = 'latih.profile.v1';
+export const PREFERENCES_KEY = 'latih.preferences.v1';
+export const EXTRAS_KEY = 'latih.onboarding.v1';
 const LAUNCHED_KEY = 'latih.launched.v1';
 
 const SEXES: BodySex[] = ['male', 'female'];

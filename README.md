@@ -34,6 +34,8 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 | Rencana latihan mingguan | ✅ berjalan |
 | Target kalori + saran menu dari TKPI | ✅ berjalan |
 | Pengingat jam latihan (Web Push) | ✅ berjalan, butuh kunci VAPID |
+| Batas belanja endpoint berbayar | ✅ berjalan, dua lapis |
+| Cadangan data (ekspor/impor file) | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ tidak dikerjakan (lihat di bawah) |
 
 **Soal klasifier form.** Arsitektur yang diklaim paper untuk fast loop adalah
@@ -102,7 +104,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (450 tes) |
+| `npm test` | Unit test (567 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run tts:lab` | Contoh suara pelatih untuk dibandingkan (folder `tts-lab/`) |
 | `npm run gen:cues -- --force` | Membangkitkan ulang klip cue setelah ganti suara |
@@ -869,6 +871,71 @@ dipakai untuk menggambar overlay.
 
 ---
 
+## Deploy
+
+Disajikan sebagai berkas statis plus serverless function di Vercel;
+`vercel.json` sudah mengatur build, runtime function, dan cron pengingat.
+
+**Kamera menuntut HTTPS.** `getUserMedia` menolak berjalan di origin yang tidak
+aman, jadi alamat LAN tidak akan pernah cukup — domain ber-TLS bukan pemanis,
+melainkan syarat aplikasi ini berfungsi sama sekali.
+
+### Environment variables
+
+| Var | Tanpa ini |
+|---|---|
+| `OPENAI_API_KEY` | narasi, gizi, saran menu, dan suara mati; fast loop tetap utuh |
+| `ALLOWED_ORIGIN` | pemeriksaan asal dilewati — isi di produksi |
+| `LLM_DAILY_QUOTA` | plafon harian memakai default 1500 panggilan |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limit dan langganan pengingat jatuh ke memori per-instance |
+| `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` / `VAPID_SUBJECT` | tombol pengingat menyembunyikan diri |
+| `CRON_SECRET` | diisi Vercel sendiri; melindungi `/api/cron-reminders` |
+
+Penjelasan tiap variabel ada di `.env.example`.
+
+### Batas belanja pada endpoint berbayar
+
+Keempat endpoint yang memanggil model — `/api/coach`, `/api/tts`,
+`/api/nutrition`, `/api/meals` — tidak memakai autentikasi, karena produk ini
+tidak punya akun dan menambahkannya hanya demi melindungi sebuah kunci adalah
+fitur besar untuk pertanyaan kecil. Yang menggantikannya ada di
+`api/_ratelimit.ts`, dua lapis, karena keduanya gagal dengan cara berbeda:
+
+- **Per klien, per jam** menghentikan kasus biasa: satu orang, satu skrip, satu
+  sore. Longgar terhadap latihan sungguhan — satu set menghasilkan tepat satu
+  panggilan coach dan satu TTS, jadi 30 per jam sudah sekitar enam sesi penuh.
+- **Global per hari** yang membatasi tagihan. Batas per klien tidak berarti apa
+  pun kalau permintaannya tersebar dari banyak alamat, dan gunanya sebuah plafon
+  adalah skenario terburuknya berupa angka yang dipilih di muka, bukan angka
+  yang ditemukan di tagihan.
+
+Alamat IP di-hash sebelum dipakai sebagai kunci. Rate limiter perlu mengenali
+pengunjung yang sama, bukan tahu siapa dia — dan aplikasi yang berkata data
+tubuh serta frame kamera tidak keluar perangkat sebaiknya tidak menyimpan alamat
+penggunanya demi sebuah penghitung.
+
+Kalau Redis-nya sedang mati, permintaan **diloloskan**, bukan ditolak.
+Kehilangan limiter itu masalah biaya; menolak semua permintaan mematikan
+produknya — dan lapisan ketiga masih ada di bawahnya.
+
+**Lapisan ketiga itu di luar repo dan paling menentukan:** set *hard budget
+limit* pada kunci OpenAI-nya. Kode bisa salah; plafon di sisi provider tidak
+bisa diakali.
+
+### Cek sebelum membagikan URL-nya
+
+```bash
+npm test && npm run typecheck
+npm run build
+grep -r "sk-" web/dist/     # harus kosong
+```
+
+Lalu, terhadap domain sungguhan: cabut sementara `OPENAI_API_KEY` dan pastikan
+hitungan repetisi serta cue tetap berjalan penuh — kalau latihan ikut mati saat
+model tidak tersedia, ada jalur yang keliru menganggap jaringan wajib.
+
+---
+
 ## Klaim privasi — cara memverifikasinya sendiri
 
 Frame kamera tidak pernah meninggalkan perangkat. Ini ditegakkan oleh kode,
@@ -887,7 +954,7 @@ Sebelum deploy, pastikan tidak ada kunci API yang bocor ke bundle:
 
 ```bash
 npm run build
-grep -r "sk-" dist/        # harus kosong
+grep -r "sk-" web/dist/    # harus kosong
 ```
 
 ---
@@ -904,4 +971,12 @@ Hugging Face dan ditautkan di sini setelah pelatihan selesai.
 
 ## Lisensi
 
-Belum ditentukan. Kode ini dibuat untuk penjurian Datathon 2026.
+**Hak cipta © 2026 Tim Kalahin Fam. Semua hak dilindungi.**
+
+Kode ini dipublikasikan untuk penjurian Datathon 2026 — supaya juri bisa
+membaca, membangun, dan memverifikasi setiap klaim di dokumen ini sendiri.
+Tidak ada lisensi pemakaian ulang yang diberikan: menyalin, memodifikasi,
+mendistribusikan ulang, atau memakainya untuk keperluan lain memerlukan izin
+tertulis dari tim.
+
+Ketentuan ini bisa berubah setelah penjurian selesai.
