@@ -749,7 +749,7 @@ body {
   color: var(--grey);
 }
 
-/* Camera-setup sheet, and the end-of-set sheet. */
+/* The end-of-set sheet. */
 .sheet {
   margin-top: auto;
   padding: 1.5rem 1.35rem;
@@ -795,55 +795,6 @@ body {
   gap: 0.6rem;
   margin-top: 1.4rem;
   padding-bottom: env(safe-area-inset-bottom);
-}
-
-.checks {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.7rem 0;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.check:last-child {
-  border-bottom: none;
-}
-
-.check__mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--sage);
-  border-radius: 50%;
-  flex: none;
-}
-
-.check__mark[data-state='pending'] {
-  background: transparent;
-  border: 1px solid var(--line);
-}
-
-/* Guidance rows: the app does not measure these, so they carry no tick. */
-.check__mark[data-state='info'] {
-  color: var(--grey-deep);
-  background: #f1f3f2;
-}
-
-.check__text {
-  flex: 1;
-  font-size: 0.88rem;
-  font-weight: 600;
 }
 
 .check__value {
@@ -1200,6 +1151,7 @@ body {
   top: 4.6rem;
   right: 0.9rem;
   left: 0.9rem;
+  z-index: 20;
   margin: 0;
   padding: 0.6rem 0.8rem;
   font-size: 0.88rem;
@@ -1576,129 +1528,54 @@ body {
 }
 
 /*
- * Two stages. Collapsed it is a single bar; expanded it adds the checklist.
- *
- * The first build was a fixed sheet holding the whole list, and on a phone it
- * took half the frame — the screen telling the user to fix their position was
- * covering the only thing that would let them fix it. Collapsed, this leaves
- * roughly 88% of the viewport to the camera.
+ * Hold-and-count, shown once the camera has held a good view long enough for
+ * the set to begin. Brief and centred, so it stays out of the way of the one
+ * thing the user needs to see — themselves.
  */
-.setup {
-  margin-top: auto;
-  color: var(--ink);
-  background: var(--paper);
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -10px 30px rgb(13 18 24 / 22%);
-  /* Clear of the iOS home indicator in both stages. */
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.setup__bar {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  width: 100%;
-  padding: 1.05rem 1.25rem;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 24px 24px 0 0;
+.ready-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.5rem;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  padding: 1.2rem 1.5rem;
+  width: fit-content;
+  text-align: center;
+  background: rgb(13 18 24 / 55%);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+  animation: rotate-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
   cursor: pointer;
 }
 
-/* Ready is the one state worth colouring the whole bar for. */
-.setup[data-ready='true'] .setup__bar {
-  color: #fff;
-  background: var(--sage);
+.ready-overlay__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--sage);
 }
 
-.setup__dot {
-  width: 11px;
-  height: 11px;
-  background: var(--amber);
-  border-radius: 50%;
-  flex: none;
-}
-
-.setup[data-ready='true'] .setup__dot {
-  background: #fff;
-}
-
-.setup__line {
-  flex: 1;
-  min-width: 0;
-}
-
-.setup__title {
-  display: block;
-  font-size: 0.94rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-/* The single thing to fix. One line, clipped rather than wrapped, so the bar
-   keeps a fixed height as the message changes. */
-.setup__sub {
-  display: block;
-  margin-top: 0.1rem;
-  overflow: hidden;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--grey);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.setup[data-ready='true'] .setup__sub {
-  color: rgb(255 255 255 / 82%);
-}
-
-/* One slot, two meanings: the checks passed, then the countdown. Fixed width
-   so the bar does not shift as it switches. */
-.setup__count {
-  min-width: 2.4rem;
-  font-size: 1.5rem;
+.ready-overlay__count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 3rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--grey-faint);
-  text-align: right;
-  flex: none;
-}
-
-.setup[data-ready='true'] .setup__count {
-  font-size: 2.1rem;
+  line-height: 1.1;
   color: #fff;
 }
 
-.setup__chevron {
-  display: flex;
-  color: var(--grey-faint);
-  transition: transform 200ms ease;
-  flex: none;
+.ready-overlay__sub {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 78%);
 }
 
-.setup[data-expanded='true'] .setup__chevron {
-  transform: rotate(180deg);
-}
-
-.setup[data-ready='true'] .setup__chevron {
-  color: rgb(255 255 255 / 75%);
-}
-
-.setup__detail {
-  max-height: 46dvh;
-  padding: 0 1.25rem 0.5rem;
-  overflow-y: auto;
-}
-
-.setup__detail[hidden] {
+.ready-overlay[hidden] {
   display: none;
-}
-
-.setup__detail .sheet__note {
-  padding-bottom: 1rem;
 }
 
 /* ------------------------------------------------------------- onboarding */
@@ -2472,6 +2349,7 @@ body {
   .screen:not([hidden]),
   .onboard__step,
   .rotate-overlay,
+  .ready-overlay,
   .hud__count[data-pop='true'] {
     animation: none;
   }
@@ -2491,8 +2369,7 @@ body {
   .meter__fill,
   .hud__strip,
   .hud__wash,
-  .hud__count,
-  .setup__chevron {
+  .hud__count {
     transition: none;
   }
 

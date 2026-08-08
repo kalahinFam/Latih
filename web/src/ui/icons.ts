@@ -10,7 +10,7 @@
  *
  * So: the tab bar, where icons are the convention and the labels alone read as
  * a row of links; the two chrome buttons where the icon *is* the whole control;
- * and the setup checklist, where a tick has to be unmistakable at a glance.
+ * and the onboarding choices, where a tick has to be unmistakable at a glance.
  *
  * Nothing on the workout HUD. The design is explicit that one number and one
  * colour carry the signal there, and an icon would be a third thing competing

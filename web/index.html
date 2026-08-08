@@ -46,6 +46,13 @@
     </div>
 
     <main class="app" id="app">
+      <!--
+        Framing and tracking warnings, over the camera. Lives outside the
+        screens because two of them show it: camera setup and the workout
+        itself, both of which share the engine's status line.
+      -->
+      <p class="banner" id="statusBanner" hidden></p>
+
       <!-- ============================ 0 · Pembuka ========================= -->
       <!--
         Shown once, before anything else exists. The logo gets one full-size
@@ -209,40 +216,15 @@
         </div>
 
         <!--
-          A two-stage sheet. Collapsed it is one line: the state, and the single
-          thing to fix. The full checklist is a tap away.
-
-          The reason is the screen's whole purpose — a checklist is only useful
-          until you know what is wrong, and after that what you need is to see
-          your own body. A panel covering half the frame prevents exactly the
-          thing it is asking you to do.
+          Brief hold-and-count, shown once the camera has held a good view long
+          enough for the set to begin. The camera is the feedback here — the
+          sheet that used to list checks is gone — so this only says to hold,
+          counts down, and lets the workout take over. A tap skips the wait.
         -->
-        <div class="setup" id="setupSheet" data-expanded="true" data-ready="false">
-          <button
-            class="setup__bar"
-            id="setupToggle"
-            type="button"
-            aria-expanded="true"
-            aria-controls="setupDetail"
-          >
-            <span class="setup__dot" aria-hidden="true"></span>
-            <span class="setup__line">
-              <span class="setup__title" id="setupBarTitle">ATUR POSISI</span>
-              <span class="setup__sub" id="setupBarSub">Menyiapkan kamera…</span>
-            </span>
-            <span class="setup__count" id="setupReadyCount" hidden></span>
-            <span class="setup__chevron" data-icon="chevron" aria-hidden="true"></span>
-          </button>
-
-          <!-- Only the first two rows have live ticks. The app measures whether
-               the body is in frame, and estimates distance from how much of the
-               frame it fills. Camera angle and height are not measured at all,
-               so they are given as instructions rather than dressed up as
-               checks that passed. -->
-          <div class="setup__detail" id="setupDetail">
-            <ul class="checks" id="setupChecks"></ul>
-            <p class="sheet__note" id="setupNote"></p>
-          </div>
+        <div class="ready-overlay" id="readyOverlay" hidden>
+          <span class="ready-overlay__label">POSISI SIAP</span>
+          <span class="ready-overlay__count" id="readyCount">3</span>
+          <span class="ready-overlay__sub">Tahan posisi, hitungan mulai</span>
         </div>
       </section>
 
@@ -258,11 +240,10 @@
               <span>SUARA</span>
             </span>
           </div>
+          <div class="hud__strips" id="repStrips" aria-hidden="true"></div>
 
           <!-- Set progress read by length, not by reading. One strip per rep of
                the target; done reps are long and coloured. -->
-          <div class="hud__strips" id="repStrips" aria-hidden="true"></div>
-
           <div class="hud__readout">
             <!-- The number is the signal, the target rides beside it: "0 / 8"
                  reads done-before-target in one glance. It changes colour
@@ -279,8 +260,6 @@
             <p class="hud__caption" id="repCaption" role="status" aria-live="polite"></p>
           </div>
         </div>
-
-        <p class="banner" id="statusBanner" hidden></p>
 
         <button class="stopbtn" id="finishSet" type="button">STOP</button>
       </section>

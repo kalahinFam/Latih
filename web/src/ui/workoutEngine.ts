@@ -137,7 +137,7 @@ type Status =
   | { kind: 'low-confidence' }
   | { kind: 'error'; message: string };
 
-/** What the setup screen needs to render its checks. */
+/** What the setup screen needs from the engine each frame. */
 export interface Readiness {
   hasPose: boolean;
   framingOk: boolean;
@@ -430,7 +430,10 @@ export class WorkoutEngine {
 
     clearSkeleton(this.ctx);
     this.el.cameraLayer.hidden = true;
-    if (this.status.kind !== 'error') this.setStatus({ kind: 'idle' });
+    // Always cleared, never kept: the banner lives outside the camera screens
+    // now, so a message left over from a failed start would follow the user
+    // onto the home screen.
+    this.setStatus({ kind: 'idle' });
   }
 
   speak(text: string): void {

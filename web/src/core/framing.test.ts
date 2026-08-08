@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CAMERA_GUIDANCE,
   READY_CUE,
   allSetupSpeech,
   checkFraming,
@@ -204,20 +203,5 @@ describe('framingMessage', () => {
     for (const issue of issues) {
       expect(framingMessage(issue, 'pushup').length).toBeGreaterThan(0);
     }
-  });
-});
-
-describe('CAMERA_GUIDANCE', () => {
-  it('specifies an oblique angle for both exercises', () => {
-    // Neither pure front nor pure side: front hides flexion along the optical
-    // axis, full side hides the far limb entirely.
-    for (const exercise of ['pushup', 'squat'] as const) {
-      expect(CAMERA_GUIDANCE[exercise].angle).toMatch(/serong/i);
-    }
-  });
-
-  it('orients the phone to match the body axis', () => {
-    expect(CAMERA_GUIDANCE.pushup.orientation).toMatch(/landscape/i);
-    expect(CAMERA_GUIDANCE.squat.orientation).toMatch(/portrait/i);
   });
 });
