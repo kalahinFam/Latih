@@ -1957,10 +1957,28 @@ body {
 }
 
 .figure__note {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--grey);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--sage-deep);
+  background: var(--sage-wash);
+  border-radius: 12px;
+}
+
+.figure__note-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   white-space: nowrap;
+}
+
+.figure__note-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: right;
 }
 
 .figure__value {

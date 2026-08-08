@@ -320,7 +320,6 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         'div',
         { class: 'figure__head' },
         el('span', { class: 'figure__label', text: label }),
-        options.note ? el('span', { class: 'figure__note', text: options.note }) : null,
       ),
       el(
         'div',
@@ -328,6 +327,14 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         input,
         el('span', { class: 'figure__unit', text: unit }),
       ),
+      options.note
+        ? el(
+            'div',
+            { class: 'figure__note' },
+            el('span', { class: 'figure__note-label', text: 'HASIL IMT' }),
+            el('span', { class: 'figure__note-value', text: options.note }),
+          )
+        : null,
     );
   }
 
@@ -382,10 +389,10 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         { class: 'figures' },
         figure('USIA', draft.ageYears, 'th', INPUT_LIMITS.ageYears, (v) => {
           draft = { ...draft, ageYears: v };
-        }, { placeholder: 'mis. 25' }),
+        }, { placeholder: '25' }),
         figure('TINGGI', draft.heightCm, 'cm', INPUT_LIMITS.heightCm, (v) => {
           draft = { ...draft, heightCm: v };
-        }, { placeholder: 'mis. 170' }),
+        }, { placeholder: '170' }),
       ),
       figure(
         'BERAT',
@@ -398,15 +405,18 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         {
           wide: true,
           step: 0.5,
-          placeholder: 'mis. 65',
+          placeholder: '65',
           // Shown because it makes a typo obvious — 178 kg entered for 78 reads
           // as an index of 59 and nobody misses that.
-          note: index === null ? undefined : `IMT ${index.toString().replace('.', ',')} · ${bmiLabel(index)}`,
+          note:
+            index === null
+              ? undefined
+              : `${index.toString().replace('.', ',')} · ${bmiLabel(index)}`,
         },
       ),
       el('p', {
         class: 'notebox',
-        text: 'Berat bisa diperbarui kapan saja lewat Pengaturan; target kalori ikut menyesuaikan tanpa mengulang onboarding.',
+        text: 'Berat bisa diperbarui kapan saja lewat Pengaturan.',
       }),
     );
     // Nothing to compute with until the figures are real.
