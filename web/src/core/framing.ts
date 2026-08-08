@@ -40,6 +40,19 @@ const REQUIRED: Record<MovementKind, number[]> = {
     LM.LEFT_HIP,
     LM.RIGHT_HIP,
   ],
+  /**
+   * The chain the knee angle is measured from, and nothing else.
+   *
+   * Wrists and toes belong to the support-cheat gates in `core/posture.ts`, and
+   * those already return "unknown" rather than "fine" when a landmark is
+   * missing. Requiring them here would block the *set* — `framing.ok` is what
+   * arms it — over an optional check that degrades on its own, and under the
+   * 30–45° oblique this app asks for, the far toe is occluded by the near leg
+   * for most of a squat.
+   *
+   * That is the push-up ankle mistake in a different place: a requirement the
+   * recommended camera angle cannot satisfy.
+   */
   squat: [
     LM.LEFT_SHOULDER,
     LM.RIGHT_SHOULDER,
@@ -49,10 +62,6 @@ const REQUIRED: Record<MovementKind, number[]> = {
     LM.RIGHT_KNEE,
     LM.LEFT_ANKLE,
     LM.RIGHT_ANKLE,
-    LM.LEFT_WRIST,
-    LM.RIGHT_WRIST,
-    LM.LEFT_FOOT_INDEX,
-    LM.RIGHT_FOOT_INDEX,
   ],
   /**
    * The judged line is shoulder-hip-knee, so all three are required — a plank
@@ -81,7 +90,15 @@ const ANY_OF: Record<MovementKind, number[][]> = {
     [LM.LEFT_ELBOW, LM.RIGHT_ELBOW],
     [LM.LEFT_WRIST, LM.RIGHT_WRIST],
   ],
-  squat: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
+  // Both ankles are already required above, so listing them here again would
+  // be a group that can never fail. Wrists and toes are the ones worth
+  // reporting when *neither* side is in shot: hands out of frame means the
+  // support check can never run, and both toes gone usually means the feet are
+  // cropped.
+  squat: [
+    [LM.LEFT_WRIST, LM.RIGHT_WRIST],
+    [LM.LEFT_FOOT_INDEX, LM.RIGHT_FOOT_INDEX],
+  ],
   plank: [[LM.LEFT_ANKLE, LM.RIGHT_ANKLE]],
 };
 
@@ -128,7 +145,9 @@ function isUsable(lm: Landmark | undefined): boolean {
  * mistake and the one that most degrades the whole-body solve.
  */
 function classifyMissing(missing: number[]): 'feet' | 'hands' | 'body' {
-  const feet: number[] = [LM.LEFT_ANKLE, LM.RIGHT_ANKLE];
+  // Toes count as feet. Without them a cropped toe reports as "sebagian badan
+  // terpotong", which points the user at the wrong end of themselves.
+  const feet: number[] = [LM.LEFT_ANKLE, LM.RIGHT_ANKLE, LM.LEFT_FOOT_INDEX, LM.RIGHT_FOOT_INDEX];
   const hands: number[] = [LM.LEFT_WRIST, LM.RIGHT_WRIST];
   if (missing.some((i) => feet.includes(i))) return 'feet';
   if (missing.some((i) => hands.includes(i))) return 'hands';

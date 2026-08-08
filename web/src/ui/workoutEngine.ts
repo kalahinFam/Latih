@@ -87,6 +87,22 @@ const CUE_VISIBLE_MS = 2200;
 const FRAMING_SPEECH_INTERVAL_MS = 8000;
 
 /**
+ * How often the same posture problem may be spoken again.
+ *
+ * The framing cue has had a rate limit from the start and the posture cue did
+ * not, which mattered once the squat gates arrived: they depend on ankle
+ * separation and on how close a wrist is to the floor, both of which lean on
+ * the depth coordinate the tracker estimates worst. A gate flickering
+ * on-off-on would otherwise speak on every flip, which is the "cue keeps
+ * repeating" complaint arriving by a new route.
+ *
+ * Applies whether or not the problem is the same one. Exempting a *changed*
+ * issue reads kinder and leaves the hole open, because two gates alternating
+ * change on every flip.
+ */
+const POSTURE_SPEECH_INTERVAL_MS = 8000;
+
+/**
  * How long framing must stay good before the set may begin.
  *
  * A set that starts the instant the camera glimpses a body starts while the
@@ -213,7 +229,7 @@ export class WorkoutEngine {
   private goodFramingSinceMs: number | null = null;
   private highlightJoints: readonly number[] = [];
   private strippedDone = -1;
-  private lastPostureIssue: PostureIssue | null = null;
+  private postureSpokenUntilMs = 0;
 
   private readinessListener: ((readiness: Readiness) => void) | null = null;
 
@@ -427,7 +443,7 @@ export class WorkoutEngine {
     this.armed = false;
     this.goodFramingSinceMs = null;
     this.strippedDone = -1;
-    this.lastPostureIssue = null;
+    this.postureSpokenUntilMs = 0;
     this.clearCue();
     this.renderLabel();
   }
@@ -457,7 +473,6 @@ export class WorkoutEngine {
         const issue: FramingIssue = { kind: 'no-pose' };
         this.setStatus({ kind: 'framing', message: framingMessage(issue, this.exercise) });
         this.speakFraming(issue, frameStart);
-        this.lastPostureIssue = null;
         this.goodFramingSinceMs = null;
         this.emitReadiness({ hasPose: false, framingOk: false, postureOk: true, bodyFill: 0 });
       }
@@ -510,7 +525,7 @@ export class WorkoutEngine {
       // Framing outranks low confidence: a cropped body is *why* confidence is
       // low, and "step back" is something the user can act on.
       this.setStatus(this.framingOrTrackingStatus(framing.issue, posture.issue));
-      this.showPostureCue(posture.issue);
+      this.showPostureCue(posture.issue, frameStart);
       // Only nag while framing still blocks the set. Once armed, a transient
       // issue is reported on screen and left alone.
       if (!this.armed) this.speakFraming(framing.issue, frameStart);
@@ -684,11 +699,18 @@ export class WorkoutEngine {
   /* ------------------------------------------------------------------- cues */
 
   /** Speak posture gates without turning them into a competing HUD correction. */
-  private showPostureCue(issue: PostureIssue | null): void {
-    if (issue === this.lastPostureIssue) return;
-    this.lastPostureIssue = issue;
-
+  private showPostureCue(issue: PostureIssue | null, nowMs: number): void {
     if (issue === null || this.mode === 'idle') return;
+
+    // One posture cue per interval, whether or not it is the same problem.
+    //
+    // Exempting a *changed* issue looks kinder and leaves the hole open: two
+    // gates alternating — stance, hands, stance — change on every flip, so
+    // every flip would speak. The user can act on one correction at a time
+    // regardless, which is the rule the rest of this file already follows.
+    if (nowMs < this.postureSpokenUntilMs) return;
+
+    this.postureSpokenUntilMs = nowMs + POSTURE_SPEECH_INTERVAL_MS;
     this.clearCue();
     this.voice.playCue(postureCueFor(issue));
   }

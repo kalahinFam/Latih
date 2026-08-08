@@ -136,6 +136,69 @@ describe('handsPlanted', () => {
   });
 });
 
+describe('checkPosture — which gates reject a rep', () => {
+  function squatBody(): Landmark[] {
+    const lm = withTorso(15);
+    const at = (i: number, x: number, y: number, z = 0) => {
+      lm[i] = { x, y, z, visibility: 0.9 };
+    };
+    // Standing, feet under the shoulders, hands clear of the floor.
+    at(LM.LEFT_SHOULDER, -0.2, -0.5);
+    at(LM.RIGHT_SHOULDER, 0.2, -0.5);
+    at(LM.LEFT_KNEE, -0.18, 0.45);
+    at(LM.RIGHT_KNEE, 0.18, 0.45);
+    at(LM.LEFT_ANKLE, -0.19, 0.85);
+    at(LM.RIGHT_ANKLE, 0.19, 0.85);
+    at(LM.LEFT_FOOT_INDEX, -0.19, 0.92);
+    at(LM.RIGHT_FOOT_INDEX, 0.19, 0.92);
+    at(LM.LEFT_WRIST, -0.25, -0.05);
+    at(LM.RIGHT_WRIST, 0.25, -0.05);
+    return lm;
+  }
+
+  it('accepts a clean squat', () => {
+    const status = checkPosture(squatBody(), 'squat');
+    expect(status.issue).toBeNull();
+    expect(status.countable).toBe(true);
+    expect(status.invalidatesRep).toBe(false);
+  });
+
+  it('rejects the rep when a hand is taking weight', () => {
+    // A cheat: it makes the movement easier, so the rep is not the rep the
+    // count would be claiming.
+    const lm = squatBody();
+    lm[LM.LEFT_WRIST] = { x: -0.3, y: 0.88, z: 0, visibility: 0.9 };
+
+    const status = checkPosture(lm, 'squat');
+    expect(status.issue).toBe('squat-hands-on-floor');
+    expect(status.invalidatesRep).toBe(true);
+  });
+
+  it('rejects the rep when a heel comes up', () => {
+    const lm = squatBody();
+    // Ankle rises, toe stays down: the gap between them opens.
+    lm[LM.LEFT_ANKLE] = { x: -0.19, y: 0.7, z: 0, visibility: 0.9 };
+
+    const status = checkPosture(lm, 'squat');
+    expect(status.issue).toBe('squat-feet-lifted');
+    expect(status.invalidatesRep).toBe(true);
+  });
+
+  it('warns about a narrow stance but still counts the rep', () => {
+    // Not a cheat — squatting inside shoulder width is a preference, and this
+    // is the gate most likely to fire on a good rep because ankle separation
+    // leans on the depth coordinate the tracker estimates worst.
+    const lm = squatBody();
+    lm[LM.LEFT_ANKLE] = { x: -0.05, y: 0.85, z: 0, visibility: 0.9 };
+    lm[LM.RIGHT_ANKLE] = { x: 0.05, y: 0.85, z: 0, visibility: 0.9 };
+
+    const status = checkPosture(lm, 'squat');
+    expect(status.issue).toBe('squat-stance');
+    expect(status.invalidatesRep).toBe(false);
+    expect(status.countable).toBe(true);
+  });
+});
+
 describe('postureMessage', () => {
   it('says what to do, not what is wrong internally', () => {
     expect(postureMessage('not-upright')).toContain('dada');

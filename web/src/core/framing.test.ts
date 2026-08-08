@@ -122,6 +122,35 @@ describe('checkFraming', () => {
   });
 });
 
+describe('checkFraming — squat does not demand the far side', () => {
+  it('accepts a squat with one toe occluded', () => {
+    // Under the 30-45 degree oblique this app asks for, the far toe spends
+    // most of a squat behind the near leg. Requiring both would block the set
+    // — `framing.ok` is what arms it — at the camera angle we recommend.
+    const body = framedBody();
+    body[LM.RIGHT_FOOT_INDEX] = lm(0.53, 0.95, 0.1);
+    expect(checkFraming(body, 'squat').ok).toBe(true);
+  });
+
+  it('accepts a squat with one wrist occluded', () => {
+    const body = framedBody();
+    body[LM.RIGHT_WRIST] = lm(0.62, 0.5, 0.1);
+    expect(checkFraming(body, 'squat').ok).toBe(true);
+  });
+
+  it('still reports when neither toe is in shot', () => {
+    const body = framedBody();
+    for (const i of [LM.LEFT_FOOT_INDEX, LM.RIGHT_FOOT_INDEX]) body[i] = lm(0.5, 1.3);
+    expect(checkFraming(body, 'squat').issue).toMatchObject({ missing: 'feet' });
+  });
+
+  it('still reports when neither wrist is in shot', () => {
+    const body = framedBody();
+    for (const i of [LM.LEFT_WRIST, LM.RIGHT_WRIST]) body[i] = lm(0.5, 0.5, 0.1);
+    expect(checkFraming(body, 'squat').issue).toMatchObject({ missing: 'hands' });
+  });
+});
+
 describe('framingSpeech', () => {
   it('is shorter than the written message it mirrors', () => {
     // Heard once, cannot be re-read, and competing with the room.

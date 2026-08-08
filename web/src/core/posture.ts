@@ -67,9 +67,31 @@ const HAND_FLOOR_MARGIN_MIN = 0.08;
 const MAX_ANKLE_LIFT_RATIO = 0.3;
 const MIN_ANKLE_LIFT_METERS = 0.08;
 
-/** Squat stance tolerance around shoulder width. */
+/**
+ * Squat stance tolerance around shoulder width.
+ *
+ * Warned about, never counted against — see `INVALIDATING`. Measured from
+ * ankle separation over shoulder separation, both of which include the depth
+ * axis, so this is the noisiest gate of the three.
+ */
 const MIN_STANCE_RATIO = 0.75;
 const MAX_STANCE_RATIO = 1.5;
+
+/**
+ * Which gates reject the repetition rather than merely warning.
+ *
+ * Hands on the floor and a lifted heel are *cheats*: both make the movement
+ * easier, so a rep performed with either is not the rep the count claims. A
+ * narrow stance is not a cheat, it is a style — plenty of people squat inside
+ * shoulder width on purpose. Rejecting the rep for it would punish a
+ * preference as hard as cheating, and it is also the gate most likely to fire
+ * on a good rep, since ankle separation depends on the depth coordinate the
+ * tracker estimates worst.
+ */
+const INVALIDATING: ReadonlySet<PostureIssue> = new Set<PostureIssue>([
+  'squat-hands-on-floor',
+  'squat-feet-lifted',
+]);
 
 export type PostureIssue =
   | 'not-upright'
@@ -139,10 +161,13 @@ export function checkPosture(
     // look otherwise plausible.
     const constraint = squatConstraintIssue(landmarks);
     if (constraint !== null) {
+      const rejects = INVALIDATING.has(constraint);
       return {
         plausible,
-        countable: false,
-        invalidatesRep: true,
+        // A warned-about stance still counts: the cue tells them, the number
+        // does not argue with them.
+        countable: !rejects,
+        invalidatesRep: rejects,
         issue: constraint,
         trunkLeanDeg: lean,
       };
