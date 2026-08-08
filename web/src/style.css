@@ -437,7 +437,9 @@ body {
 .weekstrip {
   display: flex;
   gap: 0.4rem;
-  margin-bottom: 1.1rem;
+  /* Roughly a card's worth of room above, so the strip reads as its own thing
+     rather than as a third line of the greeting it was sitting under. */
+  margin: 1.7rem 0 1.1rem;
 }
 
 .weekstrip__day {
