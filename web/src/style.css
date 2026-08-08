@@ -1115,8 +1115,8 @@ body {
   align-items: flex-end;
   flex: none;
   width: 100%;
-  height: 56px;
-  min-height: 56px;
+  height: 52px;
+  min-height: 52px;
   padding: 0;
   background: var(--paper);
   border-top: 1px solid var(--line-soft);
@@ -1140,7 +1140,8 @@ body {
   justify-content: center;
   gap: 0.2rem;
   min-width: 0;
-  height: 56px;
+  height: 52px;
+  padding-top: 3px;
   font: inherit;
   color: var(--grey);
   background: transparent;
@@ -1170,10 +1171,10 @@ body {
 
 /* The sole accent in the navigation: a raised, thumb-sized workout action. */
 .tab--primary .icon {
-  width: 50px;
-  height: 50px;
-  margin-top: -25px;
-  padding: 14px;
+  width: 48px;
+  height: 48px;
+  margin-top: -24px;
+  padding: 13px;
   color: #fff;
   background: #549c89;
   border-radius: 50%;
@@ -2647,7 +2648,7 @@ body {
  */
 .chatfoot {
   flex: none;
-  padding: 0.75rem 1rem 0.65rem;
+  padding: 0.65rem 1rem 0.3rem;
   background: var(--paper);
   border-top: 1px solid var(--line);
 }
