@@ -1,5 +1,5 @@
 /**
- * Audio playback: instant cues during a set, narration between sets.
+ * Audio playback: instant cues during a set.
  *
  * ## The autoplay problem
  *
@@ -13,13 +13,12 @@
 import { cueUrl } from './cueId.ts';
 
 /** Which path produced the last sound. */
-export type AudioSource = 'clip' | 'server' | 'browser' | null;
+export type AudioSource = 'clip' | 'browser' | null;
 
 export class Voice {
   private readonly cache = new Map<string, HTMLAudioElement>();
   private current: HTMLAudioElement | null = null;
   private unlocked = false;
-  private narrationUrl: string | null = null;
   private source: AudioSource = null;
   private browserVoice: SpeechSynthesisVoice | null = null;
   /**
@@ -36,11 +35,10 @@ export class Voice {
    * What actually played last.
    *
    * Exposed because the failure it reveals is silent and easy to misread: when
-   * a clip is missing or `/api/tts` is unreachable, playback falls through to
-   * the browser's own synthesiser, which on Android sounds markedly more
-   * synthetic than the generated voice. "The audio sounds robotic" and "the
-   * generated audio never played" produce the same complaint, and only this
-   * tells them apart.
+   * a clip is missing, playback falls through to the browser's own
+   * synthesiser, which on Android sounds markedly more synthetic than the
+   * generated voice. "The audio sounds robotic" and "the generated audio never
+   * played" produce the same complaint, and only this tells them apart.
    */
   get lastSource(): AudioSource {
     return this.source;
@@ -205,38 +203,6 @@ export class Voice {
   }
 
   /**
-   * Speak the between-set narration.
-   *
-   * Tries the server voice first for quality, since this is what the demo
-   * video captures. Falls back to the browser's own synthesiser when the
-   * network, the key, or the quota is unavailable — a mute demo is worse than
-   * a plainer voice.
-   */
-  async speakNarration(text: string): Promise<void> {
-    this.stop();
-
-    try {
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      if (!response.ok) throw new Error(`tts ${response.status}`);
-
-      const blob = await response.blob();
-      this.revokeNarration();
-      this.narrationUrl = URL.createObjectURL(blob);
-
-      const audio = new Audio(this.narrationUrl);
-      this.current = audio;
-      this.source = 'server';
-      await audio.play();
-    } catch {
-      this.speakFallback(text);
-    }
-  }
-
-  /**
    * Browser-native synthesis. Markedly more synthetic, but always available
    * offline — a mute demo is worse than a plainer voice.
    */
@@ -266,16 +232,8 @@ export class Voice {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }
 
-  private revokeNarration(): void {
-    if (this.narrationUrl) {
-      URL.revokeObjectURL(this.narrationUrl);
-      this.narrationUrl = null;
-    }
-  }
-
   dispose(): void {
     this.stop();
-    this.revokeNarration();
     this.cache.clear();
     void this.ctx?.close();
     this.ctx = null;

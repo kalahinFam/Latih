@@ -28,7 +28,7 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 | Harness evaluasi rep-count | ✅ berjalan |
 | Alat anotasi (video → keypoint berlabel) | ✅ berjalan |
 | Slow loop (narasi LLM per set) | ✅ berjalan |
-| TTS Bahasa Indonesia (cue + narasi) | ✅ berjalan |
+| TTS Bahasa Indonesia (cue) | ✅ berjalan |
 | Nutrisi TKPI + verifier grounding | ✅ berjalan, 1.133 bahan pangan |
 | Session loop (adaptasi target dari riwayat) | ✅ berjalan |
 | Rencana latihan mingguan | ✅ berjalan |
@@ -135,11 +135,10 @@ repetisi dan cue tetap berjalan penuh.
                              │  angka saja — tanpa frame, tanpa koordinat,
                              │  tanpa berat/tinggi/usia
                     ┌────────▼─────────────────────┐
-                    │  SLOW LOOP  /api/coach       │  narasi per set
-                    │  NUTRISI    /api/nutrition   │  TKPI + verifier
-                    │  MENU       /api/meals       │  opsi menu, total di kode
-                    │  SUARA      /api/tts         │  narasi → audio
-                    │  PENGINGAT  /api/push        │  langganan Web Push
+                     │  SLOW LOOP  /api/coach       │  narasi per set
+                     │  NUTRISI    /api/nutrition   │  TKPI + verifier
+                     │  MENU       /api/meals       │  opsi menu, total di kode
+                     │  PENGINGAT  /api/push        │  langganan Web Push
                     └────────────────────────────┬─┘
                                                  │  cron tiap 15 menit
                                     ┌────────────▼──────────────┐
@@ -224,10 +223,9 @@ dan 9° kedalaman. Semuanya kesalahan yang sama: meminta model mengevaluasi
 ambang numerik dan mengingat sebuah kondisional. Yang sampai ke model sekarang
 adalah instruksi tanpa syarat yang tinggal dipatuhi.
 
-**Mengapa tidak streaming.** Rencana awal menyebut streaming supaya TTS bisa
-mulai lebih awal. Itu keliru: keluarannya JSON terstruktur, dan JSON separuh
-jadi tidak bisa dibacakan — TTS tetap harus menunggu teks utuh. Streaming hanya
-menambah kerumitan parsing untuk keuntungan yang tidak bisa dipakai.
+**Mengapa tidak streaming.** Keluarannya JSON terstruktur (narasi + fokus),
+dan streaming hanya menambah kerumitan parsing tanpa keuntungan yang bisa
+dipakai.
 
 Setiap respons membawa `usage` dan `latencyMs`, ditampilkan di bawah narasi.
 Angka biaya dan latensi yang masuk paper diambil dari trafik nyata, bukan
@@ -607,11 +605,11 @@ AI.
 
 ---
 
-## Suara — dua jalur, dua kendala berbeda
+## Suara — cue koreksi, MP3 pra-render
 
-**Cue koreksi: MP3 pra-render.** Himpunan frasa koreksi tertutup — tujuh kalimat,
-terdaftar di `CUE_TEXT` pada `core/rules.ts`. Semuanya dibangkitkan jadi MP3
-saat build oleh `scripts/gen-cues.mjs`, lalu diputar tanpa jaringan sama sekali.
+Himpunan frasa koreksi tertutup — tujuh kalimat, terdaftar di `CUE_TEXT` pada
+`core/rules.ts`. Semuanya dibangkitkan jadi MP3 saat build oleh
+`scripts/gen-cues.mjs`, lalu diputar tanpa jaringan sama sekali.
 
 Alasannya: cue yang datang satu detik terlambat **bukan cue yang telat, tapi cue
 yang salah** — repetisi yang dibicarakannya sudah lewat. Memanggil TTS di
@@ -622,22 +620,21 @@ Nama berkasnya mengandung hash dari teksnya. Mengedit sebuah frasa menghasilkan
 nama baru, sehingga rekaman lama berhenti dirujuk — bukan diam-diam terputar
 mengucapkan koreksi yang sudah tidak berlaku.
 
-**Narasi antar-set: TTS runtime.** Teksnya ditulis ulang oleh pelatih AI setiap
-set, jadi tidak bisa dipra-render. Ini diputar saat pengguna beristirahat, di
-mana latensi ~3 detik tidak berbiaya apa-apa.
+Narasi antar-set ditampilkan sebagai teks di layar Umpan balik, tidak dibacakan
+suara.
 
 ### Kalau suaranya terdengar kaku
 
 Tiga kemungkinan, dan yang pertama paling sering.
 
-**1. Yang terdengar bukan suara OpenAI.** Kalau klip cue gagal diputar, atau
-`/api/tts` tidak bisa dihubungi, playback jatuh ke `speechSynthesis` bawaan
-browser — dan di Android suara `id-ID` bawaan memang jauh lebih sintetis.
-Gejalanya identik dengan "suaranya robotik", padahal sebabnya suara yang kita
-buat tidak pernah diputar. Cek langsung di konsol perangkat:
+**1. Yang terdengar bukan suara OpenAI.** Kalau klip cue gagal diputar,
+playback jatuh ke `speechSynthesis` bawaan browser — dan di Android suara
+`id-ID` bawaan memang jauh lebih sintetis. Gejalanya identik dengan "suaranya
+robotik", padahal sebabnya suara yang kita buat tidak pernah diputar. Cek
+langsung di konsol perangkat:
 
 ```js
-latih.engine.audioSource   // 'clip' | 'server' | 'browser' | null
+latih.engine.audioSource   // 'clip' | 'browser' | null
 ```
 
 `'browser'` berarti kamu sedang mendengar cadangan, bukan pelatihnya.
@@ -655,12 +652,13 @@ beberapa suara × beberapa gaya ke folder `tts-lab/`; dengarkan, lalu isi
 `TTS_VOICE` dan `TTS_STYLE` di `.env`.
 
 Satu jebakan: nama berkas klip di-hash dari **frasanya**, bukan dari suaranya.
-Ganti suara tanpa `--force` dan narasi akan berubah sementara cue tetap memakai
-suara lama — dua pelatih dalam satu sesi.
+Ganti suara tanpa `--force` dan klip lama tetap dipakai — suara barumu tidak
+akan terdengar sampai semua klip dibangkitkan ulang.
 
-**Cadangan:** kalau `/api/tts` gagal — offline, kunci belum diset, kuota habis —
-sistem jatuh ke `speechSynthesis` bawaan browser dengan voice `id-ID`. Kualitas
-lebih rendah, tapi demo yang bisu lebih buruk daripada suara yang lebih polos.
+**Cadangan:** kalau klip cue gagal diputar — offline, kunci belum diset, kuota
+habis — sistem jatuh ke `speechSynthesis` bawaan browser dengan voice `id-ID`.
+Kualitas lebih rendah, tapi demo yang bisu lebih buruk daripada suara yang
+lebih polos.
 
 Regenerasi manual: `npm run gen:cues` (idempoten, melewati yang sudah ada).
 Tanpa `OPENAI_API_KEY` skrip ini memberi peringatan dan berhenti tanpa

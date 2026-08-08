@@ -30,7 +30,6 @@ export interface FeedbackDeps {
   hasMoreSets: () => boolean;
   onNext: () => void;
   onFinish: () => void;
-  onNarration: (text: string) => void;
 }
 
 export function createFeedbackScreen(deps: FeedbackDeps): Screen {
@@ -111,7 +110,6 @@ export function createFeedbackScreen(deps: FeedbackDeps): Screen {
       narration.textContent = feedback.narasi;
       focus.textContent = feedback.fokus_set_berikutnya;
       focusWrap.hidden = feedback.fokus_set_berikutnya.length === 0;
-      deps.onNarration(feedback.narasi);
 
       meta.textContent =
         feedback.latencyMs && feedback.usage

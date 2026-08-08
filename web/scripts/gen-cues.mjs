@@ -39,7 +39,7 @@ const ENV_PATH = join(HERE, '..', '..', '.env');
 // a product ends up with two coaches.
 const MODEL = TTS_MODEL;
 const VOICE = ttsVoice();
-const INSTRUCTIONS = ttsInstructions('cue');
+const INSTRUCTIONS = ttsInstructions();
 
 function loadKey() {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;

@@ -18,8 +18,7 @@
  *   TTS_VOICE=sage
  *   TTS_INSTRUCTIONS="..."
  *
- * Both the runtime narration and the pre-rendered cues read those, so the same
- * coach speaks throughout.
+ * The pre-rendered cues read those, so the coach's voice is the one you chose.
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -37,17 +36,11 @@ const MODEL = 'gpt-4o-mini-tts';
 const ALL_VOICES = ['coral', 'sage', 'ballad', 'verse', 'ash', 'nova', 'alloy', 'shimmer'];
 
 /**
- * Two lines, because they are opposite jobs.
- *
- * A cue is a bark mid-repetition — it has to land in under a second and cut
- * through a room. Narration is spoken while the user is sitting on the floor
- * catching their breath. A voice that suits one can be wrong for the other.
+ * One line, the cue: a bark mid-repetition that has to land in under a second
+ * and cut through a room.
  */
 const LINES = {
   cue: 'Turunkan dada lebih dalam',
-  narasi:
-    'Dua belas repetisi terhitung penuh, dan kedalamannya lebih baik daripada set pertama. ' +
-    'Tiga repetisi terakhir pinggulnya mulai turun — itu tanda lelah, bukan tanda tekniknya salah.',
 };
 
 /**

@@ -204,7 +204,6 @@ const screens = {
     hasMoreSets: () => (workout ? !workout.isComplete : false),
     onNext: () => router.go('kamera'),
     onFinish: () => router.go('ringkasan'),
-    onNarration: (text) => void engine.speakNarration(text),
   }),
 
   ringkasan: createSummaryScreen({

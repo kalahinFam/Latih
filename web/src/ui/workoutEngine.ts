@@ -438,8 +438,8 @@ export class WorkoutEngine {
   }
 
   /**
-   * Which path produced the last sound: a pre-rendered clip, the server voice,
-   * or the browser's own synthesiser.
+   * Which path produced the last sound: a pre-rendered clip or the browser's
+   * own synthesiser.
    *
    * Surfaced for device testing. "Sounds robotic" and "the generated audio
    * never played" are the same complaint from the user's side, and this is
@@ -447,10 +447,6 @@ export class WorkoutEngine {
    */
   get audioSource() {
     return this.voice.lastSource;
-  }
-
-  async speakNarration(text: string): Promise<void> {
-    await this.voice.speakNarration(text);
   }
 
   /* ------------------------------------------------------------------ camera */

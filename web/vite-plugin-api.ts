@@ -102,7 +102,7 @@ export function apiPlugin(): Plugin {
           response.headers.forEach((value, key) => res.setHeader(key, value));
           // Write raw bytes, never text. `response.text()` decodes the body as
           // UTF-8, which silently replaces every non-ASCII byte with U+FFFD —
-          // fine for JSON, and total corruption for the MP3 the TTS endpoint
+          // fine for JSON, and total corruption for any binary body the API
           // returns. Production returns the Response directly and never hit
           // this, so it would only ever have broken in development.
           res.end(Buffer.from(await response.arrayBuffer()));

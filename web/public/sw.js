@@ -92,9 +92,9 @@ async function navigationHandler(request) {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Never touch anything but same-origin GETs. The coaching and TTS endpoints
-  // are POSTs to the API and must always go to the network — a cached coaching
-  // response would be worse than none.
+  // Never touch anything but same-origin GETs. The coaching endpoint is a POST
+  // to the API and must always go to the network — a cached coaching response
+  // would be worse than none.
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
