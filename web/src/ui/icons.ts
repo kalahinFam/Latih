@@ -45,9 +45,6 @@ const PATHS: Record<string, string[]> = {
   chevron: ['M6 15l6-6 6 6'],
   centang: ['M5 12.5l4.5 4.5L19 7.5'],
   info: ['M12 11.5v5', 'M12 7.8v.01'],
-  // A circular arrow sweeping counterclockwise: the phone's top goes toward
-  // the user's left, which is also the direction the push-up count assumes.
-  putar: ['M3 4.5v6h6', 'M3.4 14.6a9.5 9.5 0 1 0 2.2-9.9L3 10.5'],
 };
 
 /** Icons that also need a circle drawn around them. */
