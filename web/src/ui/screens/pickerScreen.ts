@@ -20,10 +20,9 @@ import { isHold, type MovementKind } from '../../core/types.ts';
 interface Movement {
   id: MovementKind;
   name: string;
+  imageSrc: string;
   /** How the dose is expressed — the point of the card. */
   unit: 'reps' | 'duration';
-  difficulty: string;
-  judgedBy: string;
   available: boolean;
 }
 
@@ -31,25 +30,22 @@ const MOVEMENTS: Movement[] = [
   {
     id: 'pushup',
     name: 'Push-up',
+    imageSrc: '/icons/push_up.jpg',
     unit: 'reps',
-    difficulty: 'Sedang',
-    judgedBy: 'dihitung per repetisi',
     available: true,
   },
   {
     id: 'squat',
     name: 'Squat',
+    imageSrc: '/icons/squat.jpg',
     unit: 'reps',
-    difficulty: 'Mudah',
-    judgedBy: 'dihitung per repetisi',
     available: true,
   },
   {
     id: 'plank',
     name: 'Plank',
+    imageSrc: '/icons/plank.jpg',
     unit: 'duration',
-    difficulty: 'Sedang',
-    judgedBy: 'dinilai dari garis pinggul',
     available: true,
   },
 ];
@@ -78,14 +74,8 @@ export function createPickerScreen(deps: PickerDeps): Screen {
         const isSelected = movement.available && movement.id === selected;
 
         const head = el('div', { class: 'pick__head' }, el('span', { class: 'pick__name', text: movement.name }));
-        if (isSelected) {
-          head.append(el('span', { class: 'pick__tag', text: 'TARGET HARI INI' }));
-        }
         if (!movement.available) {
           head.append(el('span', { class: 'pick__tag pick__tag--quiet', text: 'SEGERA HADIR' }));
-        }
-        if (movement.unit === 'duration') {
-          head.append(el('span', { class: 'pick__tag pick__tag--quiet', text: 'DURASI' }));
         }
 
         const dose = isHold(movement.id)
@@ -100,16 +90,19 @@ export function createPickerScreen(deps: PickerDeps): Screen {
             'aria-pressed': String(isSelected),
             disabled: !movement.available,
           },
-          el('span', { class: 'pick__art', text: 'foto' }),
+          el('img', {
+            class: 'pick__art',
+            src: movement.imageSrc,
+            alt: '',
+            decoding: 'async',
+          }),
           el(
             'span',
             { class: 'pick__body' },
             head,
             el('span', { class: 'pick__dose', text: dose }),
             el('span', {
-              class: 'pick__note',
-              text: `${movement.difficulty} · ${movement.judgedBy}`,
-            }),
+              class: 'pick__note',            }),
           ),
         );
 

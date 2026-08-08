@@ -501,21 +501,11 @@ body {
 }
 
 .pick__art {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  display: block;
   width: 72px;
   height: 72px;
-  padding-bottom: 0.35rem;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.5rem;
-  color: var(--grey-faint);
-  background: #f1f3f2;
-  background-image: repeating-linear-gradient(
-    122deg,
-    rgba(21, 29, 40, 0.07) 0 2px,
-    transparent 2px 9px
-  );
+  object-fit: cover;
+  object-position: center;
   border-radius: 14px;
   flex: none;
 }
