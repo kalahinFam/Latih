@@ -14,6 +14,10 @@ export interface MealsRequest {
   budgetKcal: number;
   isTrainingDay: boolean;
   proteinTargetG?: number;
+  /** TKPI codes the user has ruled out. Derived on the device. */
+  excludeCodes?: string[];
+  /** Codes to reach for first. A preference, never a filter. */
+  preferCodes?: string[];
 }
 
 export interface MealItemView {

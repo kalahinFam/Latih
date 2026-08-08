@@ -26,8 +26,9 @@ import {
   type MealSlot,
 } from '../../core/energy.ts';
 import { buildWeeklyPlan, isTrainingDay } from '../../core/plan.ts';
+import { excludedCodes, preferredCodes } from '../../core/onboarding.ts';
 import { TrainingHistory } from '../../session/history.ts';
-import { loadPreferences, loadProfile } from '../../session/profile.ts';
+import { loadExtras, loadPreferences, loadProfile } from '../../session/profile.ts';
 import { MealsError, requestMeals, type MealOptionView } from '../../meals/mealsClient.ts';
 import { el, formatDate, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
@@ -117,6 +118,7 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
   async function loadMeals(target: EnergyTarget, container: HTMLElement): Promise<void> {
     const token = ++loadToken;
     const budgets = mealBudgets(target.targetKcal);
+    const extras = loadExtras();
 
     // Three independent requests. In sequence they would triple the wait for
     // no benefit.
@@ -128,6 +130,11 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
             budgetKcal: budgets[slot],
             isTrainingDay: target.isTrainingDay,
             proteinTargetG: target.proteinG,
+            // Codes travel, not restrictions: "no seafood" is a fact about the
+            // person and a list of food codes is a fact about a menu. Only the
+            // second needs to leave the phone.
+            excludeCodes: excludedCodes(extras.restrictions),
+            preferCodes: preferredCodes(extras.homeProteins),
           });
           return { slot, options: response.options, message: response.message ?? null };
         } catch (error) {

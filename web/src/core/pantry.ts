@@ -117,12 +117,23 @@ export interface PantryEntry {
  * that retires one row should cost one ingredient, not the whole feature. The
  * test suite is what makes sure that stays an edge case instead of the norm.
  */
-export function pantryEntries(table: TkpiTable): PantryEntry[] {
+/**
+ * @param excluded TKPI codes the user has ruled out.
+ *
+ * Removed here rather than mentioned in the prompt, because the onboarding
+ * screen promises *"bahan yang dipilih tidak akan muncul di menu mana pun"* and
+ * an instruction is not a guarantee. A model asked politely to avoid an
+ * ingredient will avoid it most of the time, and most of the time is the wrong
+ * standard for something someone cannot eat.
+ */
+export function pantryEntries(table: TkpiTable, excluded: readonly string[] = []): PantryEntry[] {
   const byCode = new Map(table.foods.map((food) => [food.code, food]));
+  const blocked = new Set(excluded);
   const entries: PantryEntry[] = [];
 
   for (const [category, codes] of Object.entries(PANTRY_CODES) as [PantryCategory, string[]][]) {
     for (const code of codes) {
+      if (blocked.has(code)) continue;
       const food = byCode.get(code);
       if (food && !food.suspect) entries.push({ category, food });
     }
@@ -131,13 +142,13 @@ export function pantryEntries(table: TkpiTable): PantryEntry[] {
   return entries;
 }
 
-export function pantryFoods(table: TkpiTable): TkpiFood[] {
-  return pantryEntries(table).map((entry) => entry.food);
+export function pantryFoods(table: TkpiTable, excluded: readonly string[] = []): TkpiFood[] {
+  return pantryEntries(table, excluded).map((entry) => entry.food);
 }
 
 /** The pantry as the model sees it: names, codes, and per-100 g figures only. */
-export function formatPantryForPrompt(table: TkpiTable): string {
-  const entries = pantryEntries(table);
+export function formatPantryForPrompt(table: TkpiTable, excluded: readonly string[] = []): string {
+  const entries = pantryEntries(table, excluded);
   const sections: string[] = [];
 
   for (const category of Object.keys(PANTRY_CODES) as PantryCategory[]) {

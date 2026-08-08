@@ -10,7 +10,7 @@
 import { currentStreak, formatDuration, latestQuality, latestSession } from '../../core/quality.ts';
 import { explainTarget } from '../../core/sessionLoop.ts';
 import { TrainingHistory } from '../../session/history.ts';
-import { loadPreferences } from '../../session/profile.ts';
+import { loadExtras, loadPreferences } from '../../session/profile.ts';
 import { EXERCISE_NAMES, formatDate, greetingFor, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
 import { isHold, type MovementKind } from '../../core/types.ts';
@@ -48,7 +48,10 @@ export function createHomeScreen(deps: HomeDeps): Screen {
       const prefs = loadPreferences();
 
       date.textContent = formatDate(now);
-      greeting.textContent = greetingFor(now);
+      // The one thing the name is for. Without it the greeting still reads
+      // naturally, which is why the question is skippable.
+      const name = loadExtras().name.trim();
+      greeting.textContent = name ? `${greetingFor(now)}, ${name}` : greetingFor(now);
 
       const last = latestSession(history);
       lastSession.textContent = last

@@ -20,6 +20,7 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 | Pose estimation on-device (MediaPipe) | ✅ berjalan |
 | Penghitung repetisi (push-up, squat) | ✅ berjalan |
 | Plank — durasi + garis pinggul | ✅ berjalan |
+| Onboarding tujuh layar | ✅ berjalan |
 | Koreksi form deterministik + cue | ✅ berjalan |
 | Instrumentasi latensi & FPS | ✅ berjalan |
 | PWA installable + offline | ✅ berjalan |
@@ -101,7 +102,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (411 tes) |
+| `npm test` | Unit test (450 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run tts:lab` | Contoh suara pelatih untuk dibandingkan (folder `tts-lab/`) |
 | `npm run gen:cues -- --force` | Membangkitkan ulang klip cue setelah ganti suara |
@@ -280,9 +281,11 @@ bekerja itu yang mengubah perilaku.
 
 ## Alur aplikasi
 
-Delapan layar dalam satu dokumen, dengan router hash di `app/router.ts`:
+Sepuluh layar dalam satu dokumen, dengan router hash di `app/router.ts`:
 
 ```
+Pembuka ──► Onboarding (6 langkah) ──┐
+                                     ▼
 Beranda ──► Pilih gerakan ──► Posisi kamera ──► Latihan ──► Umpan balik set
    ▲                                              ▲              │
    │                                              └── set lagi ───┤
@@ -300,6 +303,36 @@ lapisan tersendiri di luar layar-layar itu dan tidak pernah dipindahkan.
 
 **Kenapa hash, bukan History API.** Aplikasinya disajikan sebagai berkas
 statis, dan tautan dalam harus tetap terbuka tanpa rewrite di sisi server.
+
+### Onboarding — hanya menanyakan yang dipakai menghitung
+
+Setiap pertanyaan ada karena ada yang menghitung dengan jawabannya. Nama untuk
+sapaan; usia, jenis kelamin, tinggi, dan berat untuk Mifflin-St Jeor; aktivitas
+untuk pengalinya; tujuan untuk arah penyesuaian kalori; pengalaman untuk target
+repetisi sesi pertama; pantangan untuk menyaring baris TKPI.
+
+Pertanyaan tanpa konsumen adalah pertanyaan yang membuang waktu pengguna lalu
+mengendap di penyimpanan menyerupai fitur. Kalau sebuah jawaban berhenti dibaca,
+hapus pertanyaannya.
+
+**Layar penutup menunjukkan hitungannya, bukan ucapan selamat** — BMR, pengali
+aktivitas, penyesuaian, hasil, lalu target repetisi pertama beserta asalnya.
+Itu hanya layak dilakukan kalau angkanya nyata, jadi seluruhnya dihitung dari
+`core/energy.ts` dan `core/onboarding.ts` saat dirender; tidak ada satu pun yang
+ditulis di markup. Ringkasan yang harus disinkronkan manual adalah ringkasan
+yang cepat atau lambat akan berbohong.
+
+**Janji pantangan ditegakkan, bukan diminta.** Layarnya berkata *"bahan yang
+dipilih tidak akan muncul di menu mana pun"*. Baris yang dikecualikan dihapus
+dari pantry **sebelum** prompt dibangun, jadi tidak ada yang bisa dilanggar
+model — dan validasi di `core/meals.ts` memakai pantry tersaring yang sama, jadi
+kode terlarang yang tetap dikarang tetap ditolak. Diuji ke endpoint hidup: tanpa
+pantangan model memakai ayam dan udang; dengan pantangan, **nol pelanggaran dari
+tiga skenario**.
+
+Yang dikirim adalah **kode bahannya, bukan pantangannya**: "tidak makan seafood"
+itu fakta tentang orangnya, daftar kode makanan itu fakta tentang menunya. Hanya
+yang kedua perlu meninggalkan ponsel.
 
 ### Layar posisi kamera — centang hanya untuk yang diukur
 

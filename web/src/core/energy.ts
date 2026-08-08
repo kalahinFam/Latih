@@ -215,6 +215,77 @@ export function mealBudgets(targetKcal: number): Record<MealSlot, number> {
   };
 }
 
+/**
+ * Share of the day's energy taken as fat.
+ *
+ * Protein is set from body weight and carbohydrate takes what is left, so this
+ * is the only free parameter in the split. Around a quarter to a third is the
+ * conventional range; below it the diet becomes hard to eat, above it the
+ * carbohydrate left over stops covering training.
+ */
+const FAT_SHARE = 0.28;
+
+export interface MacroTargets {
+  proteinG: number;
+  fatG: number;
+  carbG: number;
+  /** Share of total energy each contributes, 0..1, for the stacked bar. */
+  shares: { protein: number; fat: number; carb: number };
+}
+
+/**
+ * Split the day's energy into grams.
+ *
+ * Protein first, from body weight rather than from a share of calories — it is
+ * the one macronutrient whose requirement scales with the person and not with
+ * how much they happen to be eating. Fat takes a fixed share. Carbohydrate is
+ * the remainder, which is also what makes it the thing that moves when the
+ * target moves.
+ *
+ * Carbohydrate is floored at zero: an aggressive deficit for a heavy person can
+ * leave protein and fat alone accounting for the whole target, and a negative
+ * gram count on screen would be worse than a zero.
+ */
+export function macroTargets(target: EnergyTarget): MacroTargets {
+  const proteinG = target.proteinG;
+  const fatG = Math.round((target.targetKcal * FAT_SHARE) / 9);
+  const carbG = Math.max(0, Math.round((target.targetKcal - proteinG * 4 - fatG * 9) / 4));
+
+  const total = Math.max(1, proteinG * 4 + fatG * 9 + carbG * 4);
+  return {
+    proteinG,
+    fatG,
+    carbG,
+    shares: {
+      protein: (proteinG * 4) / total,
+      fat: (fatG * 9) / total,
+      carb: (carbG * 4) / total,
+    },
+  };
+}
+
+/**
+ * The arithmetic, written out.
+ *
+ * The closing onboarding screen shows the sum rather than only its result,
+ * because a calorie target nobody can check is a number to be taken on trust —
+ * and this one is an estimate with a real error bar.
+ */
+export function explainArithmetic(profile: BodyProfile, target: EnergyTarget): string {
+  const factor = ACTIVITY_FACTORS[profile.activity].toLocaleString('id-ID');
+  const bmr = target.bmr.toLocaleString('id-ID');
+  const maintenance = target.maintenance.toLocaleString('id-ID');
+
+  if (profile.goal === 'maintain') {
+    return `BMR ${bmr} × ${factor} aktivitas = ${maintenance} kkal.`;
+  }
+
+  const percent = Math.round(Math.abs(GOAL_ADJUSTMENT[profile.goal]) * 100);
+  const direction = profile.goal === 'lose' ? 'dikurangi' : 'ditambah';
+  const floored = target.floored ? ', lalu dinaikkan ke batas aman' : '';
+  return `BMR ${bmr} × ${factor} aktivitas = ${maintenance}, ${direction} ${percent}%${floored}.`;
+}
+
 /** Short Indonesian explanation, for the UI and the coach prompt. */
 export function explainTarget(target: EnergyTarget): string {
   const base = `Sekitar ${target.targetKcal} kkal hari ini (perkiraan ${target.range.lowKcal}–${target.range.highKcal} kkal)`;

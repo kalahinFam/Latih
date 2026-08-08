@@ -80,8 +80,14 @@ export function buildOption(
   chosen: ChosenOption,
   table: TkpiTable,
   budgetKcal: number,
+  excluded: readonly string[] = [],
 ): MealOption {
-  const allowed = new Map(pantryEntries(table).map((entry) => [entry.food.code, entry.food]));
+  // Built from the same filtered pantry the prompt was, so a ruled-out
+  // ingredient the model produced anyway is rejected here rather than merely
+  // being unlikely to appear.
+  const allowed = new Map(
+    pantryEntries(table, excluded).map((entry) => [entry.food.code, entry.food]),
+  );
 
   if (!Array.isArray(chosen.items) || chosen.items.length === 0) {
     throw new MealRejectedError('Opsi tidak berisi bahan apa pun.');
@@ -135,13 +141,14 @@ export function buildOptions(
   chosen: ChosenOption[],
   table: TkpiTable,
   budgetKcal: number,
+  excluded: readonly string[] = [],
 ): { options: MealOption[]; rejected: string[] } {
   const options: MealOption[] = [];
   const rejected: string[] = [];
 
   for (const candidate of chosen) {
     try {
-      options.push(buildOption(candidate, table, budgetKcal));
+      options.push(buildOption(candidate, table, budgetKcal, excluded));
     } catch (error) {
       rejected.push(error instanceof MealRejectedError ? error.message : String(error));
     }

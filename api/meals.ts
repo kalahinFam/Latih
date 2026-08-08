@@ -85,6 +85,17 @@ interface MealRequest {
   budgetKcal: number;
   isTrainingDay: boolean;
   proteinTargetG?: number;
+  /**
+   * TKPI codes the user has ruled out, derived on the device from their
+   * dietary restrictions.
+   *
+   * The codes travel, not the restrictions: "no seafood" is a fact about the
+   * person, and a list of food codes is a fact about a menu. Only the second
+   * needs to leave the phone.
+   */
+  excludeCodes?: string[];
+  /** Codes to reach for first. A preference, never a filter. */
+  preferCodes?: string[];
 }
 
 interface ModelOutput {
@@ -164,13 +175,23 @@ function buildPrompt(table: TkpiTable, req: MealRequest): string {
     ? ` Target protein harian sekitar ${req.proteinTargetG} gram, dibagi ke tiga waktu makan.`
     : '';
 
+  // Excluded rows are absent from the list entirely, so there is nothing for
+  // the model to slip up about. Preferred ones are named, because that is a
+  // preference and being overruled occasionally costs the user nothing.
+  const prefer =
+    req.preferCodes && req.preferCodes.length > 0
+      ? `
+
+Kalau cocok, dahulukan bahan ini karena biasanya ada di rumah: ${req.preferCodes.join(', ')}.`
+      : '';
+
   return `Daftar bahan yang boleh dipakai:
 
-${formatPantryForPrompt(table)}
+${formatPantryForPrompt(table, req.excludeCodes ?? [])}
 
 Waktu makan: ${SLOT_LABELS[req.slot]}
 Target energi untuk waktu makan ini: sekitar ${req.budgetKcal} kkal
-${emphasis}${protein}
+${emphasis}${protein}${prefer}
 
 Buat tepat ${OPTIONS_PER_MEAL} opsi menu.`;
 }
@@ -184,7 +205,9 @@ function isValidRequest(value: unknown): value is MealRequest {
     Number.isFinite(r.budgetKcal) &&
     r.budgetKcal >= MIN_BUDGET_KCAL &&
     r.budgetKcal <= MAX_BUDGET_KCAL &&
-    typeof r.isTrainingDay === 'boolean'
+    typeof r.isTrainingDay === 'boolean' &&
+    (r.excludeCodes === undefined || Array.isArray(r.excludeCodes)) &&
+    (r.preferCodes === undefined || Array.isArray(r.preferCodes))
   );
 }
 
@@ -239,7 +262,10 @@ export default async function handler(request: Request): Promise<Response> {
       maxTokens: 700,
     });
 
-    let built = buildOptions(result.data.opsi ?? [], table, body.budgetKcal);
+    // Validation uses the same filtered pantry the prompt did, so an excluded
+    // code invented by the model is rejected rather than merely unlikely.
+    const excluded = body.excludeCodes ?? [];
+    let built = buildOptions(result.data.opsi ?? [], table, body.budgetKcal, excluded);
     let regenerated = false;
 
     if (built.options.length === 0) {
@@ -253,7 +279,7 @@ export default async function handler(request: Request): Promise<Response> {
         schemaName: 'opsi_menu',
         maxTokens: 700,
       });
-      built = buildOptions(result.data.opsi ?? [], table, body.budgetKcal);
+      built = buildOptions(result.data.opsi ?? [], table, body.budgetKcal, excluded);
     }
 
     if (built.options.length === 0) {

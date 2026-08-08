@@ -1435,3 +1435,497 @@ body {
 .setup__detail .sheet__note {
   padding-bottom: 1rem;
 }
+
+/* ------------------------------------------------------------- onboarding */
+
+/*
+ * The opening screen is the only dark one outside the camera. It earns that:
+ * the logo appears full size exactly once, and a dark field is what makes a
+ * mark read as a mark rather than as a picture on a page.
+ */
+.screen--dark {
+  color: #fff;
+  background-color: var(--ink);
+  background-image: linear-gradient(
+    to top,
+    rgba(84, 156, 137, 0.22) 0%,
+    rgba(84, 156, 137, 0.06) 34%,
+    rgba(84, 156, 137, 0) 62%
+  );
+}
+
+.splash {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.9rem;
+  padding: 2rem 2.1rem 0;
+}
+
+.splash__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 112px;
+  background: #fff;
+  border-radius: 26px;
+  box-shadow: 0 10px 34px rgb(0 0 0 / 35%);
+  flex: none;
+}
+
+.splash__words {
+  text-align: center;
+}
+
+.splash__wordmark {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.26em;
+}
+
+.splash__tagline {
+  margin: 0.9rem 0 0;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: rgb(255 255 255 / 68%);
+  text-wrap: pretty;
+}
+
+/* What the app needs, stated rather than illustrated. */
+.promises {
+  margin: 0;
+  padding: 0 1.6rem;
+  list-style: none;
+}
+
+.promise {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  font-size: 0.81rem;
+  color: rgb(255 255 255 / 55%);
+}
+
+.promise .icon {
+  color: var(--sage);
+}
+
+.splash__foot {
+  margin: 0.3rem 0 0;
+  font-size: 0.81rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 50%);
+  text-align: center;
+}
+
+.linkbtn {
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--sage);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.linkbtn:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+/* The step chrome: mark, progress, counter. */
+.onboard__bar {
+  gap: 0.85rem;
+}
+
+.onboard__mark {
+  display: flex;
+  flex: none;
+}
+
+.onboard__progress {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+}
+
+.onboard__tick {
+  flex: 1;
+  height: 4px;
+  background: var(--line);
+  border-radius: 2px;
+}
+
+.onboard__tick[data-done='true'] {
+  background: var(--sage);
+}
+
+.onboard__count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--grey);
+  flex: none;
+}
+
+.onboard__title {
+  margin: 0.6rem 0 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  text-wrap: pretty;
+}
+
+.onboard__sub {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--grey-deep);
+}
+
+.onboard__sub:empty {
+  display: none;
+}
+
+/*
+ * The name field, underlined rather than boxed.
+ *
+ * It is the only thing on its screen, so a box would be drawing a container
+ * around the entire content — and an underline puts the caret where the eye
+ * already is.
+ */
+.nameinput {
+  width: 100%;
+  margin-top: 2rem;
+  padding: 0 0 0.7rem;
+  font: inherit;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 2px solid var(--sage);
+  border-radius: 0;
+}
+
+.nameinput:focus {
+  outline: none;
+}
+
+.nameinput::placeholder {
+  color: var(--grey-faint);
+}
+
+/* Two numbers side by side, and the one being checked made larger. */
+.figures {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.figure {
+  flex: 1;
+  min-width: 0;
+  padding: 1.1rem 1.1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+.figure--wide {
+  margin-top: 0.75rem;
+  border-width: 1.5px;
+  border-color: var(--sage);
+}
+
+.figure__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.figure__label {
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--grey);
+}
+
+.figure--wide .figure__label {
+  color: var(--sage);
+}
+
+.figure__note {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--grey);
+  white-space: nowrap;
+}
+
+.figure__value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.figure__number {
+  width: 3.4ch;
+  padding: 0;
+  font: inherit;
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  background: none;
+  border: none;
+}
+
+.figure--wide .figure__number {
+  width: 3.2ch;
+  font-size: 3.25rem;
+}
+
+.figure__number:focus {
+  color: var(--sage-deep);
+  outline: none;
+}
+
+.figure__unit {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--grey);
+}
+
+.figure__slider {
+  width: 100%;
+  margin-top: 1rem;
+  accent-color: var(--sage);
+}
+
+.figure__scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.2rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  color: var(--grey-faint);
+}
+
+/* Segmented choices: sex, experience, days per week. */
+.segments {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.segment {
+  flex: 1;
+  min-height: 48px;
+  padding: 0 0.4rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--grey-deep);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  cursor: pointer;
+}
+
+.segment[aria-pressed='true'] {
+  font-weight: 700;
+  color: var(--ink);
+  background: rgba(84, 156, 137, 0.09);
+  border-width: 1.5px;
+  border-color: var(--sage);
+}
+
+.fieldlabel {
+  margin-top: 1.4rem;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--grey);
+}
+
+/*
+ * A choice card that states its own consequence.
+ *
+ * The design's point, and worth keeping: without the numbers underneath, "lose
+ * weight / maintain / gain" is three labels and the user is guessing what the
+ * app will do with the answer.
+ */
+.choice {
+  display: block;
+  width: 100%;
+  margin-top: 0.85rem;
+  padding: 1rem 1.2rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.choice[aria-pressed='true'] {
+  background: rgba(84, 156, 137, 0.06);
+  border-width: 1.5px;
+  border-color: var(--sage);
+}
+
+.choice__head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.choice__name {
+  flex: 1;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.choice__tick {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  background: var(--sage);
+  border-radius: 50%;
+  flex: none;
+}
+
+.choice[aria-pressed='true'] .choice__tick {
+  display: flex;
+}
+
+.choice__why {
+  margin: 0.6rem 0 0;
+  font-size: 0.81rem;
+  line-height: 1.5;
+  color: var(--grey-deep);
+}
+
+.choice__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.tag {
+  padding: 0.3rem 0.5rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--sage);
+  background: rgba(84, 156, 137, 0.14);
+  border-radius: 6px;
+}
+
+.tag--quiet {
+  color: var(--grey);
+  background: #f1f3f2;
+}
+
+/* A row with the multiplier kept visible on the right, so the choice can be
+   checked rather than only trusted. */
+.choice--row .choice__head {
+  align-items: flex-start;
+}
+
+.choice__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.choice__sub {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--grey);
+}
+
+.choice__factor {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.69rem;
+  font-weight: 500;
+  color: var(--grey-faint);
+  flex: none;
+}
+
+.choice[aria-pressed='true'] .choice__factor {
+  font-weight: 600;
+  color: var(--sage);
+}
+
+/* Restriction chips. */
+.chipwrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.chipwrap .chip[aria-pressed='true'] {
+  color: var(--ink);
+  background: rgba(84, 156, 137, 0.09);
+  border-width: 1.5px;
+  border-color: var(--sage);
+}
+
+.notebox {
+  margin-top: 1.4rem;
+  padding: 1rem 1.1rem;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--grey-deep);
+  background: #f5f6f5;
+  border-radius: 16px;
+}
+
+/* The closing screen: the sum, not a well done. */
+.macrobar {
+  display: flex;
+  height: 9px;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.macrobar__part {
+  height: 100%;
+}
+
+.macrobar__part--carb {
+  background: var(--sage);
+}
+
+.macrobar__part--protein {
+  background: #8fbfae;
+}
+
+.macrobar__part--fat {
+  background: #cbd9d2;
+}
+
+.macrolegend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--grey-deep);
+}

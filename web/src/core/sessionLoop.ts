@@ -80,11 +80,17 @@ export interface ExerciseTarget {
   basedOnSessions: number;
 }
 
-/** Starting point before any history exists. Modest on purpose. */
+/**
+ * Starting point before any history exists. Modest on purpose.
+ *
+ * Onboarding overrides these from the experience answer, by storing the chosen
+ * baseline as the current target — so the value here is what someone who
+ * skipped onboarding gets, and matches the "baru mulai" level.
+ */
 const DEFAULT_TARGET: Record<ExerciseKind, number> = { pushup: 8, squat: 10 };
 
 /** Seconds a first plank is asked to hold. */
-const DEFAULT_HOLD_TARGET: Record<HoldKind, number> = { plank: 30 };
+const DEFAULT_HOLD_TARGET: Record<HoldKind, number> = { plank: 20 };
 
 /**
  * Seconds added when a hold progresses.

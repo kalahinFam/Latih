@@ -43,6 +43,62 @@
     </div>
 
     <main class="app" id="app">
+      <!-- ============================ 0 · Pembuka ========================= -->
+      <!--
+        Shown once, before anything else exists. The logo gets one full-size
+        appearance here and is a 26 px mark in the corner from then on.
+
+        No three-page carousel: what the app needs from the user is a camera and
+        a couple of minutes, and saying so is faster than illustrating it.
+      -->
+      <section class="screen screen--dark" data-screen="mulai" hidden>
+        <div class="splash">
+          <div class="splash__mark" id="splashMark"></div>
+          <div class="splash__words">
+            <div class="splash__wordmark">LATIH</div>
+            <p class="splash__tagline">
+              Pelatih pribadi yang melihat gerakanmu lewat kamera, dan menyusun menu dari bahan
+              yang ada di rumah.
+            </p>
+          </div>
+        </div>
+
+        <ul class="promises" id="splashPromises"></ul>
+
+        <div class="screen__actions">
+          <button class="btn btn--primary" id="splashStart" type="button">Mulai</button>
+          <p class="splash__foot">
+            Data latihan tersimpan di ponsel ini.
+            <button class="linkbtn" id="splashSkip" type="button">Lewati dulu</button>
+          </p>
+        </div>
+      </section>
+
+      <!-- ========================= 1–6 · Onboarding ======================== -->
+      <!--
+        One section, six steps. A wizard is a single task, and giving each step
+        its own route would let the browser drop somebody into question four
+        with nothing answered behind it.
+      -->
+      <section class="screen" data-screen="onboarding" hidden>
+        <header class="screen__bar onboard__bar">
+          <button class="iconbtn" type="button" id="onboardBack" aria-label="Kembali"></button>
+          <div class="onboard__mark" id="onboardMark"></div>
+          <div class="onboard__progress" id="onboardProgress" aria-hidden="true"></div>
+          <span class="onboard__count" id="onboardCount">1/6</span>
+        </header>
+
+        <div class="screen__body">
+          <h1 class="onboard__title" id="onboardTitle"></h1>
+          <p class="onboard__sub" id="onboardSub"></p>
+          <div id="onboardBody"></div>
+        </div>
+
+        <div class="screen__actions">
+          <button class="btn btn--primary" id="onboardNext" type="button">Lanjut</button>
+        </div>
+      </section>
+
       <!-- ============================= 1 · Beranda ========================= -->
       <section class="screen" data-screen="beranda" hidden>
         <header class="screen__bar">

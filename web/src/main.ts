@@ -3,7 +3,7 @@ import { registerServiceWorker } from './pwa.ts';
 import { Router, parseHash, type Route } from './app/router.ts';
 import { WorkoutSession } from './app/workoutSession.ts';
 import { TrainingHistory, toSetRecord } from './session/history.ts';
-import { loadPreferences } from './session/profile.ts';
+import { hasLaunched, loadPreferences, markLaunched } from './session/profile.ts';
 import { explainTarget } from './core/sessionLoop.ts';
 import { WorkoutEngine, type Readiness } from './ui/workoutEngine.ts';
 import { createHomeScreen } from './ui/screens/homeScreen.ts';
@@ -14,8 +14,9 @@ import { createSummaryScreen } from './ui/screens/summaryScreen.ts';
 import { createHistoryScreen } from './ui/screens/historyScreen.ts';
 import { createNutritionScreen } from './ui/screens/nutritionScreen.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
-import { required } from './ui/dom.ts';
-import { hasIcon, icon } from './ui/icons.ts';
+import { createOnboardingScreen } from './ui/screens/onboardingScreen.ts';
+import { el, required } from './ui/dom.ts';
+import { hasIcon, icon, logoMark } from './ui/icons.ts';
 import { isHold, type MovementKind } from './core/types.ts';
 import type { SetSummary } from './core/setSummary.ts';
 
@@ -213,7 +214,61 @@ const screens = {
   }),
 
   pengaturan: createSettingsScreen({ history }),
+
+  mulai: createSplashScreen({
+    onStart: () => router.go('onboarding'),
+    onSkip: () => {
+      // A real skip. The rest of the app already handles a missing profile —
+      // nutrition offers to collect it, targets fall back to the beginner
+      // baseline — so there is nothing here to protect them from.
+      markLaunched();
+      router.go('beranda');
+    },
+  }),
+
+  onboarding: createOnboardingScreen({
+    history,
+    onDone: () => {
+      markLaunched();
+      router.go('beranda');
+    },
+    onStartFirstSession: () => {
+      markLaunched();
+      // Straight into the flow rather than to the home screen: the user has
+      // just been shown their first target, and the next thing they want is to
+      // attempt it.
+      engine.unlockAudio();
+      router.go('pilih');
+    },
+  }),
 };
+
+/**
+ * 0 · Pembuka.
+ *
+ * Small enough to live here rather than in its own module: it renders three
+ * fixed lines and owns two buttons.
+ */
+function createSplashScreen(deps: { onStart: () => void; onSkip: () => void }) {
+  const mark = required('#splashMark');
+  const promises = required('#splashPromises');
+
+  mark.append(logoMark(96, true));
+  for (const [name, text] of [
+    ['kamera', 'Butuh kamera ponsel, tanpa alat lain'],
+    ['gembok', 'Video diproses di ponsel, tidak dikirim'],
+    ['jam', 'Enam pertanyaan, sekitar dua menit'],
+  ] as const) {
+    promises.append(
+      el('li', { class: 'promise' }, icon(name, 19, 1.6), el('span', { text })),
+    );
+  }
+
+  required<HTMLButtonElement>('#splashStart').addEventListener('click', deps.onStart);
+  required<HTMLButtonElement>('#splashSkip').addEventListener('click', deps.onSkip);
+
+  return { enter() {} };
+}
 
 /* ------------------------------------------------------------------ chrome */
 
@@ -244,6 +299,9 @@ const CAMERA_SCREENS = new Set(['kamera', 'latihan', 'umpanbalik']);
 /** Screens the tab bar belongs on. Not during a workout — nothing to switch to. */
 const TABBED = new Set(['beranda', 'riwayat', 'gizi']);
 
+/** Screens reachable before onboarding has been completed. */
+const PRE_ONBOARDING = new Set(['mulai', 'onboarding']);
+
 function applyChrome(route: Route): void {
   for (const [name, node] of sections) node.hidden = name !== route.name;
 
@@ -258,7 +316,25 @@ function applyChrome(route: Route): void {
   document.querySelector('.screen:not([hidden]) .screen__body')?.scrollTo(0, 0);
 }
 
-const router = new Router(screens, applyChrome);
+const router = new Router(screens, (route) => guard(route));
+
+/**
+ * Send a first-time user to the opening screen.
+ *
+ * Checked on every navigation rather than only at startup, because a deep link
+ * or a stale hash can land anywhere.
+ *
+ * The question is whether they have *seen* the opening screen, not whether they
+ * finished the questions. Gating on completion would make "lewati dulu"
+ * navigate somewhere that bounces straight back.
+ */
+function guard(route: Route): void {
+  if (!hasLaunched() && !PRE_ONBOARDING.has(route.name)) {
+    router.go('mulai');
+    return;
+  }
+  applyChrome(route);
+}
 
 for (const button of tabButtons) {
   button.addEventListener('click', () => router.go(button.dataset.tab!));

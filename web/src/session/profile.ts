@@ -27,10 +27,21 @@ import {
   MIN_DAYS_PER_WEEK,
   type PlanPreferences,
 } from '../core/plan.ts';
+import {
+  DEFAULT_EXTRAS,
+  EXPERIENCE_LABELS,
+  RESTRICTION_LABELS,
+  HOME_PROTEINS,
+  type DietaryRestriction,
+  type ExperienceLevel,
+  type OnboardingExtras,
+} from '../core/onboarding.ts';
 import type { ExerciseKind } from '../core/types.ts';
 
 const PROFILE_KEY = 'latih.profile.v1';
 const PREFERENCES_KEY = 'latih.preferences.v1';
+const EXTRAS_KEY = 'latih.onboarding.v1';
+const LAUNCHED_KEY = 'latih.launched.v1';
 
 const SEXES: BodySex[] = ['male', 'female'];
 const ACTIVITIES: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very-active'];
@@ -134,4 +145,107 @@ export function savePreferences(preferences: PlanPreferences): void {
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+
+/* -------------------------------------------------------------- onboarding */
+
+const EXPERIENCES = Object.keys(EXPERIENCE_LABELS) as ExperienceLevel[];
+const RESTRICTIONS = Object.keys(RESTRICTION_LABELS) as DietaryRestriction[];
+const PROTEIN_IDS = HOME_PROTEINS.map((p) => p.id);
+
+/**
+ * Everything onboarding collected beyond the body measurements.
+ *
+ * Validated field by field on read, like the preferences are: a partial write
+ * or an older version should cost the one key it broke, not the whole answer
+ * set and a repeat of onboarding.
+ */
+export function loadExtras(): OnboardingExtras {
+  try {
+    const raw = localStorage.getItem(EXTRAS_KEY);
+    if (!raw) return { ...DEFAULT_EXTRAS };
+    const stored = JSON.parse(raw) as Partial<OnboardingExtras>;
+
+    return {
+      name: typeof stored.name === 'string' ? stored.name.slice(0, 40).trim() : '',
+      experience: EXPERIENCES.includes(stored.experience as ExperienceLevel)
+        ? (stored.experience as ExperienceLevel)
+        : DEFAULT_EXTRAS.experience,
+      restrictions: Array.isArray(stored.restrictions)
+        ? stored.restrictions.filter((r): r is DietaryRestriction =>
+            RESTRICTIONS.includes(r as DietaryRestriction),
+          )
+        : [],
+      homeProteins: Array.isArray(stored.homeProteins)
+        ? stored.homeProteins.filter((id): id is string => PROTEIN_IDS.includes(id))
+        : [...DEFAULT_EXTRAS.homeProteins],
+    };
+  } catch {
+    return { ...DEFAULT_EXTRAS };
+  }
+}
+
+export function saveExtras(extras: OnboardingExtras): void {
+  try {
+    localStorage.setItem(EXTRAS_KEY, JSON.stringify(extras));
+  } catch {
+    /* see saveProfile */
+  }
+}
+
+/**
+ * Has onboarding been completed?
+ *
+ * Derived from the body profile rather than stored as its own flag. The
+ * profile is what onboarding exists to collect, so its presence *is* the
+ * answer — and a separate flag can disagree with it, which is how a user ends
+ * up on a home screen with no calorie target and no way back to the questions.
+ */
+export function isOnboarded(): boolean {
+  return loadProfile() !== null;
+}
+
+/**
+ * Has the user been shown the opening screen?
+ *
+ * Separate from `isOnboarded` on purpose, and the distinction matters: the
+ * router's job is to make sure a first-time user meets the app before landing
+ * inside it, *not* to hold them hostage until they answer six questions. Gating
+ * on completion would make the "lewati dulu" button navigate to a screen that
+ * immediately bounces back — a control that visibly does nothing.
+ *
+ * Everything downstream already copes with a missing profile: the nutrition
+ * screen offers to collect it, and targets fall back to the beginner baseline.
+ */
+export function hasLaunched(): boolean {
+  try {
+    return localStorage.getItem(LAUNCHED_KEY) === '1' || isOnboarded();
+  } catch {
+    // Storage unavailable — let them in rather than trapping them on a splash
+    // screen that can never remember they saw it.
+    return true;
+  }
+}
+
+export function markLaunched(): void {
+  try {
+    localStorage.setItem(LAUNCHED_KEY, '1');
+  } catch {
+    /* see saveProfile */
+  }
+}
+
+export function clearOnboarding(): void {
+  try {
+    localStorage.removeItem(LAUNCHED_KEY);
+  } catch {
+    /* nothing to do */
+  }
+  clearProfile();
+  try {
+    localStorage.removeItem(EXTRAS_KEY);
+  } catch {
+    /* nothing to do */
+  }
 }

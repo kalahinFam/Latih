@@ -38,6 +38,8 @@ const PAGES: [entry: string, html: string][] = [['src/main.ts', 'index.html']];
 
 /** Every screen the router can land on must exist as a section. */
 const SCREENS = [
+  'mulai',
+  'onboarding',
   'beranda',
   'pilih',
   'kamera',

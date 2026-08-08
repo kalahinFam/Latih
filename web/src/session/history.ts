@@ -137,6 +137,23 @@ export class TrainingHistory {
     return progressTrend(exercise, read().sets);
   }
 
+  /**
+   * Seed the starting targets from onboarding.
+   *
+   * Written as the *current* target rather than as a new default, because that
+   * is exactly what it is: a number the user is working to, which the session
+   * loop then adjusts from real results after the first set. Anything already
+   * stored wins — a returning user re-running onboarding must not have their
+   * earned target reset to a beginner's.
+   */
+  seedTargets(targets: Partial<Record<MovementKind, number>>): void {
+    const history = read();
+    for (const [movement, value] of Object.entries(targets) as [MovementKind, number][]) {
+      if (history.targets[movement] === undefined) history.targets[movement] = value;
+    }
+    write(history);
+  }
+
   /** Everything recorded, for the summary view and for manual export. */
   all(): SetRecord[] {
     return read().sets;
