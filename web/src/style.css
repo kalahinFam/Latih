@@ -1115,7 +1115,10 @@ body {
   align-items: flex-end;
   flex: none;
   padding-top: 0.45rem;
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Safari can report an oversized inset while its bottom chrome transitions.
+     Keep enough room for the home indicator without turning it into a large
+     blank footer in standalone mode. */
+  padding-bottom: clamp(0.25rem, env(safe-area-inset-bottom), 0.85rem);
   background: var(--paper);
   border-top: 1px solid var(--line-soft);
   box-shadow: var(--bar-shadow);
@@ -1142,7 +1145,6 @@ body {
   font: inherit;
   color: var(--grey);
   background: transparent;
-  border: none;
   border: none;
   cursor: pointer;
 }
