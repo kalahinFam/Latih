@@ -922,6 +922,42 @@ produknya — dan lapisan ketiga masih ada di bawahnya.
 limit* pada kunci OpenAI-nya. Kode bisa salah; plafon di sisi provider tidak
 bisa diakali.
 
+### Pemicu pengingat ada di luar Vercel
+
+`vercel.json` **tidak** memuat blok `crons`, dan itu disengaja. Paket Hobby
+membatasi cron jadi sekali sehari, sementara pengingat harus mengejar jam yang
+berbeda-beda per pengguna — satu tembakan harian pada jam tetap tidak melayani
+siapa pun. Menyisakannya di sana berarti deploy ditolak sebelum apa pun
+terpasang.
+
+Jadi penjadwalnya dipisah. Pakai scheduler mana pun yang bisa memanggil URL tiap
+15 menit — [cron-job.org](https://cron-job.org) gratis dan cukup tepat waktu:
+
+```
+URL     : https://<domainmu>/api/cron-reminders
+Interval: setiap 15 menit
+Header  : Authorization: Bearer <CRON_SECRET>
+```
+
+Header itu wajib. Tanpanya `isAuthorized()` menolak dengan 401 — dan kalau
+`CRON_SECRET` sendiri tidak diset, ia justru meloloskan semua orang, yang jauh
+lebih buruk.
+
+Lima belas menit bukan angka sembarangan: `isDue()` menerima slot yang terlewat
+sampai dua puluh menit, jadi satu jalannya cron yang meleset atau tertunda tidak
+membuat pengingat hilang sama sekali. Menjadwalkannya lebih jarang dari itu
+mulai melubangi jaminan tersebut.
+
+GitHub Actions bisa dipakai dan tetap di dalam repo, tapi `schedule`-nya kerap
+tertunda belasan menit saat runner sedang sibuk — cukup untuk melewati jendela
+dua puluh menit itu, jadi pengingatnya jadi kadang datang kadang tidak.
+
+Kalau nanti naik ke Pro, kembalikan bloknya dan matikan scheduler luarnya:
+
+```json
+"crons": [{ "path": "/api/cron-reminders", "schedule": "*/15 * * * *" }]
+```
+
 ### Cek sebelum membagikan URL-nya
 
 ```bash

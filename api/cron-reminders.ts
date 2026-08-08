@@ -1,7 +1,12 @@
 /**
  * Cron target: fire the reminders that are due.
  *
- * Runs every fifteen minutes (see `vercel.json`). Each run reads every
+ * Meant to run every fifteen minutes, triggered from outside Vercel: the Hobby
+ * plan caps `crons` in `vercel.json` at once per day, and a single daily firing
+ * cannot serve reminders set to different times by different people. See the
+ * deploy section of the README for the scheduler and the header it must send.
+ *
+ * Each run reads every
  * subscription, keeps the ones whose local time has just passed their reminder,
  * and sends a payload-less push. `isDue` accepts a slot up to twenty minutes
  * old so a run landing slightly out of step with the clock does not skip a
