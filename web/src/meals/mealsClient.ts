@@ -58,7 +58,55 @@ export class MealsError extends Error {
   }
 }
 
-export async function requestMeals(request: MealsRequest): Promise<MealsResponse> {
+/**
+ * Successful menu requests live for the lifetime of this page.
+ *
+ * The nutrition screen is entered repeatedly through the tab bar. Repeating
+ * the same three LLM calls on every visit spends tokens without producing new
+ * information. A page-lifetime cache is long enough to cover that navigation
+ * while naturally clearing on reload, which also gives the user a simple way
+ * to ask for a fresh set of suggestions.
+ *
+ * Promises, rather than only completed responses, are cached so leaving and
+ * immediately returning also joins the requests already in flight. Rejections
+ * are removed: an offline or transient server failure must remain retryable.
+ */
+const mealCache = new Map<string, Promise<MealsResponse>>();
+
+function sortedUnique(values: string[] | undefined): string[] {
+  return [...new Set(values ?? [])].sort();
+}
+
+export function mealRequestKey(request: MealsRequest): string {
+  return JSON.stringify({
+    slot: request.slot,
+    budgetKcal: request.budgetKcal,
+    isTrainingDay: request.isTrainingDay,
+    proteinTargetG: request.proteinTargetG ?? null,
+    excludeCodes: sortedUnique(request.excludeCodes),
+    preferCodes: sortedUnique(request.preferCodes),
+  });
+}
+
+/** Clear page-lifetime suggestions, primarily for tests and an explicit refresh UI. */
+export function clearMealCache(): void {
+  mealCache.clear();
+}
+
+export function requestMeals(request: MealsRequest): Promise<MealsResponse> {
+  const key = mealRequestKey(request);
+  const cached = mealCache.get(key);
+  if (cached) return cached;
+
+  const pending = requestMealsFromApi(request).catch((error: unknown) => {
+    mealCache.delete(key);
+    throw error;
+  });
+  mealCache.set(key, pending);
+  return pending;
+}
+
+async function requestMealsFromApi(request: MealsRequest): Promise<MealsResponse> {
   if (!navigator.onLine) {
     throw new MealsError('Sedang offline — saran menu butuh koneksi.');
   }
