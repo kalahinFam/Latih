@@ -139,6 +139,13 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   const next = required<HTMLButtonElement>('#onboardNext');
 
   let step = 1;
+  /**
+   * Which way the last move went.
+   *
+   * The one thing a plain fade cannot say is whether you advanced or went back,
+   * and on a six-step form that is worth saying.
+   */
+  let direction: 'forward' | 'back' = 'forward';
   // Working copies. Nothing is persisted until the final step, so abandoning
   // onboarding halfway leaves no half-answered profile behind.
   let draft: BodyDraft = loadProfile() ?? {
@@ -189,6 +196,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   backButton.addEventListener('click', () => {
     if (step > 1) {
       step -= 1;
+      direction = 'back';
       render();
     }
   });
@@ -670,6 +678,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
       // question four does not throw away questions one to three.
       if (step === STEPS - 1) commit();
       step += 1;
+      direction = 'forward';
       render();
       return;
     }
@@ -691,6 +700,14 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
     const steps = [renderName, renderBody, renderGoal, renderActivity, renderFood, renderPlan];
     steps[step - 1]();
+
+    // Replayed by rebuilding the class, since a CSS animation does not restart
+    // on an element that already carries it. The step functions replace the
+    // body's children, so the wrapper class is applied to the body itself.
+    body.classList.remove('onboard__step');
+    void body.offsetWidth;
+    body.dataset.dir = direction;
+    body.classList.add('onboard__step');
   }
 
   return {

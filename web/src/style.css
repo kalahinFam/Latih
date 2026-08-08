@@ -1130,19 +1130,28 @@ body {
   align-items: flex-end;
 }
 
+/*
+ * Scaled rather than resized.
+ *
+ * This is the one animation that runs while the pose loop does, and `width`
+ * would reflow the strip column on every completed repetition. `scaleX` from
+ * the right edge produces the same picture on the compositor, without layout.
+ */
 .hud__strip {
-  width: 18px;
+  width: 34px;
   height: 7px;
   background: rgb(255 255 255 / 22%);
   border-radius: 4px;
+  transform: scaleX(0.53);
+  transform-origin: right;
   transition:
-    width 140ms ease-out,
+    transform 140ms ease-out,
     background 180ms linear;
 }
 
 .hud__strip--done {
-  width: 34px;
   background: var(--sage);
+  transform: scaleX(1);
 }
 
 .hud__readout {
@@ -2016,4 +2025,191 @@ body {
   font-size: 0.72rem;
   font-weight: 500;
   color: var(--grey-deep);
+}
+
+/* ----------------------------------------------------------------- motion */
+
+/*
+ * Movement, kept on a short leash.
+ *
+ * ## The constraint that decided all of this
+ *
+ * This app runs pose estimation at ~30 fps on a mid-range phone. Anything that
+ * triggers layout or paint while a set is running competes with MediaPipe for
+ * the same frame budget, and the thing that suffers is the rep count — the one
+ * part of the product that must never stutter.
+ *
+ * So: `transform` and `opacity` only. Those two are the properties a compositor
+ * can animate without touching layout or repainting, which is why every
+ * animation below is written in terms of them and nothing else. The one width
+ * transition is on a screen where the camera is off.
+ *
+ * ## Where movement earns its place
+ *
+ * Screens arriving, steps advancing, and a repetition landing. Each of those is
+ * a *change of state the user needs to notice*; motion is how an interface says
+ * "this is new" without adding a word. Everywhere else it is decoration that
+ * costs frames, and this file is deliberately short because of that.
+ *
+ * Nothing new moves on the workout screen except the count itself. The design
+ * gives one number and one colour the job of carrying the signal there, and a
+ * third moving thing would be competing for the attention those two need.
+ */
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes step-forward {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@keyframes step-back {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+/* A repetition landing. Small enough to register as confirmation rather than
+   as the number jumping about. */
+@keyframes count-pop {
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/*
+ * Screens fade up as they arrive.
+ *
+ * Six pixels, not twenty: this is the difference between a document swap and an
+ * app, and past about ten it stops reading as arrival and starts reading as
+ * lag on a screen the user opens many times a day.
+ */
+.screen:not([hidden]) {
+  animation: screen-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/*
+ * Except the ones over the camera.
+ *
+ * A fade there reads as the video feed flickering rather than as a screen
+ * arriving — the user is looking at a live image, and anything that dims it
+ * looks like the camera dropping out.
+ */
+.screen--over-camera:not([hidden]) {
+  animation: none;
+}
+
+/* Onboarding steps carry their direction, which is the one thing a plain fade
+   cannot say: whether you moved on or went back. */
+.onboard__step {
+  animation: step-forward 200ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.onboard__step[data-dir='back'] {
+  animation-name: step-back;
+}
+
+.hud__count[data-pop='true'] {
+  animation: count-pop 180ms ease-out;
+}
+
+/*
+ * Selection feedback.
+ *
+ * Colour and border only — both repaint a single small element, neither
+ * reflows. The 140 ms is short enough that a fast tapper never waits for it.
+ */
+.segment,
+.chip,
+.choice,
+.pick,
+.fooditem {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+/*
+ * Press feedback.
+ *
+ * A scale rather than the translate the old buttons used: moving a control down
+ * by a pixel reads as the layout shifting, while shrinking it slightly reads as
+ * the control itself yielding.
+ */
+.btn:active,
+.iconbtn:active,
+.segment:active,
+.chip:active,
+.choice:active,
+.pick:active,
+.tab:active,
+.fooditem:active {
+  transform: scale(0.985);
+}
+
+.btn,
+.iconbtn,
+.segment,
+.chip,
+.choice,
+.pick,
+.tab,
+.fooditem {
+  transition-property: background-color, border-color, color, transform;
+  transition-duration: 140ms;
+  transition-timing-function: ease;
+}
+
+/* The quality score filling in. The camera is off on this screen, so the one
+   width transition in the file lives here. */
+.meter__fill {
+  transition: width 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/*
+ * Everything above, off.
+ *
+ * Not a nicety: vestibular disorders make even small movement genuinely
+ * unpleasant, and the setting exists so people can say so once rather than per
+ * app. The interface still works — every animation here is decorative on top of
+ * a state change that has already happened.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .screen:not([hidden]),
+  .onboard__step,
+  .hud__count[data-pop='true'] {
+    animation: none;
+  }
+
+  .btn:active,
+  .iconbtn:active,
+  .segment:active,
+  .chip:active,
+  .choice:active,
+  .pick:active,
+  .tab:active,
+  .fooditem:active {
+    transform: none;
+  }
+
+  .meter__fill,
+  .hud__strip,
+  .hud__wash,
+  .hud__count,
+  .setup__chevron {
+    transition: none;
+  }
+
+  .hud__dot {
+    animation: none;
+  }
 }

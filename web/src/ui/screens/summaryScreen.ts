@@ -77,7 +77,12 @@ export function createSummaryScreen(deps: SummaryDeps): Screen {
       meta.textContent = `${formatDuration(stats.elapsedMs)} · ${stats.sets} set`;
 
       quality.textContent = stats.quality === null ? '—' : String(stats.quality);
-      qualityBar.style.width = `${stats.quality ?? 0}%`;
+      // Filled on the next frame rather than immediately, so the transition has
+      // a starting width to move from. Set in one go, the bar is simply there.
+      qualityBar.style.width = '0%';
+      requestAnimationFrame(() => {
+        qualityBar.style.width = `${stats.quality ?? 0}%`;
+      });
       const tracking = `Sudut terbaca ${Math.round(stats.trackingQuality * 100)}% frame.`;
       qualityNote.textContent =
         stats.quality === null

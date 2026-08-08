@@ -175,3 +175,74 @@ describe('workout HUD', () => {
     expect(css).toMatch(/\.hud__readout\s*\{[^}]*bottom:/);
   });
 });
+
+describe('motion', () => {
+  const css = read('src/style.css');
+
+  /** Properties whose animation forces the browser to re-run layout. */
+  const LAYOUT_PROPS = ['width', 'height', 'top', 'left', 'right', 'bottom', 'margin', 'padding'];
+
+  /**
+   * The one place a layout-animating transition is allowed.
+   *
+   * The summary screen has the camera off, so a reflow there competes with
+   * nothing.
+   */
+  const LAYOUT_EXEMPT = ['.meter__fill'];
+
+  it('animates nothing on the layout path except the documented exception', () => {
+    // This app runs pose estimation at ~30 fps on a mid-range phone. A
+    // transition that reflows during a set competes with MediaPipe for the same
+    // frame budget, and what suffers is the rep count.
+    const offenders: string[] = [];
+
+    for (const match of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const selector = match[1].trim().split('\n').pop()!.trim();
+      const block = match[2];
+      if (!/transition(-property)?\s*:/.test(block)) continue;
+      if (LAYOUT_EXEMPT.some((exempt) => selector.includes(exempt))) continue;
+
+      const declaration = /transition(?:-property)?\s*:([^;]*)/.exec(block)?.[1] ?? '';
+      for (const prop of LAYOUT_PROPS) {
+        if (new RegExp(`\b${prop}\b`).test(declaration)) {
+          offenders.push(`${selector} transitions ${prop}`);
+        }
+      }
+    }
+
+    expect(offenders, offenders.join('; ')).toEqual([]);
+  });
+
+  it('lets the reader turn all of it off', () => {
+    // Not a nicety: small movement is genuinely unpleasant with a vestibular
+    // disorder, and the setting exists so people say so once rather than per
+    // app.
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('declares no keyframes nothing uses', () => {
+    const declared = [...css.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]);
+    expect(declared.length).toBeGreaterThan(0);
+
+    for (const name of declared) {
+      // Once for the @keyframes, at least once more for a rule that plays it.
+      const uses = css.split(name).length - 1;
+      expect(uses, `@keyframes ${name} is never played`).toBeGreaterThan(1);
+    }
+  });
+
+  it('adds no motion to the workout HUD beyond the count and the voice dot', () => {
+    // The design gives one number and one colour the job of carrying the signal
+    // there. A third moving thing would compete for the attention those need.
+    const animated = [...css.matchAll(/(\.hud[^{}]*)\{([^}]*animation:[^}]*)\}/g)].map((m) =>
+      m[1].trim(),
+    );
+
+    for (const selector of animated) {
+      expect(
+        selector.includes('hud__dot') || selector.includes('hud__count'),
+        `unexpected animation on ${selector}`,
+      ).toBe(true);
+    }
+  });
+});

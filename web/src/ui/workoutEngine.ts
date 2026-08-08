@@ -229,6 +229,11 @@ export class WorkoutEngine {
   private goodFramingSinceMs: number | null = null;
   private highlightJoints: readonly number[] = [];
   private strippedDone = -1;
+  /**
+   * Count the HUD last displayed, so the confirmation only fires when a
+   * repetition actually lands — `render` runs on every frame.
+   */
+  private lastShownCount = -1;
   private postureSpokenUntilMs = 0;
 
   private readinessListener: ((readiness: Readiness) => void) | null = null;
@@ -488,6 +493,9 @@ export class WorkoutEngine {
     this.armed = false;
     this.goodFramingSinceMs = null;
     this.strippedDone = -1;
+    // Without this the second set's first repetition would not be confirmed:
+    // the count returns to 0 and would not read as an increase.
+    this.lastShownCount = -1;
     this.postureSpokenUntilMs = 0;
     this.clearCue();
     this.renderLabel();
@@ -858,7 +866,13 @@ export class WorkoutEngine {
       ? Math.floor(this.hold.status.heldMs / 1000)
       : this.counter.status.repCount;
 
-    this.el.repCount.textContent = String(done);
+    if (done !== this.lastShownCount) {
+      this.el.repCount.textContent = String(done);
+      // A repetition landing is worth confirming; a plank's clock ticking over
+      // every second is not, and would twitch the number for the whole hold.
+      if (!this.isHoldMovement && done > this.lastShownCount) this.popCount();
+      this.lastShownCount = done;
+    }
     this.renderStrips(done);
 
     // The caption is owned by the cue while one is showing.
@@ -875,6 +889,19 @@ export class WorkoutEngine {
         this.el.hudWash.classList.add('hud__wash--correction');
       }
     }
+  }
+
+  /**
+   * Confirm a repetition with a small scale.
+   *
+   * The attribute is removed as soon as the animation ends so the next rep can
+   * replay it — CSS animations do not restart on an element that already
+   * carries the class.
+   */
+  private popCount(): void {
+    const node = this.el.repCount;
+    node.dataset.pop = 'true';
+    node.addEventListener('animationend', () => delete node.dataset.pop, { once: true });
   }
 
   /**
