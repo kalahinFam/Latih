@@ -22,6 +22,15 @@ export class Voice {
   private narrationUrl: string | null = null;
   private source: AudioSource = null;
   private browserVoice: SpeechSynthesisVoice | null = null;
+  /**
+   * The ping's own playback context.
+   *
+   * Kept separate from the media-element path because the ping must not
+   * interrupt a corrective cue that is already speaking — a rep landing while
+   * the coach talks is the norm, not the exception.
+   */
+  private ctx: AudioContext | null = null;
+  private pingNodes: { osc: OscillatorNode; gain: GainNode } | null = null;
 
   /**
    * What actually played last.
@@ -68,6 +77,76 @@ export class Voice {
         once: true,
       });
     }
+
+    // An AudioContext must also be born inside a gesture (or its start is
+    // suspended), so prime it here alongside the media-element path.
+    this.ensureContext();
+  }
+
+  /**
+   * Create the ping's context inside a gesture, and wake it when the browser
+   * has parked it.
+   */
+  private ensureContext(): void {
+    if (this.ctx === null) {
+      const Ctor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      this.ctx = new Ctor();
+    }
+    if (this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  /**
+   * Confirm a counted repetition with a short blip.
+   *
+   * Synthesised rather than pre-rendered: a ping is a tone, and generating it
+   * at runtime costs no asset, no build step, and no network. Played on its
+   * own context, so it never interrupts a cue that is mid-sentence; a rep
+   * landing under the coach's voice should confirm, not cut the coach off.
+   */
+  playPing(): void {
+    this.ensureContext();
+    // Still suspended — the gesture never happened or expired. Degrade
+    // quietly, exactly as a blocked cue clip does.
+    if (!this.ctx || this.ctx.state !== 'running') return;
+
+    this.stopPing();
+    const ctx = this.ctx;
+    const gain = ctx.createGain();
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+
+    const start = ctx.currentTime;
+    // Two rising tones, quick enough to read as one confirmation.
+    osc.frequency.setValueAtTime(1046.5, start); // C6
+    osc.frequency.setValueAtTime(1568, start + 0.07); // G6
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.28, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.18);
+    // Released when it finishes so a rapid-fire set cannot accumulate nodes.
+    osc.addEventListener('ended', () => {
+      osc.disconnect();
+      gain.disconnect();
+      if (this.pingNodes?.osc === osc) this.pingNodes = null;
+    });
+    this.pingNodes = { osc, gain };
+  }
+
+  /** Silence a ping still in flight. */
+  private stopPing(): void {
+    if (!this.pingNodes) return;
+    const { osc, gain } = this.pingNodes;
+    this.pingNodes = null;
+    osc.stop();
+    osc.disconnect();
+    gain.disconnect();
   }
 
   /**
@@ -179,6 +258,7 @@ export class Voice {
   }
 
   stop(): void {
+    this.stopPing();
     if (this.current) {
       this.current.pause();
       this.current = null;
@@ -197,5 +277,7 @@ export class Voice {
     this.stop();
     this.revokeNarration();
     this.cache.clear();
+    void this.ctx?.close();
+    this.ctx = null;
   }
 }

@@ -29,6 +29,13 @@
   --amber: #e0952b;
   --danger: #f87171;
 
+  /*
+   * The one bar shadow. Bottom-anchored bars — the onboarding action bar and
+   * the tab bar — use it, so they separate from the content above without
+   * picking up a tint.
+   */
+  --bar-shadow: 0 -8px 20px rgb(21 29 40 / 8%);
+
   /* Legacy aliases, kept so the annotation tool still resolves. */
   --surface: #131c31;
   --border: var(--line);
@@ -216,6 +223,16 @@ body {
   flex-direction: column;
   gap: 0.65rem;
   padding: 1.1rem 1.6rem 1.6rem;
+}
+
+/*
+ * Onboarding's action bar reads as a sheet pinned to the bottom, so it earns
+ * the bar shadow to separate from the scrolling steps above it. Scoped to the
+ * onboarding screen: the other screens sharing `.screen__actions` have no
+ * sheet to lift off.
+ */
+.screen[data-screen='onboarding'] .screen__actions {
+  box-shadow: var(--bar-shadow);
 }
 
 /*
@@ -957,7 +974,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--paper);
   border-top: 1px solid var(--line-soft);
-  box-shadow: 0 -8px 28px rgb(21 29 40 / 6%);
+  box-shadow: var(--bar-shadow);
 }
 
 .tabs[hidden] {
@@ -1015,7 +1032,8 @@ body {
   color: #fff;
   background: #549c89;
   border-radius: 50%;
-  box-shadow: 0 8px 20px rgb(84 156 137 / 30%);
+  /* Neutral lift, not a green glow: the accent colour is the button itself. */
+  box-shadow: 0 6px 16px rgb(21 29 40 / 30%);
 }
 
 .tab--primary .tab__label {

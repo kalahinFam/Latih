@@ -132,7 +132,13 @@ const GOAL_CHOICES: { value: EnergyGoal; name: string; why: string }[] = [
 export interface OnboardingDeps {
   history: TrainingHistory;
   onDone: () => void;
-  onStartFirstSession: () => void;
+  /**
+   * The step the session was launched from.
+   *
+   * The caller rewrites the history entry with it, so the browser back button
+   * returns to the closing step rather than to the first question.
+   */
+  onStartFirstSession: (lastStep: number) => void;
 }
 
 export function createOnboardingScreen(deps: OnboardingDeps): Screen {
@@ -767,7 +773,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     }
 
     commit();
-    deps.onStartFirstSession();
+    deps.onStartFirstSession(step);
   }
 
   function render(): void {

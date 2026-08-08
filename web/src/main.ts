@@ -1,6 +1,6 @@
 import './style.css';
 import { registerServiceWorker } from './pwa.ts';
-import { Router, parseHash, type Route } from './app/router.ts';
+import { Router, formatRoute, parseHash, type Route } from './app/router.ts';
 import { WorkoutSession } from './app/workoutSession.ts';
 import { TrainingHistory, toSetRecord } from './session/history.ts';
 import { hasLaunched, loadPreferences, markLaunched } from './session/profile.ts';
@@ -243,8 +243,13 @@ const screens = {
       markLaunched();
       router.go('beranda');
     },
-    onStartFirstSession: () => {
+    onStartFirstSession: (lastStep) => {
       markLaunched();
+      // Rewrite the entry the back button will land on before navigating away:
+      // `replaceState` fires no hashchange, so this is invisible — but a back
+      // press now returns to the closing step (the plan is already saved)
+      // rather than to the first question.
+      window.history.replaceState(null, '', formatRoute('onboarding', { langkah: String(lastStep) }));
       // Straight into the flow rather than to the home screen: the user has
       // just been shown their first target, and the next thing they want is to
       // attempt it.

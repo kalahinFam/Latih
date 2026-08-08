@@ -653,6 +653,9 @@ export class WorkoutEngine {
       this.spokenThisRep.clear();
       this.repInvalidatedThisRep = false;
     } else if (rep) {
+      // A rep counted is a rep confirmed: the count pops and a short ping
+      // lands alongside it, independent of any cue that may be speaking.
+      this.voice.playPing();
       const findings = evaluateRules(
         exercise,
         this.windows.take(rep),
