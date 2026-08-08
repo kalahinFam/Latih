@@ -20,6 +20,7 @@
  */
 
 import { completeJson, errorResponse, json } from './_llm.ts';
+import { LIMITS, checkLimit } from './_ratelimit.ts';
 
 export const config = { runtime: 'nodejs' };
 
@@ -318,6 +319,11 @@ export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return json({ error: 'Gunakan POST.' }, 405);
   }
+
+  // Before the body is read: a request that is not going to be answered should
+  // not cost the time to parse a payload first.
+  const limited = await checkLimit(request, LIMITS.coach);
+  if (limited) return limited;
 
   let raw: string;
   try {

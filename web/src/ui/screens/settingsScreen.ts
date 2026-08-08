@@ -23,6 +23,7 @@ import {
   normaliseWeekdays,
   planWeekdays,
 } from '../../core/plan.ts';
+import { backupFilename, exportBackup, importBackup } from '../../session/backup.ts';
 import { TrainingHistory } from '../../session/history.ts';
 import {
   loadPreferences,
@@ -30,6 +31,8 @@ import {
   savePreferences,
   saveProfile,
 } from '../../session/profile.ts';
+import { currentSplit } from '../../session/planner.ts';
+import { describeSession, estimatedMinutes } from '../../core/split.ts';
 import {
   ReminderError,
   disableReminders,
@@ -144,8 +147,35 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
     );
 
     const planSummary = el('p', { class: 'card__foot' });
+    // The split the saved schedule produces. Shown here because this is the
+    // screen that changes it: pick a fourth day and the week stops being
+    // full-body, and finding that out on the home screen tomorrow would be a
+    // surprise rather than a decision.
+    const splitList = el('div', { class: 'splitlist' });
+    const splitReason = el('p', { class: 'card__foot' });
+
     const refreshPlanSummary = () => {
-      planSummary.textContent = explainPlan(buildWeeklyPlan(loadPreferences(), deps.history.all()));
+      const saved = loadPreferences();
+      planSummary.textContent = explainPlan(buildWeeklyPlan(saved, deps.history.all()));
+
+      const split = currentSplit();
+      splitList.replaceChildren(
+        ...split.sessions.map((session) =>
+          el(
+            'div',
+            { class: 'splitlist__row' },
+            el('span', { class: 'splitlist__day', text: WEEKDAY_SHORT[session.weekday] }),
+            el(
+              'span',
+              { class: 'splitlist__body' },
+              el('span', { class: 'splitlist__focus', text: session.label }),
+              el('span', { class: 'splitlist__moves', text: describeSession(session) }),
+            ),
+            el('span', { class: 'splitlist__time', text: `±${estimatedMinutes(split, session)}′` }),
+          ),
+        ),
+      );
+      splitReason.textContent = split.reason;
     };
     refreshPlanSummary();
 
@@ -186,6 +216,9 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
         ),
         saveSchedule,
         planSummary,
+        el('div', { class: 'fieldlabel', text: 'ISI TIAP SESI' }),
+        splitList,
+        splitReason,
       ),
     );
 
@@ -344,6 +377,111 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
         reminderStatus.textContent = 'Status pengingat tidak bisa dibaca.';
       }
     })();
+
+    /* --------------------------------------------------------------- backup */
+
+    // History lives on this device and nowhere else, which is the promise the
+    // rest of the product keeps. The cost of keeping it is that clearing site
+    // data destroys everything with no way back — and browsers do that on
+    // storage pressure without asking. A file the user holds is the way out
+    // that does not move the data somewhere we said it would never go.
+
+    const backupStatus = el('p', { class: 'card__foot' });
+
+    const download = el('button', {
+      class: 'btn btn--outline',
+      type: 'button',
+      text: 'Unduh cadangan',
+    });
+    download.addEventListener('click', () => {
+      const url = URL.createObjectURL(exportBackup());
+      const link = el('a', { href: url, download: backupFilename() });
+      link.click();
+      // Freed on the next tick: revoking immediately can cancel the download
+      // in Safari before it has read the blob.
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      backupStatus.textContent = 'Cadangan diunduh. Simpan di tempat yang tidak ikut terhapus.';
+    });
+
+    const picker = el('input', {
+      type: 'file',
+      accept: 'application/json,.json',
+      hidden: true,
+    });
+    const restore = el('button', {
+      class: 'btn btn--outline',
+      type: 'button',
+      text: 'Pulihkan dari file',
+    });
+
+    restore.addEventListener('click', () => {
+      if (
+        window.confirm(
+          'Riwayat, profil, dan preferensi di perangkat ini akan diganti isi cadangan. Lanjutkan?',
+        )
+      ) {
+        picker.click();
+      }
+    });
+
+    picker.addEventListener('change', () => {
+      const file = picker.files?.[0];
+      if (!file) return;
+
+      void (async () => {
+        const result = importBackup(await file.text());
+        // Reset either way: picking the same file twice fires no change event.
+        picker.value = '';
+
+        if (!result.ok) {
+          backupStatus.textContent = result.reason;
+          return;
+        }
+        // Every screen already rendered is holding the old data, and the
+        // session loop reads history at startup. Reloading is cheaper and more
+        // honest than re-rendering each of them from here.
+        backupStatus.textContent = 'Cadangan dipulihkan. Memuat ulang…';
+        window.setTimeout(() => location.reload(), 600);
+      })();
+    });
+
+    body.append(
+      el(
+        'section',
+        { class: 'card' },
+        el('div', { class: 'card__eyebrow', text: 'CADANGAN DATA' }),
+        el('p', {
+          class: 'sheet__note',
+          text: 'Riwayat latihan hanya tersimpan di perangkat ini. Menghapus data situs atau berganti HP akan menghilangkannya, jadi simpan cadangan sesekali.',
+        }),
+        download,
+        restore,
+        picker,
+        backupStatus,
+      ),
+    );
+
+    /* -------------------------------------------------------------- privacy */
+
+    body.append(
+      el(
+        'section',
+        { class: 'card' },
+        el('div', { class: 'card__eyebrow', text: 'PRIVASI' }),
+        el('p', {
+          class: 'sheet__note',
+          text: 'Gambar dari kamera diproses di perangkat ini dan tidak pernah dikirim ke mana pun. Yang keluar setelah satu set selesai hanyalah angka ringkasannya: jumlah repetisi, sudut sendi dalam derajat, durasi, dan kode kesalahan.',
+        }),
+        el('p', {
+          class: 'sheet__note',
+          text: 'Berat, tinggi, dan usia tetap di perangkat. Yang sampai ke saran menu hanya angka kalori hasil hitungannya, bukan ukuran tubuh yang menghasilkannya.',
+        }),
+        el('p', {
+          class: 'card__foot',
+          text: 'LATIH bukan alat medis dan tidak memberi diagnosis. Kalau ada nyeri atau kondisi kesehatan tertentu, tanyakan ke tenaga kesehatan sebelum mengikuti programnya.',
+        }),
+      ),
+    );
   }
 
   return { enter: render };

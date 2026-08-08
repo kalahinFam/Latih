@@ -34,6 +34,8 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 | Rencana latihan mingguan | ✅ berjalan |
 | Target kalori + saran menu dari TKPI | ✅ berjalan |
 | Pengingat jam latihan (Web Push) | ✅ berjalan, butuh kunci VAPID |
+| Batas belanja endpoint berbayar | ✅ berjalan, dua lapis |
+| Cadangan data (ekspor/impor file) | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ tidak dikerjakan (lihat di bawah) |
 
 **Soal klasifier form.** Arsitektur yang diklaim paper untuk fast loop adalah
@@ -102,7 +104,7 @@ repetisi dan cue tetap berjalan penuh.
 | Perintah | Fungsi |
 |---|---|
 | `npm run dev` | Server pengembangan |
-| `npm test` | Unit test (450 tes) |
+| `npm test` | Unit test (567 tes) |
 | `npm run gen:vapid` | Membangkitkan sepasang kunci Web Push |
 | `npm run tts:lab` | Contoh suara pelatih untuk dibandingkan (folder `tts-lab/`) |
 | `npm run gen:cues -- --force` | Membangkitkan ulang klip cue setelah ganti suara |
@@ -161,6 +163,7 @@ web/src/
 │   ├── setSummary.ts   agregasi per set + kontrak privasi
 │   ├── sessionLoop.ts  adaptasi target dari riwayat antar-sesi
 │   ├── plan.ts         rencana mingguan dari target + preferensi
+│   ├── split.ts        gerakan per hari latihan, dari jawaban onboarding
 │   ├── energy.ts       Mifflin-St Jeor → target kalori & protein
 │   ├── pantry.ts       bahan pangan terkurasi, per kode TKPI
 │   ├── meals.ts        validasi opsi menu + perhitungan total
@@ -520,9 +523,20 @@ mendaftar ulang.
 1.133 bisa disitir; 11 dikecualikan karena angkanya tidak konsisten **di
 sumbernya sendiri** (lihat [`data/tkpi/README.md`](data/tkpi/README.md)).
 
-Ketik pertanyaan di panel **Tanya gizi**. Jawabannya muncul **beserta baris
-TKPI yang dipakai**, lengkap dengan angka dan sumbernya, supaya siapa pun —
-termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
+**Tanya gizi** adalah layar sendiri, dibuka dari Gizi. Tiap jawaban muncul
+**beserta baris TKPI yang dipakai**, lengkap dengan angka dan sumbernya, supaya
+siapa pun — termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan
+halaman.
+
+Bisa **diketik atau dipilih**, karena keduanya gagal dengan cara berbeda.
+Ketikan menjangkau seluruh 1.144 baris tabel, tapi juga bisa meleset — kalau
+retrieval tidak menemukan apa pun, jawabannya adalah penolakan. Pertanyaan yang
+ditawarkan tidak mungkin meleset: katalognya ada di
+`core/nutritionQuestions.ts`, dan setiap pertanyaan yang bisa dihasilkannya
+diuji terhadap tabel TKPI asli di `test/nutritionQuestions.test.ts` — saran yang
+tidak bisa dijawab menggagalkan build, bukan percakapan. Kartu di layar Gizi
+menawarkan tiga di antaranya; sekali tap langsung membuka layar chat dengan
+pertanyaan itu sudah terkirim.
 
 **Alur, dan kenapa tiap langkahnya ada:**
 
@@ -530,6 +544,11 @@ termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
    cocok, model **tidak dipanggil sama sekali** — tanpa baris data, tidak ada
    yang bisa menjadi dasar jawaban, dan bertanya tetap adalah persis cara
    sebuah angka karangan diproduksi.
+   Khusus percakapan: pertanyaan susulan sering tidak menyebut bahannya sama
+   sekali ("kalau tahu?", "berapa kalorinya?"), jadi kalau pertanyaannya sendiri
+   tidak menemukan baris, retrieval diulang bersama pertanyaan sebelumnya —
+   hanya kalau perlu, karena tiap baris tambahan memperluas himpunan angka yang
+   diterima verifier, dan himpunan itulah jaminannya.
 2. **Model hanya menerima baris hasil retrieval**, dengan larangan eksplisit
    menghitung, mengalikan, atau memakai pengetahuannya sendiri.
 3. **Verifier memeriksa setiap angka** di jawaban terhadap baris tersebut.
@@ -539,6 +558,13 @@ termasuk juri — bisa mencocokkannya sendiri tanpa meninggalkan halaman.
 Langkah terakhir itu intinya. Asisten gizi yang sesekali mengarang angka masuk
 akal lebih buruk daripada yang kadang menolak menulis prosa, karena pengguna
 tidak bisa membedakan keduanya. Menolak adalah kegagalan yang jujur.
+
+Yang ikut dikirim bersama pertanyaan hanyalah **angka turunan**: target energi
+dan protein harian yang sudah dihitung di perangkat. Berat, tinggi, usia, dan
+jenis kelamin tidak punya tempat di tipe permintaannya — sama seperti
+`MealsRequest`. Karena target itu hitungan aplikasi sendiri, angkanya ikut
+masuk daftar nilai yang boleh dikutip verifier: menolak jawaban yang menyebut
+angka yang sedang tercetak di layar yang sama akan menolak jawaban yang benar.
 
 **Yang diperiksa hanya angka berunit.** Klaim gizi selalu punya satuan —
 "20,8 gram protein", "201 kkal". Angka telanjang adalah hitungan dan urutan
@@ -842,6 +868,107 @@ dipakai untuk menggambar overlay.
 
 ---
 
+## Deploy
+
+Disajikan sebagai berkas statis plus serverless function di Vercel;
+`vercel.json` sudah mengatur build, runtime function, dan cron pengingat.
+
+**Kamera menuntut HTTPS.** `getUserMedia` menolak berjalan di origin yang tidak
+aman, jadi alamat LAN tidak akan pernah cukup — domain ber-TLS bukan pemanis,
+melainkan syarat aplikasi ini berfungsi sama sekali.
+
+### Environment variables
+
+| Var | Tanpa ini |
+|---|---|
+| `OPENAI_API_KEY` | narasi, gizi, saran menu, dan suara mati; fast loop tetap utuh |
+| `ALLOWED_ORIGIN` | pemeriksaan asal dilewati — isi di produksi |
+| `LLM_DAILY_QUOTA` | plafon harian memakai default 1500 panggilan |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limit dan langganan pengingat jatuh ke memori per-instance |
+| `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` / `VAPID_SUBJECT` | tombol pengingat menyembunyikan diri |
+| `CRON_SECRET` | `/api/cron-reminders` terbuka untuk siapa saja — nilainya kamu yang buat, Vercel hanya mengirimkannya kembali |
+
+Penjelasan tiap variabel ada di `.env.example`.
+
+### Batas belanja pada endpoint berbayar
+
+Keempat endpoint yang memanggil model — `/api/coach`, `/api/tts`,
+`/api/nutrition`, `/api/meals` — tidak memakai autentikasi, karena produk ini
+tidak punya akun dan menambahkannya hanya demi melindungi sebuah kunci adalah
+fitur besar untuk pertanyaan kecil. Yang menggantikannya ada di
+`api/_ratelimit.ts`, dua lapis, karena keduanya gagal dengan cara berbeda:
+
+- **Per klien, per jam** menghentikan kasus biasa: satu orang, satu skrip, satu
+  sore. Longgar terhadap latihan sungguhan — satu set menghasilkan tepat satu
+  panggilan coach dan satu TTS, jadi 30 per jam sudah sekitar enam sesi penuh.
+- **Global per hari** yang membatasi tagihan. Batas per klien tidak berarti apa
+  pun kalau permintaannya tersebar dari banyak alamat, dan gunanya sebuah plafon
+  adalah skenario terburuknya berupa angka yang dipilih di muka, bukan angka
+  yang ditemukan di tagihan.
+
+Alamat IP di-hash sebelum dipakai sebagai kunci. Rate limiter perlu mengenali
+pengunjung yang sama, bukan tahu siapa dia — dan aplikasi yang berkata data
+tubuh serta frame kamera tidak keluar perangkat sebaiknya tidak menyimpan alamat
+penggunanya demi sebuah penghitung.
+
+Kalau Redis-nya sedang mati, permintaan **diloloskan**, bukan ditolak.
+Kehilangan limiter itu masalah biaya; menolak semua permintaan mematikan
+produknya — dan lapisan ketiga masih ada di bawahnya.
+
+**Lapisan ketiga itu di luar repo dan paling menentukan:** set *hard budget
+limit* pada kunci OpenAI-nya. Kode bisa salah; plafon di sisi provider tidak
+bisa diakali.
+
+### Pemicu pengingat ada di luar Vercel
+
+`vercel.json` **tidak** memuat blok `crons`, dan itu disengaja. Paket Hobby
+membatasi cron jadi sekali sehari, sementara pengingat harus mengejar jam yang
+berbeda-beda per pengguna — satu tembakan harian pada jam tetap tidak melayani
+siapa pun. Menyisakannya di sana berarti deploy ditolak sebelum apa pun
+terpasang.
+
+Jadi penjadwalnya dipisah. Pakai scheduler mana pun yang bisa memanggil URL tiap
+15 menit — [cron-job.org](https://cron-job.org) gratis dan cukup tepat waktu:
+
+```
+URL     : https://<domainmu>/api/cron-reminders
+Interval: setiap 15 menit
+Header  : Authorization: Bearer <CRON_SECRET>
+```
+
+Header itu wajib. Tanpanya `isAuthorized()` menolak dengan 401 — dan kalau
+`CRON_SECRET` sendiri tidak diset, ia justru meloloskan semua orang, yang jauh
+lebih buruk.
+
+Lima belas menit bukan angka sembarangan: `isDue()` menerima slot yang terlewat
+sampai dua puluh menit, jadi satu jalannya cron yang meleset atau tertunda tidak
+membuat pengingat hilang sama sekali. Menjadwalkannya lebih jarang dari itu
+mulai melubangi jaminan tersebut.
+
+GitHub Actions bisa dipakai dan tetap di dalam repo, tapi `schedule`-nya kerap
+tertunda belasan menit saat runner sedang sibuk — cukup untuk melewati jendela
+dua puluh menit itu, jadi pengingatnya jadi kadang datang kadang tidak.
+
+Kalau nanti naik ke Pro, kembalikan bloknya dan matikan scheduler luarnya:
+
+```json
+"crons": [{ "path": "/api/cron-reminders", "schedule": "*/15 * * * *" }]
+```
+
+### Cek sebelum membagikan URL-nya
+
+```bash
+npm test && npm run typecheck
+npm run build
+grep -r "sk-" web/dist/     # harus kosong
+```
+
+Lalu, terhadap domain sungguhan: cabut sementara `OPENAI_API_KEY` dan pastikan
+hitungan repetisi serta cue tetap berjalan penuh — kalau latihan ikut mati saat
+model tidak tersedia, ada jalur yang keliru menganggap jaringan wajib.
+
+---
+
 ## Klaim privasi — cara memverifikasinya sendiri
 
 Frame kamera tidak pernah meninggalkan perangkat. Ini ditegakkan oleh kode,
@@ -860,7 +987,7 @@ Sebelum deploy, pastikan tidak ada kunci API yang bocor ke bundle:
 
 ```bash
 npm run build
-grep -r "sk-" dist/        # harus kosong
+grep -r "sk-" web/dist/    # harus kosong
 ```
 
 ---
@@ -877,4 +1004,12 @@ Hugging Face dan ditautkan di sini setelah pelatihan selesai.
 
 ## Lisensi
 
-Belum ditentukan. Kode ini dibuat untuk penjurian Datathon 2026.
+**Hak cipta © 2026 Tim Kalahin Fam. Semua hak dilindungi.**
+
+Kode ini dipublikasikan untuk penjurian Datathon 2026 — supaya juri bisa
+membaca, membangun, dan memverifikasi setiap klaim di dokumen ini sendiri.
+Tidak ada lisensi pemakaian ulang yang diberikan: menyalin, memodifikasi,
+mendistribusikan ulang, atau memakainya untuk keperluan lain memerlukan izin
+tertulis dari tim.
+
+Ketentuan ini bisa berubah setelah penjurian selesai.

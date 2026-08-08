@@ -26,6 +26,7 @@
  */
 
 import { createPrivateKey, createSign, randomUUID } from 'node:crypto';
+import { redisCommand, type RedisCommand } from './_redis.ts';
 
 /** How the client describes a push endpoint, per the Push API. */
 export interface PushSubscriptionRecord {
@@ -69,17 +70,7 @@ const memoryStore: Store = {
   },
 };
 
-function upstashStore(url: string, token: string): Store {
-  async function command(...args: (string | number)[]): Promise<unknown> {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(args),
-    });
-    if (!response.ok) throw new Error(`Upstash ${response.status}`);
-    return ((await response.json()) as { result: unknown }).result;
-  }
-
+function upstashStore(command: RedisCommand): Store {
   return {
     kind: 'upstash',
     async put(record) {
@@ -111,9 +102,8 @@ function upstashStore(url: string, token: string): Store {
 }
 
 export function subscriptionStore(): Store {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? upstashStore(url, token) : memoryStore;
+  const command = redisCommand();
+  return command ? upstashStore(command) : memoryStore;
 }
 
 export function newSubscriptionId(): string {

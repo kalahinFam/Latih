@@ -200,6 +200,54 @@ export function findFoods(table: TkpiTable, question: string, limit = 4): Match[
     .slice(0, limit);
 }
 
+/** Comparison markers. A question built around one names two subjects, not one. */
+const COMPARISON_SPLIT = /\batau\b|\bvs\.?\b|\bdibandingkan?\b|\bdibanding\b/i;
+
+/**
+ * Retrieve for a question that may be about more than one food.
+ *
+ * `findFoods` ranks the whole table against the whole question, which is right
+ * for "berapa protein tempe?" and wrong for "tempe atau tahu, lebih tinggi
+ * proteinnya?": tahu scored higher and took every slot, so the answer came back
+ * saying the data did not include tempe — for a question the app itself had
+ * offered.
+ *
+ * So a comparison is retrieved side by side, each subject guaranteed its own
+ * rows. `perSide` stays small for the usual reason: every extra row widens the
+ * set of numbers the verifier will accept.
+ */
+export function findFoodsForQuestion(
+  table: TkpiTable,
+  question: string,
+  limit = 4,
+  perSide = 2,
+): TkpiFood[] {
+  const sides = question
+    .split(COMPARISON_SPLIT)
+    .map((side) => side.trim())
+    .filter((side) => side.length > 0);
+
+  if (sides.length < 2) return findFoods(table, question, limit).map((match) => match.food);
+
+  // Interleaved rather than concatenated, so a subject whose rows rank lower
+  // is not the one that falls off the end of the list.
+  const perSideMatches = sides.map((side) => findFoods(table, side, perSide).map((m) => m.food));
+  const foods: TkpiFood[] = [];
+  const seen = new Set<string>();
+
+  for (let rank = 0; rank < perSide; rank += 1) {
+    for (const matches of perSideMatches) {
+      const food = matches[rank];
+      if (!food || seen.has(food.code)) continue;
+      seen.add(food.code);
+      foods.push(food);
+      if (foods.length === limit) return foods;
+    }
+  }
+
+  return foods;
+}
+
 /**
  * Every number the model is permitted to state, given these rows.
  *

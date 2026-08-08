@@ -28,7 +28,11 @@ import { excludedCodes, preferredCodes } from '../../core/onboarding.ts';
 import { TrainingHistory } from '../../session/history.ts';
 import { loadExtras, loadPreferences, loadProfile } from '../../session/profile.ts';
 import { MealsError, requestMeals, type MealOptionView } from '../../meals/mealsClient.ts';
+import { openingQuestions } from '../../core/nutritionQuestions.ts';
+import type { ChatContext } from '../../core/nutritionChat.ts';
+import { hasConversation, queueQuestion } from './nutritionChatScreen.ts';
 import { el, formatDate, required } from '../dom.ts';
+import { icon } from '../icons.ts';
 import type { Screen } from '../../app/router.ts';
 
 const SLOT_LABELS: Record<MealSlot, string> = {
@@ -40,12 +44,15 @@ const SLOT_LABELS: Record<MealSlot, string> = {
 export interface NutritionDeps {
   history: TrainingHistory;
   onOpenSettings: () => void;
+  onOpenChat: () => void;
 }
 
 export function createNutritionScreen(deps: NutritionDeps): Screen {
   const date = required('#nutritionDate');
   const body = required('#nutritionBody');
   let loadToken = 0;
+  /** Rotates the offered questions between visits, without reading a clock. */
+  let visit = 0;
 
   function budgetCard(target: EnergyTarget): HTMLElement {
     return el(
@@ -112,6 +119,58 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
     );
   }
 
+  /**
+   * The way into "Tanya gizi" — a few questions rather than a door.
+   *
+   * A button labelled "Tanya gizi" asks the user to think of a question before
+   * they have seen what the thing can answer. Offering three instead means one
+   * tap lands them in a conversation that has already started; the same
+   * catalogue the chat screen uses, so nothing here can suggest a question the
+   * table cannot answer.
+   */
+  function chatCard(context: ChatContext): HTMLElement {
+    const card = el(
+      'section',
+      // The one tinted card on a screen of white ones. Sage, not amber: amber
+      // means a detected form error in this product and nothing else, and
+      // spending it on decoration here would cost it that meaning over on the
+      // workout screen.
+      { class: 'card card--chat' },
+      el('div', { class: 'card__eyebrow', text: 'TANYA GIZI' }),
+      el('p', {
+        class: 'chatcard__blurb',
+        text: 'Dijawab dari Tabel Komposisi Pangan Indonesia, lengkap dengan baris tabelnya supaya bisa kamu cek sendiri.',
+      }),
+    );
+
+    // Three, not five: this is a card on a screen that is mostly about menus.
+    for (const question of openingQuestions(context, visit).slice(0, 3)) {
+      const button = el(
+        'button',
+        { class: 'chatsuggest__item chatsuggest__item--pop', type: 'button' },
+        el('span', { class: 'chatsuggest__text', text: question }),
+        // The back arrow, flipped: it points the way this button goes, and it
+        // is the same stroke weight as every other icon in the app.
+        icon('kembali', 15, 2),
+      );
+      button.addEventListener('click', () => {
+        queueQuestion(question);
+        deps.onOpenChat();
+      });
+      card.append(button);
+    }
+
+    const open = el('button', {
+      class: 'chatcard__more',
+      type: 'button',
+      text: hasConversation() ? 'Lanjutkan percakapan →' : 'Tanya yang lain →',
+    });
+    open.addEventListener('click', deps.onOpenChat);
+    card.append(open);
+
+    return card;
+  }
+
   async function loadMeals(target: EnergyTarget, container: HTMLElement): Promise<void> {
     const token = ++loadToken;
     const budgets = mealBudgets(target.targetKcal);
@@ -168,6 +227,7 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
 
   return {
     enter() {
+      visit += 1;
       date.textContent = formatDate(Date.now());
       body.replaceChildren();
 
@@ -183,6 +243,11 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
             text: 'Kebutuhan energi dihitung dari berat, tinggi, usia, dan tingkat aktivitas. Data itu disimpan di perangkatmu dan tidak pernah dikirim ke mana pun.',
           }),
           cta,
+          // The assistant works without a profile — it answers from the food
+          // table, and the daily targets are only context. Hiding the way in
+          // would withhold the one thing on this screen that still works for
+          // somebody who skipped onboarding.
+          chatCard({}),
         );
         return;
       }
@@ -206,7 +271,19 @@ export function createNutritionScreen(deps: NutritionDeps): Screen {
       }
 
       const meals = el('div', {}, el('p', { class: 'empty', text: 'Menyusun menu…' }));
-      body.append(budgetCard(target), meals);
+      // A door, not the room. The conversation grows and the menus below are
+      // what most visits here are for, so the assistant gets its own screen.
+      body.append(
+        budgetCard(target),
+        // The targets are context the assistant may quote back; they were
+        // computed on this device and are printed just above.
+        chatCard({
+          targetKcal: target.targetKcal,
+          proteinG: target.proteinG,
+          isTrainingDay: target.isTrainingDay,
+        }),
+        meals,
+      );
       void loadMeals(target, meals);
     },
 

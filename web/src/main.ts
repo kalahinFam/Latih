@@ -13,6 +13,8 @@ import { createFeedbackScreen } from './ui/screens/feedbackScreen.ts';
 import { createSummaryScreen } from './ui/screens/summaryScreen.ts';
 import { createHistoryScreen } from './ui/screens/historyScreen.ts';
 import { createNutritionScreen } from './ui/screens/nutritionScreen.ts';
+import { createNutritionChatScreen } from './ui/screens/nutritionChatScreen.ts';
+import { chatContext } from './nutrition/chatContext.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createOnboardingScreen } from './ui/screens/onboardingScreen.ts';
 import { el, required } from './ui/dom.ts';
@@ -148,7 +150,12 @@ engine.onTargetReached(autoFinishSet);
 const screens = {
   beranda: createHomeScreen({
     history,
-    defaultExercise: exercise,
+    // The home screen reads the plan, so it also decides what the "Latihan"
+    // button opens on — otherwise the screen shows today's session and the
+    // button starts a different movement.
+    setExercise: (next) => {
+      exercise = next;
+    },
   }),
 
   pilih: createPickerScreen({
@@ -221,6 +228,13 @@ const screens = {
   gizi: createNutritionScreen({
     history,
     onOpenSettings: () => router.go('pengaturan'),
+    onOpenChat: () => router.go('tanya'),
+  }),
+
+  tanya: createNutritionChatScreen({
+    // Derived figures only: the measurements they were computed from never
+    // leave the device, and `ChatContext` has nowhere to put them.
+    getContext: () => chatContext(history),
   }),
 
   pengaturan: createSettingsScreen({ history }),

@@ -43,6 +43,12 @@ import {
 } from '../../core/onboarding.ts';
 import { CATEGORY_LABELS, PANTRY_CODES, PANTRY_LABELS, type PantryCategory } from '../../core/pantry.ts';
 import {
+  describeSession,
+  estimatedMinutes,
+  recommendSplit,
+  type WorkoutSplit,
+} from '../../core/split.ts';
+import {
   MAX_DAYS_PER_WEEK,
   MIN_DAYS_PER_WEEK,
   WEEKDAY_LABELS,
@@ -216,6 +222,21 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
   function bodyComplete(): boolean {
     return bodyProfile() !== null;
+  }
+
+  /**
+   * The split for the answers as they stand right now.
+   *
+   * Computed from the working copies rather than from storage: the summary is
+   * shown before `commit` runs, and reading storage there would preview the
+   * previous answers.
+   */
+  function recommendedSplit(): WorkoutSplit {
+    return recommendSplit({
+      trainingDays,
+      experience: extras.experience,
+      goal: draft.goal,
+    });
   }
 
   /** Is the picked week one the plan can actually be built from? */
@@ -653,7 +674,10 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     const target = energyTarget(profile, false);
     const macros = macroTargets(target);
     const firstReps = baselineReps(extras.experience, 'pushup');
-    const sets = loadPreferences().setsPerExercise;
+    // The split's recommendation, not the stored preference: this screen is
+    // where that recommendation is made, and `commit` writes the same number.
+    const split = recommendedSplit();
+    const sets = split.setsPerExercise;
 
     body.replaceChildren(
       el(
@@ -709,6 +733,37 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         }),
       ),
 
+      // What the week looks like. Built from the days just picked, the
+      // experience answer and the goal — the same function the home screen
+      // reads, so the plan previewed here is the plan that will be run.
+      el(
+        'div',
+        { class: 'card' },
+        el('div', { class: 'card__eyebrow', text: 'RENCANA MINGGUAN' }),
+        el(
+          'div',
+          { class: 'splitlist' },
+          ...split.sessions.map((session) =>
+            el(
+              'div',
+              { class: 'splitlist__row' },
+              el('span', { class: 'splitlist__day', text: WEEKDAY_SHORT[session.weekday] }),
+              el(
+                'span',
+                { class: 'splitlist__body' },
+                el('span', { class: 'splitlist__focus', text: session.label }),
+                el('span', { class: 'splitlist__moves', text: describeSession(session) }),
+              ),
+              el('span', {
+                class: 'splitlist__time',
+                text: `±${estimatedMinutes(split, session)}′`,
+              }),
+            ),
+          ),
+        ),
+        el('p', { class: 'card__foot', text: split.reason }),
+      ),
+
       el('p', {
         class: 'notebox',
         // The exit next to the primary button, explained: nobody should have to
@@ -736,6 +791,9 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         ...loadPreferences(),
         daysPerWeek: trainingDays.length,
         trainingDays,
+        // The recommended volume, written once here. Pengaturan can override
+        // it afterwards, and from then on the override is what the plan uses.
+        setsPerExercise: recommendedSplit().setsPerExercise,
       });
     }
 

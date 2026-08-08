@@ -16,7 +16,8 @@
 
 import { DIRTY_SESSION_SHARE, formatDuration, isDirty, sessionStats } from '../../core/quality.ts';
 import { TrainingHistory } from '../../session/history.ts';
-import { EXERCISE_NAMES, el, formatDate, formatDateShort, required } from '../dom.ts';
+import { el, formatDate, formatDateShort, required } from '../dom.ts';
+import { MOVEMENT_NAMES } from '../../core/types.ts';
 import type { Screen } from '../../app/router.ts';
 import type { SessionStats } from '../../core/quality.ts';
 import { isHold, type MovementKind } from '../../core/types.ts';
@@ -99,7 +100,7 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
         class: 'chip',
         type: 'button',
         'aria-pressed': String(exercise === selected),
-        text: EXERCISE_NAMES[exercise],
+        text: MOVEMENT_NAMES[exercise],
       });
       chip.addEventListener('click', () => {
         selected = exercise;
@@ -116,7 +117,7 @@ export function createHistoryScreen(deps: HistoryDeps): Screen {
       body.append(
         el('p', {
           class: 'empty',
-          text: `Belum ada sesi ${EXERCISE_NAMES[selected].toLowerCase()} tercatat. Riwayat muncul setelah set pertama selesai.`,
+          text: `Belum ada sesi ${MOVEMENT_NAMES[selected].toLowerCase()} tercatat. Riwayat muncul setelah set pertama selesai.`,
         }),
       );
       return;

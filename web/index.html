@@ -119,16 +119,23 @@
             <p class="greeting__sub" id="homeLastSession"></p>
           </div>
 
+          <!-- The week, as seven marks. Where today sits in the plan is the
+               context for the one decision this screen asks for. -->
+          <div class="weekstrip" id="homeWeek" aria-label="Rencana minggu ini"></div>
+
           <!-- The target carries its reason. A number that rises without
                explanation reads as an app making demands. -->
           <div class="card">
-            <div class="card__eyebrow">TARGET HARI INI</div>
+            <div class="card__eyebrow" id="homeTargetEyebrow">TARGET HARI INI</div>
             <div class="card__figure">
               <span class="card__number" id="homeTargetReps">—</span>
               <span class="card__unit" id="homeTargetSets">repetisi</span>
             </div>
             <div class="card__accent" id="homeTargetExercise">Push-up</div>
             <p class="card__foot" id="homeTargetReason"></p>
+            <!-- The rest of today's session, so the card is the whole plan for
+                 the day rather than only its first movement. -->
+            <div class="sessionlist" id="homeSessionRest"></div>
           </div>
 
           <div class="stat-row">
@@ -372,6 +379,43 @@
         </header>
 
         <div class="screen__body" id="nutritionBody"></div>
+      </section>
+
+      <!-- ========================== 7b · Tanya gizi ======================== -->
+      <!--
+        A screen of its own rather than a panel on the nutrition page: the
+        conversation grows, and the menus underneath it are what most visits to
+        Gizi are actually for.
+
+        Two ways in, because they fail differently. Typing reaches anything in
+        the table and can also miss it entirely — the assistant answers from
+        retrieved rows and says so when it finds none. The offered questions
+        cannot miss: every one of them is checked against the shipped table in
+        the tests.
+      -->
+      <section class="screen" data-screen="tanya" hidden>
+        <header class="screen__bar">
+          <button class="iconbtn" type="button" data-back data-icon="kembali" aria-label="Kembali"></button>
+          <h1 class="screen__title">Tanya gizi</h1>
+        </header>
+
+        <div class="screen__body" id="chatLog"></div>
+
+        <div class="chatfoot">
+          <div class="chatsuggest" id="chatSuggestions"></div>
+          <form class="chatform" id="chatForm">
+            <input
+              class="searchbox chatform__input"
+              id="chatInput"
+              type="text"
+              maxlength="300"
+              autocomplete="off"
+              placeholder="Tanya soal bahan atau porsi…"
+              aria-label="Pertanyaan gizi"
+            />
+            <button class="btn btn--outline chatform__send" id="chatSend" type="submit">Tanya</button>
+          </form>
+        </div>
       </section>
 
       <!-- ============================= 8 · Riwayat ========================= -->

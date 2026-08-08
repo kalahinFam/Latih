@@ -16,8 +16,12 @@
  * Pure logic: no storage, no DOM, no clock beyond what is passed in.
  */
 
-import { nextTarget, type ExerciseTarget, type SetRecord } from './sessionLoop.ts';
-import type { ExerciseKind } from './types.ts';
+import { nextHoldTarget, nextTarget, type ExerciseTarget, type SetRecord } from './sessionLoop.ts';
+// Type-only on purpose. `split.ts` reads this module's weekday labels and
+// bounds; importing a value back would close the loop into a real circular
+// import, and all this module needs is the shape of what the split produces.
+import type { WorkoutSplit } from './split.ts';
+import { isHold, type ExerciseKind, type MovementKind } from './types.ts';
 
 export interface PlanPreferences {
   /** Training days per week, 2..6. */
@@ -72,9 +76,17 @@ export const WEEKDAY_LABELS = [
 export const WEEKDAY_SHORT = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'] as const;
 
 export interface PlannedExercise {
-  exercise: ExerciseKind;
+  movement: MovementKind;
   sets: number;
-  targetReps: number;
+  /**
+   * Repetitions for a counted movement, seconds for a held one.
+   *
+   * One field with `unit` beside it rather than two optional ones: every
+   * consumer has to know which unit it is printing anyway, and an optional
+   * `targetSeconds` would let a caller read reps off a plank and get `0`.
+   */
+  amount: number;
+  unit: 'reps' | 'seconds';
   reason: ExerciseTarget['reason'];
 }
 
@@ -83,7 +95,10 @@ export interface PlanDay {
   weekday: number;
   label: string;
   isTraining: boolean;
+  /** What the split puts on this day. Empty on a rest day. */
   exercises: PlannedExercise[];
+  /** The session's name, e.g. "Seluruh tubuh". Empty on a rest day. */
+  focusLabel: string;
   /** A set for this day already exists in history. */
   done: boolean;
   isToday: boolean;
@@ -179,43 +194,71 @@ function sameLocalDay(a: number, b: number): boolean {
  *                already trained.
  * @param now Injected rather than read from the clock, so the tests are not
  *            hostage to the day they run on.
+ * @param split What each training day contains. Omitted, every training day
+ *              gets `preferences.exercises` — which is what this did before
+ *              splits existed, and what a plan built for the meal target (which
+ *              only asks *whether* today is a training day) still wants.
  */
 export function buildWeeklyPlan(
   preferences: PlanPreferences,
   history: SetRecord[],
   now: number = Date.now(),
+  split: WorkoutSplit | null = null,
 ): WeeklyPlan {
   const weekStart = startOfWeek(now);
-  const trainingDays = new Set(planWeekdays(preferences));
+  const trainingDays = new Set(split ? split.sessions.map((s) => s.weekday) : planWeekdays(preferences));
+  // The split's recommendation is a recommendation; what the user set in
+  // Pengaturan is a decision, so preferences win.
   const sets = clamp(preferences.setsPerExercise, 1, 6);
 
-  // One decision per exercise for the whole week. Recomputing per day would
+  // One decision per movement for the whole week. Recomputing per day would
   // show a target that changes on days the user has not trained yet.
-  const targets = new Map<ExerciseKind, ExerciseTarget>();
-  for (const exercise of preferences.exercises) {
-    targets.set(exercise, nextTarget(exercise, history));
-  }
+  const targets = new Map<MovementKind, PlannedExercise>();
+  const planFor = (movement: MovementKind): PlannedExercise => {
+    const existing = targets.get(movement);
+    if (existing) return existing;
+
+    const planned: PlannedExercise = isHold(movement)
+      ? (() => {
+          const target = nextHoldTarget(movement, history);
+          return {
+            movement,
+            sets,
+            amount: target.targetSeconds,
+            unit: 'seconds' as const,
+            reason: target.reason,
+          };
+        })()
+      : (() => {
+          const target = nextTarget(movement, history);
+          return {
+            movement,
+            sets,
+            amount: target.targetReps,
+            unit: 'reps' as const,
+            reason: target.reason,
+          };
+        })();
+
+    targets.set(movement, planned);
+    return planned;
+  };
 
   const days: PlanDay[] = [];
   for (let weekday = 0; weekday < 7; weekday += 1) {
     const dayStart = weekStart + weekday * 24 * 60 * 60 * 1000;
     const isTraining = trainingDays.has(weekday);
+    const session = split?.sessions.find((s) => s.weekday === weekday) ?? null;
+    const movements: MovementKind[] = isTraining
+      ? (session?.movements ?? preferences.exercises)
+      : [];
 
     days.push({
       weekday,
       label: WEEKDAY_LABELS[weekday],
       isTraining,
-      exercises: isTraining
-        ? preferences.exercises.map((exercise) => {
-            const target = targets.get(exercise)!;
-            return {
-              exercise,
-              sets,
-              targetReps: target.targetReps,
-              reason: target.reason,
-            };
-          })
-        : [],
+      exercises: movements.map(planFor),
+      focusLabel: session?.label ?? '',
       done: history.some((set) => sameLocalDay(set.at, dayStart)),
       isToday: sameLocalDay(now, dayStart),
     });

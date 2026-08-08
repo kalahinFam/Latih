@@ -443,6 +443,146 @@ body {
   display: none;
 }
 
+/*
+ * The week, as seven marks.
+ *
+ * Sits above the card because it is context for it: which session of the week
+ * this is, and how much of it is already behind you. A rest day gets a mark
+ * too — a programme with rest days in it reads differently from an app with
+ * nothing to say on a Tuesday.
+ */
+.weekstrip {
+  display: flex;
+  gap: 0.4rem;
+  /* Roughly a card's worth of room above, so the strip reads as its own thing
+     rather than as a third line of the greeting it was sitting under. */
+  margin: 1.7rem 0 1.1rem;
+}
+
+.weekstrip__day {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.weekstrip__name {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--grey-faint);
+}
+
+.weekstrip__mark {
+  width: 100%;
+  height: 5px;
+  background: var(--line);
+  border-radius: 3px;
+}
+
+.weekstrip__day[data-training='true'] .weekstrip__mark {
+  background: rgba(84, 156, 137, 0.34);
+}
+
+/* Done outranks planned: the point of the strip is what is left. */
+.weekstrip__day[data-done='true'] .weekstrip__mark {
+  background: var(--sage);
+}
+
+.weekstrip__day[data-today='true'] .weekstrip__name {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.weekstrip__day[data-today='true'] .weekstrip__mark {
+  height: 7px;
+  margin-top: -1px;
+}
+
+/* The rest of today's session, under the number that carries the first of it. */
+.sessionlist {
+  margin-top: 0.9rem;
+}
+
+.sessionlist:empty {
+  display: none;
+}
+
+.sessionlist__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.sessionlist__name {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sessionlist__dose {
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--grey-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.sessionlist__foot {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  color: var(--grey);
+}
+
+/* The week's sessions, one row each — onboarding's preview and Pengaturan's. */
+.splitlist {
+  margin: 0.9rem 0 0;
+}
+
+.splitlist__row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.splitlist__day {
+  flex: none;
+  width: 2.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--sage-deep);
+}
+
+.splitlist__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.splitlist__focus {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.splitlist__moves {
+  font-size: 0.75rem;
+  color: var(--grey);
+}
+
+.splitlist__time {
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--grey-deep);
+  font-variant-numeric: tabular-nums;
+}
+
 .stat-row {
   display: flex;
   gap: 0.9rem;
@@ -2343,4 +2483,266 @@ body {
   .hud__dot {
     animation: none;
   }
+}
+
+/* ---------------------------------------------------------- tanya gizi chat */
+
+/*
+ * A screen of its own, so the log can grow.
+ *
+ * Answers arrive with the table rows they were built from and with the
+ * verifier's finding, so the layout has to make room for a bubble that is
+ * mostly evidence — the receipts are the feature, not an appendix to it.
+ * `#chatLog` is the screen body and scrolls with it; nothing here caps it.
+ */
+.chatlog__intro {
+  margin: 0;
+  font-size: 0.81rem;
+  line-height: 1.55;
+  color: var(--grey-deep);
+}
+
+.chatbubble {
+  margin-top: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  border-radius: 16px;
+}
+
+.chatbubble--user {
+  margin-left: 2.2rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ink);
+  border-bottom-right-radius: 6px;
+}
+
+.chatbubble--bot {
+  margin-right: 1rem;
+  background: var(--line-soft);
+  border-bottom-left-radius: 6px;
+}
+
+/* A failure to reach the endpoint, not an answer that was refused. */
+.chatbubble--bot[data-failed='true'] {
+  color: var(--grey-deep);
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+.chatbubble__text {
+  margin: 0;
+}
+
+.chatbubble__warning {
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--amber);
+}
+
+.citations {
+  margin-top: 0.7rem;
+}
+
+.citation {
+  padding: 0.6rem 0.7rem;
+  margin-top: 0.45rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.citation__name {
+  font-size: 0.79rem;
+  font-weight: 700;
+}
+
+.citation__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.citation__pair {
+  display: flex;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+}
+
+.citation__term {
+  color: var(--grey);
+}
+
+.citation__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.citation__source {
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  color: var(--grey-faint);
+}
+
+/*
+ * The verifier's finding, in both directions.
+ *
+ * A green tick means nothing to a reader who has never seen the app report the
+ * other case, so the failure is styled to be read rather than hidden.
+ */
+.verify {
+  margin-top: 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--sage-deep);
+}
+
+.verify[data-passed='false'] {
+  color: var(--amber);
+}
+
+/*
+ * The footer: offered questions above, the text field below.
+ *
+ * Both, because they fail differently. Typing reaches all 1.144 rows and can
+ * also miss the table entirely; the offered questions cannot miss but cannot
+ * cover the table either. Suggestions sit on top because they are what makes
+ * an empty conversation start somewhere.
+ */
+.chatfoot {
+  flex: none;
+  padding: 0.9rem 1.6rem calc(1rem + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+
+.chatsuggest {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  /* Capped so a long follow-up list cannot eat the conversation above it. */
+  max-height: 38vh;
+  overflow-y: auto;
+}
+
+.chatsuggest__note {
+  margin: 0 0 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+.chatsuggest__item {
+  padding: 0.7rem 0.9rem;
+  font: inherit;
+  font-size: 0.87rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.chatsuggest__item:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+/*
+ * The way in, on the Gizi screen.
+ *
+ * The one tinted card among white ones, because it is the only thing on that
+ * screen that is not already an answer — everything else states a number, this
+ * one invites a question, and it was reading as another quiet block.
+ *
+ * Sage rather than a new colour: amber is a detected form error in this product
+ * and nothing else, and spending it here would cost it that meaning on the
+ * screen where it matters.
+ */
+.card--chat {
+  background:
+    linear-gradient(155deg, rgba(84, 156, 137, 0.16), rgba(84, 156, 137, 0.05));
+  border-color: rgba(84, 156, 137, 0.38);
+}
+
+.card--chat .card__eyebrow {
+  color: var(--sage-deep);
+}
+
+.chatcard__blurb {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--grey-deep);
+}
+
+/* The suggestions, as the card's main event rather than a footnote to it. */
+.chatsuggest__item--pop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  width: 100%;
+  margin-top: 0.55rem;
+  padding: 0.8rem 0.9rem;
+  background: var(--paper);
+  border-color: rgba(84, 156, 137, 0.45);
+  box-shadow: 0 1px 2px rgb(21 29 40 / 5%);
+}
+
+.chatsuggest__text {
+  flex: 1;
+  text-align: left;
+}
+
+/* The back arrow, flipped to point the way the button goes. */
+.chatsuggest__item--pop svg {
+  flex: none;
+  color: var(--sage);
+  transform: scaleX(-1);
+}
+
+.chatcard__more {
+  margin-top: 0.9rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--sage-deep);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.chatcard__more:focus-visible,
+.chatsuggest__item--pop:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+.chatform {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.chatform__input {
+  flex: 1;
+  min-width: 0;
+  /* `.searchbox` carries a 1rem top margin for the onboarding pantry search;
+     here the field and the button have to sit on the same line. */
+  margin-top: 0.75rem;
+}
+
+.chatform__send {
+  flex: none;
+  min-height: 0;
+  margin-top: 0.75rem;
+  padding: 0 1.1rem;
 }

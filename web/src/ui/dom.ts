@@ -84,8 +84,3 @@ export function greetingFor(at: number): string {
   return 'Selamat malam';
 }
 
-export const EXERCISE_NAMES: Record<string, string> = {
-  pushup: 'Push-up',
-  squat: 'Squat',
-  plank: 'Plank',
-};

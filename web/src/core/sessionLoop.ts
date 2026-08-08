@@ -409,15 +409,27 @@ function isCleanHold(set: SetRecord): boolean {
 
 /** Short Indonesian explanation of a target, for the UI. */
 export function explainTarget(target: ExerciseTarget | HoldTarget): string {
-  switch (target.reason) {
+  return explainReason(target.reason, 'movement' in target);
+}
+
+/**
+ * The same sentence, from a reason alone.
+ *
+ * The weekly plan carries a decision's reason without the target object it came
+ * from, and rebuilding a plausible-looking `ExerciseTarget` just to get a
+ * string back would mean inventing the fields it does not have — including
+ * `basedOnSessions`, which is a claim about how much evidence there was.
+ */
+export function explainReason(reason: ExerciseTarget['reason'], hold: boolean): string {
+  switch (reason) {
     case 'baseline':
       return 'Target awal. Akan menyesuaikan setelah beberapa sesi.';
     case 'progressed':
-      return 'movement' in target
+      return hold
         ? `Naik ${HOLD_PROGRESS_STEP} detik — dua sesi terakhir tercapai dengan garis badan bersih.`
         : 'Naik satu repetisi — dua sesi terakhir tercapai dengan form bersih.';
     case 'held-for-form':
-      return 'movement' in target
+      return hold
         ? 'Target ditahan dulu. Durasinya tercapai, tapi garis badan sempat putus.'
         : 'Target ditahan dulu. Repetisinya tercapai, tapi form perlu dirapikan.';
     case 'held-for-consistency':

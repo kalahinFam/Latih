@@ -12,6 +12,7 @@
  */
 
 import { TrainingHistory } from '../../session/history.ts';
+import { currentSplit, todaysMovements } from '../../session/planner.ts';
 import { loadPreferences } from '../../session/profile.ts';
 import { el, required } from '../dom.ts';
 import type { Screen } from '../../app/router.ts';
@@ -68,6 +69,7 @@ export function createPickerScreen(deps: PickerDeps): Screen {
     enter() {
       const prefs = loadPreferences();
       const selected = deps.getSelected();
+      const planned = todaysMovements(currentSplit());
       list.replaceChildren();
 
       for (const movement of MOVEMENTS) {
@@ -76,6 +78,11 @@ export function createPickerScreen(deps: PickerDeps): Screen {
         const head = el('div', { class: 'pick__head' }, el('span', { class: 'pick__name', text: movement.name }));
         if (!movement.available) {
           head.append(el('span', { class: 'pick__tag pick__tag--quiet', text: 'SEGERA HADIR' }));
+        } else if (planned.includes(movement.id)) {
+          // What the split put on today. A tag rather than a filter: training
+          // something else today is a decision the user is allowed to make, and
+          // hiding the other cards would make it look like it is not.
+          head.append(el('span', { class: 'pick__tag', text: 'HARI INI' }));
         }
 
         const dose = isHold(movement.id)
