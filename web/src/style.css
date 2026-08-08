@@ -218,18 +218,31 @@ body {
   padding: 1.1rem 1.6rem 1.6rem;
 }
 
-/* Floats over the camera rather than taking layout space from it. */
-.screen__actions--float {
+/*
+ * Ends the set. A round red target in the corner rather than a full-width bar:
+ * the count owns the bottom middle, the button stays out of the way, and a
+ * reachable corner target reads as an emergency stop without any text to
+ * read mid-set.
+ */
+.stopbtn {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding-bottom: max(1.6rem, env(safe-area-inset-bottom));
-  pointer-events: none;
-}
-
-.screen__actions--float .btn {
-  pointer-events: auto;
+  right: max(1.1rem, env(safe-area-inset-right));
+  bottom: max(1.3rem, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #fff;
+  background: var(--danger);
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgb(13 18 24 / 40%);
+  cursor: pointer;
 }
 
 .wordmark {
@@ -286,6 +299,7 @@ body {
 
 .btn:focus-visible,
 .iconbtn:focus-visible,
+.stopbtn:focus-visible,
 .tab:focus-visible,
 .chip:focus-visible,
 .pick:focus-visible {
@@ -1065,16 +1079,18 @@ body {
  *    already are.
  * ------------------------------------------------------------------------ */
 
-/* Tints the lower half so the readout always has contrast, whatever the room
-   behind it looks like. Colour comes from the HUD's state. */
+/* A black vignette up from the bottom so the readout always has contrast,
+   whatever the room behind it looks like. Sage tinted this area once; the
+   sage number on sage glow was the exact no-contrast case. The correction
+   state swaps to amber via `--correction` below. */
 .hud__wash {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(
     to top,
-    rgba(84, 156, 137, 0.42) 0%,
-    rgba(84, 156, 137, 0.08) 32%,
+    rgba(13, 18, 24, 0.55) 0%,
+    rgba(13, 18, 24, 0.14) 32%,
     transparent 52%
   );
   transition: background 180ms linear;
@@ -1170,25 +1186,54 @@ body {
 
 .hud__readout {
   position: absolute;
-  right: 1.6rem;
+  right: auto;
   bottom: 2.1rem;
-  left: 1.6rem;
+  left: 1.4rem;
+  width: auto;
+  text-align: left;
 }
 
 /*
- * The count. Sized against the stage rather than the viewport, because the
- * stage is what it has to fill; capped so a desktop window does not produce a
- * number taller than the camera view.
+ * The count line: done big and coloured, target small and quiet, read as one
+ * phrase — "0 / 8". Sized against the stage rather than the viewport, because
+ * the stage is what it has to fill; capped so a desktop window does not
+ * produce a number taller than the camera view.
  */
-.hud__count {
-  margin: 0 0 2px -0.9rem;
-  font-size: clamp(84px, 52vw, 260px);
-  font-weight: 800;
+.hud__countline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15em;
+  font-size: clamp(64px, 22vw, 140px);
   line-height: 1;
+}
+
+.hud__count {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.04em;
   color: var(--sage);
   transition: color 180ms linear;
+}
+
+.hud__target {
+  font-size: 0.4em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 60%);
+}
+
+/*
+ * Push-up readout, rotated a quarter turn.
+ *
+ * The phone stands portrait; a push-up is done perpendicular to it, so the
+ * person reads the screen on its side. Turning the line clockwise puts it
+ * upright from where the eyes are. Rotation is about the element's own box,
+ * so the count stays anchored to the bottom-left corner.
+ */
+.hud[data-exercise='pushup'] .hud__countline {
+  transform: rotate(90deg);
 }
 
 @supports (container-type: inline-size) {
@@ -1198,38 +1243,30 @@ body {
     container-type: inline-size;
   }
 
-  .hud__count {
-    font-size: clamp(84px, 66cqw, 260px);
-  }
-
-  .hud[data-state='correction'] .hud__caption {
-    font-size: clamp(1.4rem, 8.7cqw, 2.13rem);
+  .hud__countline {
+    font-size: clamp(64px, 26cqw, 140px);
   }
 }
 
 /*
- * Caption and correction share one slot.
+ * The correction slot, spoken only.
  *
- * The cue replaces the caption rather than appearing beside it: at this
- * distance two lines of text is one too many, and the correction is the only
- * thing worth reading while it is up.
+ * The cue is played aloud and announced to screen readers through this live
+ * region. It must never be visible: text under the count competes with the
+ * one number the screen exists to show, and appearing or disappearing it
+ * shifts the readout the eyes are tracking.
  */
 .hud__caption {
-  margin: 0;
-  font-size: 0.94rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: rgb(255 255 255 / 45%);
-  text-wrap: balance;
-}
-
-.hud[data-state='correction'] .hud__caption {
-  font-size: clamp(1.4rem, 7vw, 2.13rem);
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  color: #fff;
-  text-transform: uppercase;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .hud[data-state='correction'] .hud__count {
@@ -1337,6 +1374,61 @@ body {
 }
 
 /* ------------------------------------------------- camera setup sheet (3) */
+
+/*
+ * The rotate hint floats over the camera the first seconds of a sideways
+ * movement. Centred, above the camera feed but below nothing else: it has a
+ * fixed lifetime, so it may safely cover the frame briefly.
+ */
+.rotate-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: rgb(13 18 24 / 45%);
+  animation: rotate-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  cursor: pointer;
+}
+
+.rotate-overlay__pill {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.35rem;
+  color: var(--amber);
+  background: rgb(13 18 24 / 82%);
+  border: 1px solid rgb(224 149 43 / 45%);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+.rotate-overlay__text {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+/* The arrow drawing is a nudge to turn the phone, not a button: the whole
+   overlay answers a tap. */
+.rotate-overlay__icon .icon {
+  width: 34px;
+  height: 34px;
+}
+
+.rotate-overlay[hidden] {
+  display: none;
+}
+
+@keyframes rotate-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 /*
  * Two stages. Collapsed it is a single bar; expanded it adds the checklist.
@@ -2175,6 +2267,7 @@ body {
  */
 .btn:active,
 .iconbtn:active,
+.stopbtn:active,
 .segment:active,
 .chip:active,
 .choice:active,
@@ -2186,6 +2279,7 @@ body {
 
 .btn,
 .iconbtn,
+.stopbtn,
 .segment,
 .chip,
 .choice,
@@ -2214,12 +2308,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .screen:not([hidden]),
   .onboard__step,
+  .rotate-overlay,
   .hud__count[data-pop='true'] {
     animation: none;
   }
 
   .btn:active,
   .iconbtn:active,
+  .stopbtn:active,
   .segment:active,
   .chip:active,
   .choice:active,

@@ -55,6 +55,18 @@ const MOVEMENT_LABEL: Record<MovementKind, string> = {
 };
 const COUNTDOWN_STEP_MS = 700;
 
+/**
+ * Movements filmed with the phone turned on its side.
+ *
+ * The app renders portrait throughout; for these the user rotates the phone by
+ * hand. The overlay tells them once, the first seconds the camera appears —
+ * squat needs nothing, its guidance is already portrait.
+ */
+const LANDSCAPE_EXERCISES = new Set<MovementKind>(['pushup', 'plank']);
+
+/** How long the rotate hint stays before getting out of the way. */
+const ROTATE_OVERLAY_MS = 3000;
+
 export interface SetupDeps {
   getExercise: () => MovementKind;
   /** Fires when the countdown completes. */
@@ -73,12 +85,30 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
   const count = required('#setupReadyCount');
   const checks = required('#setupChecks');
   const note = required('#setupNote');
+  const rotateOverlay = required('#rotateOverlay');
 
   let active = false;
   let countdown: number | null = null;
   let timer: number | null = null;
+  let rotateTimer: number | null = null;
   /** Cleared once a pose arrives, so the auto-collapse happens exactly once. */
   let awaitingFirstPose = true;
+
+  function hideRotate(): void {
+    if (rotateTimer !== null) window.clearTimeout(rotateTimer);
+    rotateTimer = null;
+    rotateOverlay.hidden = true;
+  }
+
+  function showRotate(): void {
+    if (!LANDSCAPE_EXERCISES.has(deps.getExercise())) return;
+    rotateOverlay.hidden = false;
+    rotateTimer = window.setTimeout(hideRotate, ROTATE_OVERLAY_MS);
+  }
+
+  // A tap skips the wait: the overlay has said its piece, and the camera is
+  // more useful than the text.
+  rotateOverlay.addEventListener('click', hideRotate);
 
   function setExpanded(expanded: boolean): void {
     sheet.dataset.expanded = String(expanded);
@@ -211,11 +241,13 @@ export function createSetupScreen(deps: SetupDeps): Screen & {
       setExpanded(true);
       renderChecks(null);
       renderBar(null);
+      showRotate();
     },
 
     leave() {
       active = false;
       stopCountdown();
+      hideRotate();
     },
 
     update(readiness: Readiness) {

@@ -184,6 +184,20 @@
         </header>
 
         <!--
+          A short nudge for the movements filmed sideways. The app renders
+          portrait, but push-up and plank need the phone turned on its side —
+          the user does that by hand, not by the app rotating for them. Shown
+          the first moments the camera screen appears, then gone; a tap skips
+          the wait.
+        -->
+        <div class="rotate-overlay" id="rotateOverlay" hidden>
+          <span class="rotate-overlay__pill">
+            <span class="rotate-overlay__icon" data-icon="putar"></span>
+            <span class="rotate-overlay__text">PUTAR HP KE SAMPING</span>
+          </span>
+        </div>
+
+        <!--
           A two-stage sheet. Collapsed it is one line: the state, and the single
           thing to fix. The full checklist is a tap away.
 
@@ -239,20 +253,25 @@
           <div class="hud__strips" id="repStrips" aria-hidden="true"></div>
 
           <div class="hud__readout">
-            <!-- The number is the signal. It changes colour itself, so knowing
-                 the form status costs no eye movement away from the count. -->
-            <div class="hud__count" id="repCount">0</div>
-            <!-- Doubles as the correction slot: aria-live so a screen reader
-                 announces the cue the moment it replaces the caption. -->
-            <p class="hud__caption" id="repCaption" role="status" aria-live="polite">BERSIAP</p>
+            <!-- The number is the signal, the target rides beside it: "0 / 8"
+                 reads done-before-target in one glance. It changes colour
+                 itself, so knowing the form status costs no eye movement away
+                 from the count. -->
+            <div class="hud__countline">
+              <span class="hud__count" id="repCount">0</span>
+              <span class="hud__target" id="repTarget">/ 8</span>
+            </div>
+            <!-- Correction slot, spoken only. The cue is heard aloud and
+                 announced to screen readers via this live region, but never
+                 rendered: text under the count competes with the number and
+                 shifts the readout. -->
+            <p class="hud__caption" id="repCaption" role="status" aria-live="polite"></p>
           </div>
         </div>
 
         <p class="banner" id="statusBanner" hidden></p>
 
-        <div class="screen__actions screen__actions--float">
-          <button class="btn btn--primary" id="finishSet" type="button">Selesai set</button>
-        </div>
+        <button class="stopbtn" id="finishSet" type="button">STOP</button>
       </section>
 
       <!-- ====================== 5 · Umpan balik akhir set ================== -->

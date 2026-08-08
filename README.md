@@ -198,7 +198,7 @@ Dua hal yang membuat ini bekerja, dan yang akan merusaknya kalau diubah:
 
 ## Slow loop — narasi pelatih per set
 
-Tekan **Selesai set** setelah selesai. Klien mengirim ringkasan set ke
+Tekan **STOP** (tombol merah di pojok kanan bawah) setelah selesai. Klien mengirim ringkasan set ke
 `/api/coach`, yang mengembalikan narasi Bahasa Indonesia dua sampai tiga
 kalimat plus satu fokus untuk set berikutnya.
 

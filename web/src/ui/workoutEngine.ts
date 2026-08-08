@@ -158,6 +158,8 @@ export interface WorkoutEngineElements {
   movementLabel: HTMLElement;
   repStrips: HTMLElement;
   repCount: HTMLElement;
+  /** The "/ 8" half of the readout — target reps or seconds, smaller type. */
+  repTarget: HTMLElement;
   repCaption: HTMLElement;
   statusBanner: HTMLElement;
 }
@@ -280,6 +282,9 @@ export class WorkoutEngine {
     this.exercise = exercise;
     this.targetReps = target;
     this.setLabel = setLabel;
+    // The HUD is portrait and the body lies perpendicular for push-ups, so the
+    // count turns a quarter turn. CSS keys off the same element.
+    this.el.hud.dataset.exercise = exercise;
     // Thresholds and rules are per-movement, so anything measured under the
     // previous one is meaningless now.
     if (!isHold(exercise)) {
@@ -779,6 +784,8 @@ export class WorkoutEngine {
   private showCue(code: string | null, cue: string | null, nowMs: number): void {
     if (cue === null) return;
 
+    // Fed to the hidden live region: the cue is spoken aloud and announced to
+    // screen readers, never rendered on screen.
     this.el.repCaption.textContent = cue;
     this.el.hud.dataset.state = 'correction';
     this.el.hudWash.classList.add('hud__wash--correction');
@@ -799,14 +806,21 @@ export class WorkoutEngine {
     this.el.hud.dataset.state = 'good';
     this.el.hudWash.classList.remove('hud__wash--correction');
     this.highlightJoints = [];
-    this.el.repCaption.textContent = this.captionText();
+    this.renderCaption();
   }
 
+  /**
+   * The caption is the correction slot and nothing else now — the target moved
+   * into the readout line ("0 / 8"). It is also never visible: the cue is
+   * spoken, and text appearing under the count would shift the readout.
+   */
   private captionText(): string {
     if (!this.armed) return 'BERSIAP';
-    return this.isHoldMovement
-      ? `DARI ${this.targetReps} DETIK`
-      : `DARI ${this.targetReps} REPETISI`;
+    return '';
+  }
+
+  private renderCaption(): void {
+    this.el.repCaption.textContent = this.captionText();
   }
 
   /**
@@ -857,11 +871,14 @@ export class WorkoutEngine {
     this.el.movementLabel.textContent = this.setLabel
       ? `${MOVEMENT_LABEL[this.exercise]} · ${this.setLabel}`
       : MOVEMENT_LABEL[this.exercise];
+    // Repetitions for a counted movement, seconds for a held one — same slot,
+    // same shape: "/ 8" reads as the target either way.
+    this.el.repTarget.textContent = ` / ${this.targetReps}`;
   }
 
   private render(): void {
     // Seconds for a hold, repetitions otherwise. Same slot, same size — the
-    // number is the number, and the caption below says what it is out of.
+    // number is the number, and the target rides beside it.
     const done = this.isHoldMovement
       ? Math.floor(this.hold.status.heldMs / 1000)
       : this.counter.status.repCount;
@@ -877,7 +894,7 @@ export class WorkoutEngine {
 
     // The caption is owned by the cue while one is showing.
     if (this.el.hud.dataset.state !== 'correction') {
-      this.el.repCaption.textContent = this.captionText();
+      this.renderCaption();
     }
 
     // A paused clock is the plank's amber state: the number simply stops. The

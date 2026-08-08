@@ -162,7 +162,7 @@ describe('workout HUD', () => {
   const css = read('src/style.css');
 
   it('carries every element the 1b layout needs', () => {
-    for (const id of ['hud', 'hudWash', 'movementLabel', 'repStrips', 'repCount', 'repCaption']) {
+    for (const id of ['hud', 'hudWash', 'movementLabel', 'repStrips', 'repCount', 'repTarget', 'repCaption']) {
       expect(idsIn(html).has(id), `#${id}`).toBe(true);
     }
   });

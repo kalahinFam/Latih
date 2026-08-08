@@ -30,6 +30,7 @@ const engine = new WorkoutEngine({
   movementLabel: required('#movementLabel'),
   repStrips: required('#repStrips'),
   repCount: required('#repCount'),
+  repTarget: required('#repTarget'),
   repCaption: required('#repCaption'),
   statusBanner: required('#statusBanner'),
 });
