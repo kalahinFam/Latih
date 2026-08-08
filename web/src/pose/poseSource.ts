@@ -63,6 +63,8 @@ export class PoseSource {
   private landmarker: PoseLandmarker | null = null;
   private variant: ModelVariant = 'lite';
   private lastTimestampMs = -1;
+  private loading: { variant: ModelVariant; promise: Promise<void> } | null = null;
+  private warmedUp = false;
 
   get modelVariant(): ModelVariant {
     return this.variant;
@@ -72,11 +74,32 @@ export class PoseSource {
     return this.landmarker !== null;
   }
 
+  /** True once a warm-up inference has run on the real video path. */
+  get isWarmedUp(): boolean {
+    return this.warmedUp;
+  }
+
   /**
    * Load the WASM runtime and model. Slow (tens of MB); call once at startup
-   * and show a loading state.
+   * and show a loading state. Concurrent calls join the same in-flight load
+   * instead of building a second landmarker.
    */
   async load(variant: ModelVariant = 'lite'): Promise<void> {
+    if (this.landmarker && this.variant === variant) return;
+    if (this.loading && this.loading.variant === variant) {
+      await this.loading.promise;
+      return;
+    }
+    const promise = this.loadNow(variant);
+    this.loading = { variant, promise };
+    try {
+      await promise;
+    } finally {
+      if (this.loading?.promise === promise) this.loading = null;
+    }
+  }
+
+  private async loadNow(variant: ModelVariant): Promise<void> {
     const fileset = await FilesetResolver.forVisionTasks('/mediapipe/wasm');
     const landmarker = await PoseLandmarker.createFromOptions(fileset, {
       baseOptions: {
@@ -92,6 +115,7 @@ export class PoseSource {
     this.landmarker?.close();
     this.landmarker = landmarker;
     this.variant = variant;
+    this.warmedUp = false;
     // Timestamps must increase monotonically per landmarker instance; a fresh
     // instance starts a fresh clock.
     this.lastTimestampMs = -1;
@@ -101,6 +125,31 @@ export class PoseSource {
   async setVariant(variant: ModelVariant): Promise<void> {
     if (variant === this.variant && this.landmarker) return;
     await this.load(variant);
+  }
+
+  /**
+   * Run throwaway inferences so the graph initialises now, not on the first
+   * real frame. The first detectForVideo call on a fresh landmarker pays a
+   * one-time setup cost (shader compile, graph wiring) — and it scales with the
+   * actual input, so warming needs the real video path at its real size.
+   *
+   * No-ops when the video has no frames yet: the caller (the camera screens)
+   * retries once the feed is live, and `warmedUp` stays false until the real
+   * path has actually run. Best-effort — a failure just means the cost lands
+   * on the first visible frame.
+   */
+  warmUp(video: HTMLVideoElement): void {
+    if (!this.landmarker || this.warmedUp) return;
+    if (video.readyState < 2) return;
+    try {
+      const stamp = this.lastTimestampMs + 1;
+      for (let i = 0; i < 3; i++) {
+        this.landmarker.detectForVideo(video, stamp + i);
+      }
+      this.warmedUp = true;
+    } catch {
+      // The real video frame still works — it just pays the setup cost once.
+    }
   }
 
   /**

@@ -143,6 +143,9 @@ const screens = {
       // Inside the gesture, before any await: otherwise the activation is spent
       // and the first cue plays silently.
       engine.unlockAudio();
+      // Warm the camera and model now so the camera screen opens instantly and
+      // the permission prompt (one-time per browser) does not land mid-flow.
+      void engine.warmUp();
       router.go('pilih');
     },
     onSettings: () => router.go('pengaturan'),
@@ -179,6 +182,14 @@ const screens = {
     enter() {
       if (!workout) {
         router.go('beranda');
+        return;
+      }
+      // Arriving here normally means a live camera from `kamera`. The one
+      // exception is backing out of the feedback screen after a set — the
+      // camera was closed at set end, and a workout screen without a feed is
+      // a dead screen. Send them back through the camera instead.
+      if (!engine.cameraActive) {
+        router.go('kamera');
         return;
       }
       engine.configure(exercise, workout.plan.targetReps, setLabel());
@@ -295,7 +306,7 @@ for (const slot of document.querySelectorAll<HTMLElement>('[data-icon]')) {
 }
 
 /** Screens that show the camera; everything else releases it. */
-const CAMERA_SCREENS = new Set(['kamera', 'latihan', 'umpanbalik']);
+const CAMERA_SCREENS = new Set(['kamera', 'latihan']);
 /** Screens the tab bar belongs on. Not during a workout — nothing to switch to. */
 const TABBED = new Set(['beranda', 'riwayat', 'gizi']);
 
@@ -347,6 +358,9 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-back]')
 required<HTMLButtonElement>('#finishSet').addEventListener('click', finishSet);
 
 router.start();
+// The pose model compiles in the background while the user reads the opening
+// screens; `warmUp` at the home tap then only needs the camera.
+void engine.preloadModel();
 registerServiceWorker();
 
 // Exposed for manual inspection during device testing and for capturing the

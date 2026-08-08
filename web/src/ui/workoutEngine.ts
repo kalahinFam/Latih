@@ -294,11 +294,52 @@ export class WorkoutEngine {
     return this.perf.snapshot();
   }
 
+  /** True while the camera stream is open. */
+  get cameraActive(): boolean {
+    return this.stream !== null;
+  }
+
+  /**
+   * Load the pose model ahead of any camera work.
+   *
+   * Called at app boot: fetching and compiling the WASM runtime needs no user
+   * gesture (only the camera does), so the tens-of-megabytes cost runs while
+   * the user reads the opening screens. `warmUp` and `enterSetup` then join
+   * the same in-flight load.
+   */
+  async preloadModel(): Promise<void> {
+    if (!this.pose.ready) await this.pose.load();
+  }
+
+  /**
+   * Open the camera and load the pose model ahead of the camera screen.
+   *
+   * Called from a user gesture on the home screen: the permission prompt lands
+   * there (one-time per browser) instead of on the camera screen, and the WASM
+   * compile + graph setup happen while the user walks the picker. `enterSetup`
+   * then finds everything already warm. Failures are swallowed — the camera
+   * screen reports them in the usual way.
+   */
+  async warmUp(): Promise<void> {
+    try {
+      await this.openCamera();
+      if (!this.pose.ready) await this.pose.load();
+      // Warm the real video path (shader compile at the camera's resolution),
+      // so the first visible skeleton frame is not the first inference.
+      this.pose.warmUp(this.el.video);
+    } catch {
+      // Leave the error reporting to the camera screen.
+    }
+  }
+
   /** Open the camera and load the model, then run in setup mode. */
   async enterSetup(variant: ModelVariant = 'lite'): Promise<void> {
     try {
       this.setStatus({ kind: 'loading', message: 'Menyiapkan kamera…' });
       await this.openCamera();
+      // Show the live feed as soon as it exists — the model can finish loading
+      // behind it. A black screen under a loading banner reads as broken.
+      this.el.cameraLayer.hidden = false;
 
       if (!this.pose.ready) {
         // Tens of megabytes of WASM and model weights; say so rather than
@@ -307,7 +348,11 @@ export class WorkoutEngine {
         await this.pose.load(variant);
       }
 
-      this.el.cameraLayer.hidden = false;
+      // Safety net for when `warmUp` never warmed (stream closed while the
+      // model was still loading, swallowed error). Pays the graph-setup cost
+      // once here instead of on the first visible frame.
+      if (!this.pose.isWarmedUp) this.pose.warmUp(this.el.video);
+
       this.resetSetState();
       this.perf.reset();
       this.mode = 'setup';

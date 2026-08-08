@@ -1,9 +1,11 @@
 /**
  * 5 · Umpan balik akhir set.
  *
- * A sheet over the dimmed camera rather than a page of its own: the next set
- * happens on the screen underneath, and navigating away and back would tear
- * down the camera between two sets of the same workout.
+ * The camera closes when the set ends — the privacy light goes off and the
+ * fast loop (framing, posture gates, counting) stops with it. The sheet is
+ * therefore a screen of its own rather than an overlay over a live feed.
+ * Reopening for the next set is cheap: only `getUserMedia` is needed, because
+ * the pose model stays loaded in memory.
  *
  * Latency and token cost are shown as they are. They are the numbers the paper
  * reports, and reading them off the running product beats trusting a
