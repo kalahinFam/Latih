@@ -6,10 +6,6 @@
  * therefore a screen of its own rather than an overlay over a live feed.
  * Reopening for the next set is cheap: only `getUserMedia` is needed, because
  * the pose model stays loaded in memory.
- *
- * Latency and token cost are shown as they are. They are the numbers the paper
- * reports, and reading them off the running product beats trusting a
- * spreadsheet.
  */
 
 import { errorLabel } from '../../core/quality.ts';
@@ -43,7 +39,6 @@ export function createFeedbackScreen(deps: FeedbackDeps): Screen {
   const focus = required('#feedbackFocus');
   const errorsWrap = required('#feedbackErrorsWrap');
   const errors = required('#feedbackErrors');
-  const meta = required('#feedbackMeta');
   const next = required<HTMLButtonElement>('#feedbackNext');
   const finish = required<HTMLButtonElement>('#feedbackFinish');
 
@@ -99,7 +94,6 @@ export function createFeedbackScreen(deps: FeedbackDeps): Screen {
     const id = ++requestId;
     narration.textContent = 'Menganalisis set…';
     focusWrap.hidden = true;
-    meta.textContent = '';
 
     try {
       const feedback = await requestCoaching(summary);
@@ -110,11 +104,6 @@ export function createFeedbackScreen(deps: FeedbackDeps): Screen {
       narration.textContent = feedback.narasi;
       focus.textContent = feedback.fokus_set_berikutnya;
       focusWrap.hidden = feedback.fokus_set_berikutnya.length === 0;
-
-      meta.textContent =
-        feedback.latencyMs && feedback.usage
-          ? `${(feedback.latencyMs / 1000).toFixed(1)} s · ${feedback.usage.promptTokens}+${feedback.usage.completionTokens} token · $${feedback.usage.costUsd.toFixed(6)}`
-          : '';
     } catch (error) {
       if (id !== requestId) return;
       // The fast loop already did its job on device. Losing the narration is a
@@ -139,7 +128,6 @@ export function createFeedbackScreen(deps: FeedbackDeps): Screen {
         narration.textContent = 'Set belum tercatat.';
         focusWrap.hidden = true;
         errorsWrap.hidden = true;
-        meta.textContent = '';
         return;
       }
 

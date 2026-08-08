@@ -790,17 +790,6 @@ body {
   width: auto;
 }
 
-.meta {
-  margin: 0.9rem 0 0;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.69rem;
-  color: var(--grey-faint);
-}
-
-.meta:empty {
-  display: none;
-}
-
 .chips {
   display: flex;
   gap: 0.5rem;

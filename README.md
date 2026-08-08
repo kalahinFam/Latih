@@ -227,9 +227,8 @@ adalah instruksi tanpa syarat yang tinggal dipatuhi.
 dan streaming hanya menambah kerumitan parsing tanpa keuntungan yang bisa
 dipakai.
 
-Setiap respons membawa `usage` dan `latencyMs`, ditampilkan di bawah narasi.
-Angka biaya dan latensi yang masuk paper diambil dari trafik nyata, bukan
-estimasi.
+Setiap respons membawa `usage` dan `latencyMs`. Angka biaya dan latensi yang
+masuk paper diambil dari trafik nyata, bukan estimasi.
 
 **Jalur kegagalan** (semuanya menurunkan kualitas, tidak mematikan latihan):
 offline dan timeout 15 detik dilewati dengan pesan; kunci belum diset
