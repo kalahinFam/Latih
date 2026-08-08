@@ -880,8 +880,16 @@ melainkan syarat aplikasi ini berfungsi sama sekali.
 ### Fungsi serverless ditulis di `server/`, dikirim dari `api/`
 
 `npm run build:api` mem-bundle tiap endpoint di `server/` menjadi satu berkas
-mandiri di `api/`, dan `api/` sendiri tidak ikut di-commit. Vercel hanya melihat
-hasil bundelnya; yang layak dibaca dan direview adalah sumbernya.
+mandiri di `api/`. Vercel hanya melihat hasil bundelnya; yang layak dibaca dan
+direview adalah sumbernya.
+
+**`api/` ikut di-commit meski hasil build,** dan itu memang terlihat keliru.
+Alasannya: Vercel memvalidasi pola `functions` di `vercel.json` terhadap repo
+yang baru di-clone, sebelum perintah build dijalankan. Direktori yang baru
+muncul saat build belum ada pada saat itu, dan deploy gagal dengan *"doesn't
+match any Serverless Functions"*. Karena build tetap membangkitkannya ulang
+setiap kali, yang benar-benar dikirim selalu dibangun dari `server/` yang
+sekarang — sebasi apa pun salinan yang ter-commit.
 
 Ini bukan preferensi gaya, melainkan jawaban atas satu ketidaksepakatan yang
 nyata. Setiap import relatif di proyek ini menulis ekstensi `.ts` secara
