@@ -305,6 +305,11 @@ body {
   flex: none;
 }
 
+/* `display: flex` above must not defeat the hidden attribute. */
+.iconbtn[hidden] {
+  display: none;
+}
+
 .iconbtn--onDark {
   color: #fff;
   border-color: rgb(255 255 255 / 28%);
@@ -1698,6 +1703,13 @@ body {
   outline: none;
 }
 
+/* An example in the placeholder, not a value pretending to be data. */
+.figure__number::placeholder {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--grey-faint);
+}
+
 .figure__unit {
   font-size: 0.85rem;
   font-weight: 600;
@@ -1884,6 +1896,82 @@ body {
   background: rgba(84, 156, 137, 0.09);
   border-width: 1.5px;
   border-color: var(--sage);
+}
+
+/* Searchable multi-select of pantry foods. */
+.searchbox {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.searchbox::placeholder {
+  color: var(--grey-faint);
+}
+
+.searchbox:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 1px;
+}
+
+.foodlist {
+  margin-top: 0.75rem;
+}
+
+.foodgroup__head {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--grey);
+}
+
+.fooditem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.15rem;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.fooditem__name {
+  text-align: left;
+}
+
+.fooditem__check {
+  display: flex;
+  flex: none;
+  color: var(--grey-faint);
+}
+
+.fooditem[aria-pressed='true'] {
+  font-weight: 700;
+}
+
+.fooditem[aria-pressed='true'] .fooditem__check {
+  color: var(--sage-deep);
+}
+
+.fooditem:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: -2px;
+  border-radius: 6px;
 }
 
 .notebox {

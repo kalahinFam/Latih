@@ -24,6 +24,7 @@
  */
 
 import type { ExerciseKind, HoldKind } from './types.ts';
+import { PANTRY_CODES } from './pantry.ts';
 
 /* ----------------------------------------------------------- experience */
 
@@ -121,37 +122,23 @@ export function excludedCodes(restrictions: readonly DietaryRestriction[]): stri
   return [...codes].sort();
 }
 
-/* -------------------------------------------------- protein at home */
+/* --------------------------------------------------------- foods at home */
 
 /**
- * Protein sources the user says they usually have.
+ * Foods the user says they usually have.
  *
  * A preference, not a filter: everything stays available, these are simply
  * listed to the meal planner as what to reach for first. Turning it into a
  * filter would mean a menu that silently cannot be built when someone unticks
  * everything.
+ *
+ * The values are TKPI codes straight from `PANTRY_CODES`; names come from
+ * `PANTRY_LABELS`, so a selection can never refer to a food the app does not
+ * ship.
  */
-export interface HomeProtein {
-  id: string;
-  label: string;
-  /** Pantry codes this covers. Shown on the card, as the nutrition screen does. */
-  codes: readonly string[];
-}
-
-export const HOME_PROTEINS: readonly HomeProtein[] = [
-  { id: 'tempe-tahu', label: 'Tempe & tahu', codes: ['CP077', 'CP061'] },
-  { id: 'telur', label: 'Telur ayam', codes: ['HR002'] },
-  { id: 'ayam', label: 'Dada ayam', codes: ['FR005'] },
-  { id: 'ikan', label: 'Ikan', codes: ['GR070', 'GR050'] },
-  { id: 'susu', label: 'Susu', codes: ['JR006', 'CP060'] },
-];
-
-export function preferredCodes(ids: readonly string[]): string[] {
-  const codes = new Set<string>();
-  for (const protein of HOME_PROTEINS) {
-    if (ids.includes(protein.id)) for (const code of protein.codes) codes.add(code);
-  }
-  return [...codes].sort();
+export function preferredCodes(codes: readonly string[]): string[] {
+  const known = new Set(Object.values(PANTRY_CODES).flat());
+  return [...new Set(codes)].filter((code) => known.has(code)).sort();
 }
 
 /* ------------------------------------------------------------- profile */
@@ -161,14 +148,15 @@ export interface OnboardingExtras {
   name: string;
   experience: ExperienceLevel;
   restrictions: DietaryRestriction[];
-  homeProteins: string[];
+  /** TKPI codes of foods the user says they usually have. */
+  homeFoods: string[];
 }
 
 export const DEFAULT_EXTRAS: OnboardingExtras = {
   name: '',
   experience: 'baru',
   restrictions: [],
-  homeProteins: ['tempe-tahu', 'telur'],
+  homeFoods: ['CP061', 'CP077', 'HR002'],
 };
 
 /**

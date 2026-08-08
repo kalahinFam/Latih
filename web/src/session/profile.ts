@@ -31,11 +31,11 @@ import {
   DEFAULT_EXTRAS,
   EXPERIENCE_LABELS,
   RESTRICTION_LABELS,
-  HOME_PROTEINS,
   type DietaryRestriction,
   type ExperienceLevel,
   type OnboardingExtras,
 } from '../core/onboarding.ts';
+import { PANTRY_CODES } from '../core/pantry.ts';
 import type { ExerciseKind } from '../core/types.ts';
 
 const PROFILE_KEY = 'latih.profile.v1';
@@ -152,7 +152,7 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
 
 const EXPERIENCES = Object.keys(EXPERIENCE_LABELS) as ExperienceLevel[];
 const RESTRICTIONS = Object.keys(RESTRICTION_LABELS) as DietaryRestriction[];
-const PROTEIN_IDS = HOME_PROTEINS.map((p) => p.id);
+const PANTRY_CODE_SET = new Set(Object.values(PANTRY_CODES).flat());
 
 /**
  * Everything onboarding collected beyond the body measurements.
@@ -177,9 +177,9 @@ export function loadExtras(): OnboardingExtras {
             RESTRICTIONS.includes(r as DietaryRestriction),
           )
         : [],
-      homeProteins: Array.isArray(stored.homeProteins)
-        ? stored.homeProteins.filter((id): id is string => PROTEIN_IDS.includes(id))
-        : [...DEFAULT_EXTRAS.homeProteins],
+      homeFoods: Array.isArray(stored.homeFoods)
+        ? stored.homeFoods.filter((code): code is string => PANTRY_CODE_SET.has(code))
+        : [...DEFAULT_EXTRAS.homeFoods],
     };
   } catch {
     return { ...DEFAULT_EXTRAS };

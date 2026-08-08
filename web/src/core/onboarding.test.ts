@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_EXTRAS,
   EXPERIENCE_LABELS,
-  HOME_PROTEINS,
   RESTRICTION_LABELS,
   baselineHoldSeconds,
   baselineReps,
@@ -14,7 +13,7 @@ import {
   type DietaryRestriction,
   type ExperienceLevel,
 } from './onboarding.ts';
-import { PANTRY_CODES } from './pantry.ts';
+import { PANTRY_CODES, PANTRY_LABELS } from './pantry.ts';
 import { energyTarget, macroTargets, explainArithmetic, type BodyProfile } from './energy.ts';
 
 const EXPERIENCES = Object.keys(EXPERIENCE_LABELS) as ExperienceLevel[];
@@ -86,26 +85,34 @@ describe('excludedCodes', () => {
 });
 
 describe('preferredCodes', () => {
-  it('resolves the ids the cards offer', () => {
-    expect(preferredCodes(['tempe-tahu'])).toEqual(['CP061', 'CP077']);
+  it('passes pantry codes through, sorted and de-duplicated', () => {
+    expect(preferredCodes(['CP061', 'CP077'])).toEqual(['CP061', 'CP077']);
+    expect(preferredCodes(['CP077', 'CP061', 'CP077'])).toEqual(['CP061', 'CP077']);
   });
 
-  it('ignores an unknown id rather than throwing', () => {
+  it('ignores a code outside the pantry rather than throwing', () => {
     expect(preferredCodes(['tidak-ada'])).toEqual([]);
+    expect(preferredCodes(['CP061', 'TIDAK'])).toEqual(['CP061']);
   });
 
   it('only names codes that exist in the pantry', () => {
-    for (const protein of HOME_PROTEINS) {
-      for (const code of protein.codes) {
-        expect(ALL_PANTRY.has(code), `${protein.id} -> ${code}`).toBe(true);
-      }
+    for (const code of preferredCodes(Object.values(PANTRY_CODES).flat())) {
+      expect(ALL_PANTRY.has(code), `${code} is not in the pantry`).toBe(true);
     }
   });
 
   it('starts with something ticked', () => {
-    // An empty preference is a wasted question; the defaults are the two
-    // proteins most Indonesian kitchens have.
-    expect(DEFAULT_EXTRAS.homeProteins.length).toBeGreaterThan(0);
+    // An empty preference is a wasted question; the defaults are the
+    // ingredients most Indonesian kitchens have.
+    expect(DEFAULT_EXTRAS.homeFoods.length).toBeGreaterThan(0);
+  });
+});
+
+describe('PANTRY_LABELS', () => {
+  it('names every curated code', () => {
+    for (const code of Object.values(PANTRY_CODES).flat()) {
+      expect(PANTRY_LABELS[code], `${code} has no label`).toBeTruthy();
+    }
   });
 });
 

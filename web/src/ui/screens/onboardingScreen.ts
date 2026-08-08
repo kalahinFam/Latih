@@ -27,11 +27,11 @@ import {
   macroTargets,
   type ActivityLevel,
   type BodyProfile,
+  type BodySex,
   type EnergyGoal,
 } from '../../core/energy.ts';
 import {
   EXPERIENCE_LABELS,
-  HOME_PROTEINS,
   RESTRICTION_LABELS,
   baselineHoldSeconds,
   baselineReps,
@@ -41,6 +41,7 @@ import {
   type ExperienceLevel,
   type OnboardingExtras,
 } from '../../core/onboarding.ts';
+import { CATEGORY_LABELS, PANTRY_CODES, PANTRY_LABELS, type PantryCategory } from '../../core/pantry.ts';
 import { MAX_DAYS_PER_WEEK, MIN_DAYS_PER_WEEK } from '../../core/plan.ts';
 import { TrainingHistory } from '../../session/history.ts';
 import {
@@ -56,6 +57,22 @@ import { icon, logoMark } from '../icons.ts';
 import type { Screen } from '../../app/router.ts';
 
 const STEPS = 6;
+
+/**
+ * The working copy of the body answers.
+ *
+ * `null` means "not answered yet": the fields open empty with a placeholder
+ * rather than pretending 65 kg / 170 cm / 25 is someone's real data. Only a
+ * stored profile — a returning user re-running onboarding — pre-fills them.
+ */
+interface BodyDraft {
+  weightKg: number | null;
+  heightCm: number | null;
+  ageYears: number | null;
+  sex: BodySex;
+  activity: ActivityLevel;
+  goal: EnergyGoal;
+}
 
 /** Activity levels offered, described by what the day looks like. */
 const ACTIVITY_CHOICES: { value: ActivityLevel; name: string; sub: string; factor: string }[] = [
@@ -124,16 +141,47 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   let step = 1;
   // Working copies. Nothing is persisted until the final step, so abandoning
   // onboarding halfway leaves no half-answered profile behind.
-  let draft: BodyProfile = loadProfile() ?? {
-    weightKg: 65,
-    heightCm: 170,
-    ageYears: 25,
+  let draft: BodyDraft = loadProfile() ?? {
+    weightKg: null,
+    heightCm: null,
+    ageYears: null,
     sex: 'male',
     activity: 'moderate',
     goal: 'lose',
   };
   let extras: OnboardingExtras = loadExtras();
   let daysPerWeek = loadPreferences().daysPerWeek;
+
+  /* -------------------------------------------------- body-draft helpers */
+
+  function inRange(value: number | null, limits: { min: number; max: number }): value is number {
+    return value !== null && Number.isFinite(value) && value >= limits.min && value <= limits.max;
+  }
+
+  /**
+   * The draft as a real profile, or `null` while any body figure is missing.
+   *
+   * Everything downstream that computes calories takes a `BodyProfile`; nothing
+   * may run on a draft with an unanswered figure.
+   */
+  function bodyProfile(): BodyProfile | null {
+    const { weightKg, heightCm, ageYears } = draft;
+    if (!inRange(weightKg, INPUT_LIMITS.weightKg)) return null;
+    if (!inRange(heightCm, INPUT_LIMITS.heightCm)) return null;
+    if (!inRange(ageYears, INPUT_LIMITS.ageYears)) return null;
+    return {
+      weightKg,
+      heightCm,
+      ageYears,
+      sex: draft.sex,
+      activity: draft.activity,
+      goal: draft.goal,
+    };
+  }
+
+  function bodyComplete(): boolean {
+    return bodyProfile() !== null;
+  }
 
   backButton.append(icon('kembali'));
   mark.append(logoMark(26, false));
@@ -171,17 +219,18 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
    */
   function figure(
     label: string,
-    value: number,
+    value: number | null,
     unit: string,
     limits: { min: number; max: number },
-    onChange: (next: number) => void,
-    options: { note?: string; wide?: boolean; step?: number } = {},
+    onChange: (next: number | null) => void,
+    options: { note?: string; wide?: boolean; step?: number; placeholder?: string } = {},
   ): HTMLElement {
     const input = el('input', {
       class: 'figure__number',
       type: 'number',
       inputmode: 'numeric',
-      value: String(value),
+      value: value === null ? undefined : value,
+      placeholder: options.placeholder,
       min: limits.min,
       max: limits.max,
       step: options.step ?? 1,
@@ -190,7 +239,8 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
     input.addEventListener('change', () => {
       const parsed = Number(input.value);
-      if (Number.isFinite(parsed)) onChange(parsed);
+      // An emptied field means "not answered", not zero kilograms.
+      onChange(input.value.trim() === '' || !Number.isFinite(parsed) ? null : parsed);
       render();
     });
 
@@ -247,7 +297,8 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     sub.textContent =
       'Dipakai menghitung kebutuhan kalori harian. Disimpan di ponsel ini, tidak dikirim ke mana pun.';
 
-    const index = bmi(draft.weightKg, draft.heightCm);
+    const profile = bodyProfile();
+    const index = profile ? bmi(profile.weightKg, profile.heightCm) : null;
 
     body.replaceChildren(
       el('div', { class: 'fieldlabel', text: 'JENIS KELAMIN' }),
@@ -262,10 +313,10 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         { class: 'figures' },
         figure('USIA', draft.ageYears, 'th', INPUT_LIMITS.ageYears, (v) => {
           draft = { ...draft, ageYears: v };
-        }),
+        }, { placeholder: 'mis. 25' }),
         figure('TINGGI', draft.heightCm, 'cm', INPUT_LIMITS.heightCm, (v) => {
           draft = { ...draft, heightCm: v };
-        }),
+        }, { placeholder: 'mis. 170' }),
       ),
       figure(
         'BERAT',
@@ -278,6 +329,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         {
           wide: true,
           step: 0.5,
+          placeholder: 'mis. 65',
           // Shown because it makes a typo obvious — 178 kg entered for 78 reads
           // as an index of 59 and nobody misses that.
           note: index === null ? undefined : `IMT ${index.toString().replace('.', ',')} · ${bmiLabel(index)}`,
@@ -288,19 +340,27 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         text: 'Berat bisa diperbarui kapan saja lewat Pengaturan; target kalori ikut menyesuaikan tanpa mengulang onboarding.',
       }),
     );
-    next.disabled = false;
+    // Nothing to compute with until the figures are real.
+    next.disabled = !bodyComplete();
   }
 
   function renderGoal(): void {
     title.textContent = 'Apa yang ingin dicapai?';
     sub.textContent = 'Menentukan arah kalori dan komposisi menu.';
 
+    // Reachable only with a complete body (the next button says so), but the
+    // computation below cannot run on a draft with an unanswered figure.
+    const profile = bodyProfile();
+
     // Rendered from a live computation, so a card can never advertise an
     // adjustment the app does not apply.
     const preview = (goal: EnergyGoal) => {
-      const target = energyTarget({ ...draft, goal }, false);
+      if (!profile) return '—';
+      const target = energyTarget({ ...profile, goal }, false);
       return `${target.targetKcal.toLocaleString('id-ID')} kkal/hari`;
     };
+    const proteinPreview = (goal: EnergyGoal) =>
+      profile ? `${energyTarget({ ...profile, goal }, false).proteinG} g` : '—';
 
     body.replaceChildren(
       ...GOAL_CHOICES.map((choice) => {
@@ -318,10 +378,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
             'div',
             { class: 'choice__tags' },
             el('span', { class: 'tag', text: preview(choice.value) }),
-            el('span', {
-              class: 'tag tag--quiet',
-              text: `protein ${energyTarget({ ...draft, goal: choice.value }, false).proteinG} g`,
-            }),
+            el('span', { class: 'tag tag--quiet', text: `protein ${proteinPreview(choice.value)}` }),
           ),
         );
         card.addEventListener('click', () => {
@@ -371,6 +428,11 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
           render();
         });
         return card;
+      }),
+
+      el('p', {
+        class: 'notebox',
+        text: 'Angka ini adalah pengali kebutuhan kalori istirahatmu (BMR): kebutuhan harian = BMR × pengali, lalu disesuaikan dengan tujuanmu.',
       }),
 
       el('div', { class: 'fieldlabel', text: 'PENGALAMAN LATIHAN' }),
@@ -431,41 +493,67 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
       chips.append(chip);
     }
 
-    const proteins = HOME_PROTEINS.map((protein) => {
-      const chosen = extras.homeProteins.includes(protein.id);
-      const card = el(
-        'button',
-        { class: 'choice choice--row', type: 'button', 'aria-pressed': String(chosen) },
-        el(
-          'div',
-          { class: 'choice__head' },
-          el('span', { class: 'choice__body' }, el('span', { class: 'choice__name', text: protein.label })),
-          // The TKPI codes, shown here for the same reason the nutrition screen
-          // shows them: a citation nobody can find is not a citation.
-          el('span', { class: 'choice__factor', text: protein.codes.join(' · ') }),
-        ),
-      );
-      card.addEventListener('click', () => {
-        extras = {
-          ...extras,
-          homeProteins: chosen
-            ? extras.homeProteins.filter((id) => id !== protein.id)
-            : [...extras.homeProteins, protein.id],
-        };
-        render();
-      });
-      return card;
+    // Foods usually at home: a searchable multi-select over the pantry. Names
+    // only — the TKPI codes underneath are what the meal planner needs, and
+    // showing them here would read as gibberish.
+    const search = el('input', {
+      class: 'searchbox',
+      type: 'search',
+      placeholder: 'Cari bahan…',
+      'aria-label': 'Cari bahan',
     });
+    const list = el('div', { class: 'foodlist' });
+
+    function renderFoods(): void {
+      const query = search.value.trim().toLowerCase();
+      list.replaceChildren();
+      for (const category of Object.keys(PANTRY_CODES) as PantryCategory[]) {
+        const codes = PANTRY_CODES[category].filter(
+          (code) => !query || PANTRY_LABELS[code].toLowerCase().includes(query),
+        );
+        if (codes.length === 0) continue;
+        list.append(
+          el('div', { class: 'foodgroup__head', text: CATEGORY_LABELS[category] }),
+          ...codes.map((code) => {
+            const chosen = extras.homeFoods.includes(code);
+            const row = el(
+              'button',
+              {
+                class: 'fooditem',
+                type: 'button',
+                'aria-pressed': String(chosen),
+              },
+              el('span', { class: 'fooditem__name', text: PANTRY_LABELS[code] }),
+              el('span', { class: 'fooditem__check' }, icon('centang', 13, 2.6)),
+            );
+            row.addEventListener('click', () => {
+              extras = {
+                ...extras,
+                homeFoods: chosen
+                  ? extras.homeFoods.filter((c) => c !== code)
+                  : [...extras.homeFoods, code],
+              };
+              renderFoods();
+            });
+            return row;
+          }),
+        );
+      }
+    }
+
+    search.addEventListener('input', renderFoods);
 
     body.replaceChildren(
       chips,
-      el('div', { class: 'fieldlabel', text: 'SUMBER PROTEIN YANG BIASA ADA DI RUMAH' }),
-      ...proteins,
+      el('div', { class: 'fieldlabel', text: 'BAHAN YANG BIASA ADA DI RUMAH' }),
+      search,
+      list,
       el('p', {
         class: 'notebox',
-        text: 'Semua takaran menu dihitung dari Tabel Komposisi Pangan Indonesia. Kode bahannya ikut ditampilkan di setiap menu.',
+        text: 'Bahan yang dipilih diutamakan saat menyusun menu; bahan lain tetap tersedia. Semua takaran menu dihitung dari Tabel Komposisi Pangan Indonesia.',
       }),
     );
+    renderFoods();
     next.disabled = false;
   }
 
@@ -481,10 +569,13 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     const name = extras.name.trim();
     title.textContent = name ? `Rencana untuk ${name}` : 'Rencana kamu';
 
+    const profile = bodyProfile();
+    if (!profile) return;
+
     const goalLabel = GOAL_CHOICES.find((g) => g.value === draft.goal)?.name ?? '';
     sub.textContent = `${goalLabel} · ${daysPerWeek} hari latihan per minggu`;
 
-    const target = energyTarget(draft, false);
+    const target = energyTarget(profile, false);
     const macros = macroTargets(target);
     const firstReps = baselineReps(extras.experience, 'pushup');
     const sets = loadPreferences().setsPerExercise;
@@ -523,7 +614,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
           el('span', { text: `Protein ${macros.proteinG} g` }),
           el('span', { text: `Lemak ${macros.fatG} g` }),
         ),
-        el('p', { class: 'card__foot', text: explainArithmetic(draft, target) }),
+        el('p', { class: 'card__foot', text: explainArithmetic(profile, target) }),
       ),
 
       el(
@@ -551,7 +642,9 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   /* ------------------------------------------------------------- plumbing */
 
   function commit(): void {
-    saveProfile(draft);
+    const profile = bodyProfile();
+    if (!profile) return;
+    saveProfile(profile);
     saveExtras({ ...extras, name: extras.name.trim() });
     savePreferences({ ...loadPreferences(), daysPerWeek });
 
@@ -566,6 +659,12 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
   }
 
   function advance(): void {
+    // Step two can be revisited after later steps; clearing a figure there
+    // must halt the walk forward, not skip past an unanswered question.
+    if (step === 2 && !bodyComplete()) {
+      render();
+      return;
+    }
     if (step < STEPS) {
       // Saved at each step as well as at the end, so a phone that dies at
       // question four does not throw away questions one to three.
@@ -604,6 +703,10 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
       draft = loadProfile() ?? draft;
       extras = loadExtras();
       daysPerWeek = loadPreferences().daysPerWeek;
+      // The goal previews and the summary compute real calories; without a
+      // complete body the arithmetic has nothing to run on, so a deep link
+      // lands on the question that needs answering.
+      if (step > 2 && !bodyComplete()) step = 2;
       render();
     },
   };
