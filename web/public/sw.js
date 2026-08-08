@@ -14,7 +14,7 @@
  * first session needs the network, every session after it does not.
  */
 
-const VERSION = 'v2';
+const VERSION = 'v4';
 const SHELL_CACHE = `latih-shell-${VERSION}`;
 const ASSET_CACHE = `latih-assets-${VERSION}`;
 
