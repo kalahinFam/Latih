@@ -160,6 +160,8 @@ async function handler(request) {
   return json({ ok: true, id: record.id });
 }
 export {
-  config,
-  handler as default
+  handler as DELETE,
+  handler as GET,
+  handler as POST,
+  config
 };

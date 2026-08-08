@@ -315,7 +315,18 @@ function isValidSummary(value: unknown): value is SetSummaryPayload {
   );
 }
 
-export default async function handler(request: Request): Promise<Response> {
+/**
+ * Exported by method name, not as a default.
+ *
+ * Vercel's Node runtime reads a default export as the older `(req, res)`
+ * signature and discards whatever it returns — so a handler written against
+ * `Request`/`Response` answers nobody, and the request hangs until the
+ * function times out. A named method export is the Web-style signature it
+ * honours.
+ */
+export { handler as POST };
+
+async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return json({ error: 'Gunakan POST.' }, 405);
   }

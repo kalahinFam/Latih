@@ -193,6 +193,6 @@ async function handler(request) {
   return json({ checked: records.length, due, sent, expired, failed, storage: store.kind });
 }
 export {
-  config,
-  handler as default
+  handler as GET,
+  config
 };

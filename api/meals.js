@@ -637,6 +637,6 @@ async function handler(request) {
   }
 }
 export {
-  config,
-  handler as default
+  handler as POST,
+  config
 };

@@ -15,9 +15,11 @@ import type { Plugin, ViteDevServer } from 'vite';
  * to see coaching feedback, and the setup instructions would grow a step that
  * gets skipped — followed by a bug report that the coach "does nothing".
  *
- * Handlers use the Web-standard `Request`/`Response` signature, which is what
- * Vercel's Node runtime accepts, so the same file runs unmodified in both
- * places. Nothing here ships to production.
+ * Handlers use the Web-standard `Request`/`Response` signature and are exported
+ * under the HTTP method they serve, which is what Vercel's Node runtime reads —
+ * a default export there is taken as the older `(req, res)` form and its return
+ * value thrown away. Matching that here keeps the same file running unmodified
+ * in both places. Nothing in this file ships to production.
  */
 
 const API_DIR_FROM_WEB = '../server';
@@ -76,12 +78,18 @@ export function apiPlugin(): Plugin {
           // resolve exactly as they do in the rest of the project.
           const module = (await server.ssrLoadModule(
             pathToFileURL(join(apiDir, `${match}.ts`)).href,
-          )) as { default?: ApiHandler };
+          )) as Record<string, ApiHandler | undefined>;
 
-          const handler = module.default;
+          const handler = module[(req.method ?? 'GET').toUpperCase()];
           if (typeof handler !== 'function') {
-            res.statusCode = 500;
-            res.end(`server/${match}.ts tidak mengekspor default handler`);
+            // Not a 500: an endpoint that serves POST only should say so for a
+            // GET, the same as production does, rather than look broken.
+            res.statusCode = 405;
+            res.end(
+              JSON.stringify({
+                error: `server/${match}.ts tidak melayani ${req.method}.`,
+              }),
+            );
             return;
           }
 

@@ -32,7 +32,10 @@ function isAuthorized(request: Request): boolean {
   return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
-export default async function handler(request: Request): Promise<Response> {
+/** Named export, not default — see the note in `coach.ts`. Cron invokes GET. */
+export { handler as GET };
+
+async function handler(request: Request): Promise<Response> {
   if (!isAuthorized(request)) return json({ error: 'Tidak diizinkan.' }, 401);
 
   const vapid = vapidConfig();

@@ -234,7 +234,10 @@ function stripUngroundedNotes(options: MealOption[], table: TkpiTable): MealOpti
   });
 }
 
-export default async function handler(request: Request): Promise<Response> {
+/** Named export, not default — see the note in `coach.ts`. */
+export { handler as POST };
+
+async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'Gunakan POST.' }, 405);
 
   const limited = await checkLimit(request, LIMITS.meals);

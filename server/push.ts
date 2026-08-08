@@ -46,7 +46,13 @@ function isValid(value: unknown): value is SubscribeBody {
   );
 }
 
-export default async function handler(request: Request): Promise<Response> {
+/**
+ * Named exports, not default — see the note in `coach.ts`. All three point at
+ * the one handler, which already branches on the method.
+ */
+export { handler as GET, handler as POST, handler as DELETE };
+
+async function handler(request: Request): Promise<Response> {
   const vapid = vapidConfig();
 
   if (request.method === 'GET') {
