@@ -22,7 +22,7 @@ import type { ModelVariant } from '../pose/poseSource.ts';
  */
 const LABELS: { code: RuleErrorCode; text: string; forExercise: ExerciseKind[] }[] = [
   { code: 'shallow_depth', text: 'Kedalaman kurang', forExercise: ['pushup', 'squat'] },
-  { code: 'partial_lockout', text: 'Tidak lurus penuh', forExercise: ['pushup', 'squat'] },
+  { code: 'partial_lockout', text: 'Tidak lurus penuh', forExercise: ['pushup'] },
   { code: 'hip_sag', text: 'Pinggul turun', forExercise: ['pushup'] },
   { code: 'hip_pike', text: 'Pinggul naik', forExercise: ['pushup'] },
   { code: 'excessive_trunk_lean', text: 'Badan terlalu membungkuk', forExercise: ['squat'] },

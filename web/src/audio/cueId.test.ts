@@ -53,7 +53,7 @@ describe('cue coverage', () => {
    */
   const EXPECTED: Record<MovementKind, string[]> = {
     pushup: ['shallow_depth', 'partial_lockout', 'hip_sag', 'hip_pike'],
-    squat: ['shallow_depth', 'partial_lockout', 'excessive_trunk_lean'],
+    squat: ['shallow_depth', 'excessive_trunk_lean'],
     // A hold has no repetitions to grade; the hip line is the whole judgement.
     plank: ['hip_sag', 'hip_pike'],
   };

@@ -79,9 +79,12 @@ describe('thresholds must be reachable from what the counter emits', () => {
     expect(creditMax).toBeLessThanOrEqual(downEnter);
   });
 
-  it.each(exercises)('%s: lockout rule is stricter than the counter gate', (exercise) => {
-    expect(DEFAULT_THRESHOLDS[exercise].lockoutMin).toBeGreaterThan(
-      DEFAULT_CONFIGS[exercise].upEnter,
+  it('pushup: lockout rule is stricter than the counter gate', () => {
+    // Squat has no lockout rule — the counter's upEnter gate enforces a
+    // straight stand and the camera reads a full stand low enough that an
+    // absolute floor flagged clean reps.
+    expect(DEFAULT_THRESHOLDS.pushup.lockoutMin).toBeGreaterThan(
+      DEFAULT_CONFIGS.pushup.upEnter,
     );
   });
 
@@ -297,16 +300,28 @@ describe('partial lockout', () => {
     expect(codes(findings)).toContain('partial_lockout');
   });
 
-  it('judges each exercise against its own reference', () => {
-    // A squat peaking at 168 is fine next to a best of 174, and short next to
-    // a best of 186 — the same number, two verdicts, which is the point.
-    const bottom = { kneeLeft: 85, kneeRight: 85, trunkLean: 20 };
+  it('judges a rep against its own reference, not a fixed value', () => {
+    // The same peak reads as a full lockout next to a modest best and a short
+    // one next to a perfect best — the camera offset cancels out either way.
+    const w = windowAt(clean, { maxAngle: 165 });
     expect(
-      codes(evaluateRules('squat', windowAt(bottom, { maxAngle: 168 }), {}, { bestLockoutDeg: 174 })),
+      codes(evaluateRules('pushup', w, {}, { bestLockoutDeg: 160 })),
     ).not.toContain('partial_lockout');
     expect(
-      codes(evaluateRules('squat', windowAt(bottom, { maxAngle: 168 }), {}, { bestLockoutDeg: 186 })),
+      codes(evaluateRules('pushup', w, {}, { bestLockoutDeg: 180 })),
     ).toContain('partial_lockout');
+  });
+
+  it('squat: never emits a lockout finding', () => {
+    // The squat lockout rule was removed. Whatever peak the counter accepts,
+    // however short, no partial_lockout may appear — the cue was firing on
+    // clean reps because the camera reads a full stand below the absolute
+    // floor. Depth and trunk lean remain the squat's quality rules.
+    const bottom = { kneeLeft: 85, kneeRight: 85, trunkLean: 20 };
+    for (const peak of [130, 150, 164]) {
+      const findings = evaluateRules('squat', windowAt(bottom, { maxAngle: peak }));
+      expect(codes(findings), `peak ${peak}`).not.toContain('partial_lockout');
+    }
   });
 
   it('falls back to the absolute backstop on the first rep', () => {
