@@ -1,5 +1,6 @@
 import './style.css';
 import { registerServiceWorker } from './pwa.ts';
+import { installPortraitLock, lockPortrait } from './orientation.ts';
 import { Router, formatRoute, parseHash, type Route } from './app/router.ts';
 import { WorkoutSession } from './app/workoutSession.ts';
 import { TrainingHistory, toSetRecord } from './session/history.ts';
@@ -95,6 +96,9 @@ function autoFinishSet(): void {
 
 /** Start the workout flow from the persistent centre navigation action. */
 function startTrainingFlow(): void {
+  // Retry inside a user gesture: some browsers reject orientation requests
+  // made during boot but allow them for an installed/fullscreen app here.
+  void lockPortrait();
   // Keep this inside the click gesture so the first coaching cue may play.
   engine.unlockAudio();
   // Ask for camera permission and warm the real inference path before setup.
@@ -378,6 +382,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-back]')
 required<HTMLButtonElement>('#finishSet').addEventListener('click', finishSet);
 
 router.start();
+installPortraitLock();
 // The pose model compiles in the background while the user reads the opening
 // screens; `warmUp` at the home tap then only needs the camera.
 void engine.preloadModel();

@@ -136,9 +136,9 @@ body {
   /* A gentle sage lift from the bottom, per the design's light screens. */
   background-image: linear-gradient(
     to top,
-    var(--sage-wash) 0%,
-    rgba(84, 156, 137, 0.05) 18%,
-    rgba(84, 156, 137, 0) 42%
+    rgba(84, 156, 137, 0.1) 0%,
+    rgba(84, 156, 137, 0.035) 10%,
+    rgba(84, 156, 137, 0) 24%
   );
 }
 
