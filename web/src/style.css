@@ -418,8 +418,12 @@ body {
   letter-spacing: -0.04em;
 }
 
-.card__number--lg {
-  font-size: 4.75rem;
+/* The rest sheet, not a full screen. The count shares the head with an eyebrow
+   and has a scrollable sheet of coaching under it, so it is sized to lead that
+   column rather than to be read from two metres away — which is the workout
+   HUD's job, and the HUD is still on screen behind this. */
+.card__number--sheet {
+  font-size: 2.9rem;
 }
 
 .card__number--sm {
@@ -808,69 +812,74 @@ body {
 
 .restask__row {
   display: flex;
-  gap: 0.45rem;
-  align-items: stretch;
+  gap: 0.5rem;
+  /* The buttons are circles of a fixed size; stretching them would make ovals. */
+  align-items: center;
   margin-top: 0.7rem;
 }
 
+/* Round and wordless. Square-ish at 44 px so the tap target survives being
+   pressed from the floor, with the icon carrying the meaning. */
 .restask__mic,
 .restask__send {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.7rem;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   color: var(--text);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 50%;
   cursor: pointer;
 }
 
-.restask__micdot {
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--grey);
-  border-radius: 50%;
-}
-
-/* Listening is a state with no other visual: the button label changes, and a
-   pulsing dot is what says the microphone is actually open right now. */
+/*
+ * Listening has no other visual on this screen, and it is the state where
+ * something is leaving the device — so it is the loudest the sheet gets: the
+ * button fills with the primary green and the waveform pulses inside it.
+ */
 .restask__mic--live {
-  border-color: rgba(191, 138, 62, 0.5);
-  color: var(--amber);
+  color: #fff;
+  background: var(--sage);
+  border-color: var(--sage);
 }
 
-.restask__mic--live .restask__micdot {
-  background: var(--amber);
+.restask__mic--live .icon {
   animation: restask-pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes restask-pulse {
   50% {
-    opacity: 0.25;
+    opacity: 0.35;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .restask__mic--live .restask__micdot {
+  .restask__mic--live .icon {
     animation: none;
   }
+}
+
+.restask__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .restask__input {
   flex: 1;
   min-width: 0;
-  padding: 0.5rem 0.6rem;
+  /* Matches the buttons it sits between, so the row reads as one control. */
+  height: 44px;
+  padding: 0 0.85rem;
   font: inherit;
   font-size: 0.85rem;
   color: var(--text);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 22px;
 }
 
 .restask__status,
@@ -914,6 +923,53 @@ body {
   font-size: 0.72rem;
   line-height: 1.5;
   color: var(--grey);
+}
+
+/* Two equal choices, not a primary action and an escape hatch: declining a swap
+   is as legitimate an answer as accepting one, and a misheard sentence is what
+   these buttons exist for. */
+.restask__swapactions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.restask__swapyes,
+.restask__swapno {
+  flex: 1;
+  /* Pressed during rest, phone still on the floor. */
+  min-height: 44px;
+  padding: 0 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.restask__swapyes {
+  color: #fff;
+  background: var(--amber);
+  border: 1px solid var(--amber);
+}
+
+.restask__swapno {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+/* A health message, so it is set apart from the coach's prose rather than
+   appended to it — and in the neutral ink, not the amber the swap uses, because
+   it is information and not a warning about the set. */
+.restask__referral {
+  margin: 0.7rem 0 0;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--grey-deep);
+  background: var(--line-soft);
+  border-radius: 12px;
 }
 
 .check__value {

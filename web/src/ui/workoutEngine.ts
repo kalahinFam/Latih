@@ -40,6 +40,14 @@ import {
 } from '../core/posture.ts';
 import { HoldTracker } from '../core/holdTracker.ts';
 import { PerfMonitor } from '../core/metrics.ts';
+import {
+  INITIAL_CADENCE,
+  cadenceForPhase,
+  chooseCadence,
+  frameIntervalMs,
+  type Cadence,
+  type PacingPhase,
+} from '../core/pacing.ts';
 import { RepCounter } from '../core/repCounter.ts';
 import { MedianFilter } from '../core/smoothing.ts';
 import { RepWindowBuilder } from '../core/repWindow.ts';
@@ -249,6 +257,15 @@ export class WorkoutEngine {
    */
   private lastShownCount = -1;
   private postureSpokenUntilMs = 0;
+  /**
+   * How often inference is currently allowed to run, and whether the device has
+   * shown it cannot hold the normal rate. See `core/pacing.ts` — briefly: the
+   * screen refreshes far more often than this product needs, and the surplus
+   * turns into heat that throttles the phone late in a session.
+   */
+  private cadence: Cadence = INITIAL_CADENCE;
+  /** When the last frame that actually ran the model started. */
+  private lastInferenceMs = 0;
 
   private readinessListener: ((readiness: Readiness) => void) | null = null;
 
@@ -312,8 +329,30 @@ export class WorkoutEngine {
     return isHold(this.exercise);
   }
 
+  /**
+   * Which sampling rate this moment deserves.
+   *
+   * `setup` and `workout` are the engine's modes; a plank and a set of squats
+   * are both the latter and want very different rates, which is why pacing has
+   * its own three-way phase rather than reusing `EngineMode`.
+   */
+  private get pacingPhase(): PacingPhase {
+    if (this.mode !== 'workout') return 'setup';
+    return this.isHoldMovement ? 'hold' : 'counting';
+  }
+
   get performance() {
     return this.perf.snapshot();
+  }
+
+  /**
+   * The current inference rate, and whether the device forced it down.
+   *
+   * Exposed so the thermal behaviour can be read off a real phone during
+   * testing instead of only asserted in a unit test.
+   */
+  get pacing(): Cadence {
+    return this.cadence;
   }
 
   /** True while the camera stream is open. */
@@ -514,6 +553,10 @@ export class WorkoutEngine {
     // the count returns to 0 and would not read as an increase.
     this.lastShownCount = -1;
     this.postureSpokenUntilMs = 0;
+    // Not the cadence itself: a phone that was throttling a moment ago is still
+    // throttling now, and the degraded verdict is the one piece of state that
+    // should survive into the next set.
+    this.lastInferenceMs = 0;
     this.clearCue();
     this.renderLabel();
   }
@@ -527,6 +570,22 @@ export class WorkoutEngine {
     }
 
     const frameStart = performance.now();
+
+    // The phase is free to read, so it takes effect on the frame it changes.
+    // The health verdict is not — it needs a percentile over the sample buffer —
+    // so it is only revisited on frames that ran the model, which are also the
+    // only frames that added a sample to judge. Recomputing it on every tick
+    // would spend more on deciding to skip than skipping saves.
+    this.cadence = cadenceForPhase(this.pacingPhase, this.cadence);
+    if (frameStart - this.lastInferenceMs < frameIntervalMs(this.cadence)) {
+      // Return before `detect`. Skipping the model is the whole saving; the rest
+      // of the frame is arithmetic. The canvas keeps the last skeleton drawn,
+      // which is correct — nothing new has been seen to draw.
+      this.rafId = requestAnimationFrame(this.loop);
+      return;
+    }
+    this.lastInferenceMs = frameStart;
+
     const detection = this.pose.detect(this.el.video, frameStart);
 
     if (detection === null) {
@@ -549,6 +608,8 @@ export class WorkoutEngine {
     } else {
       this.lastPoseSeenMs = frameStart;
       this.perf.recordPose(detection.inferenceMs);
+      // A fresh sample landed, so the throttling verdict can be revisited.
+      this.cadence = chooseCadence(this.pacingPhase, this.perf.posePp95Ms, this.cadence);
 
       const fastLoopStart = performance.now();
       // Framing is judged on image-space landmarks: the question is literally

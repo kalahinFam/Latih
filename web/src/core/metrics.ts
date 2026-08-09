@@ -101,6 +101,19 @@ export class PerfMonitor {
     }
   }
 
+  /**
+   * Inference p95 alone.
+   *
+   * `snapshot()` summarises three buffers and is meant for a human reading a
+   * table. The pacing check runs inside the loop and wants one number, so it
+   * gets one — sorting the other two to throw them away would be work done in
+   * the name of saving work.
+   */
+  get posePp95Ms(): number {
+    const sorted = [...this.pose.snapshot()].sort((a, b) => a - b);
+    return percentile(sorted, 0.95);
+  }
+
   snapshot(): MetricsSnapshot {
     return {
       fps: this.frameTimestamps.length,

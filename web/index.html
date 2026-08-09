@@ -268,14 +268,13 @@
       <section class="screen screen--over-camera screen--dim" data-screen="umpanbalik" hidden>
         <header class="screen__bar screen__bar--onDark">
           <span class="hud__movement" id="feedbackTitle">PUSH-UP · SET 2/3</span>
-          <span class="screen__rest" id="feedbackRest"></span>
         </header>
 
         <div class="sheet sheet--tall">
           <div class="sheet__head">
             <div class="card__eyebrow" id="feedbackEyebrow">SET SELESAI</div>
             <div class="card__figure">
-              <span class="card__number card__number--lg" id="feedbackReps">0</span>
+              <span class="card__number card__number--sheet" id="feedbackReps">0</span>
               <span class="card__unit" id="feedbackTarget">repetisi</span>
             </div>
           </div>
@@ -301,11 +300,21 @@
           <div class="sheet__section restask" id="restAskWrap">
             <div class="card__eyebrow">TANYA PELATIH</div>
 
+            <!--
+              Both buttons are round and wordless, and their icons are appended
+              by the screen — see `icons.ts` on why nothing in this app parses a
+              string as HTML. The labels they replaced ("Bicara"/"Selesai" and
+              "Kirim") were taking the width the text field needs, on the one
+              row where the field is the fallback for everything else failing.
+            -->
             <div class="restask__row">
-              <button class="restask__mic" id="restMic" type="button" aria-label="Bicara ke pelatih">
-                <span class="restask__micdot" aria-hidden="true"></span>
-                <span id="restMicLabel">Bicara</span>
-              </button>
+              <button
+                class="restask__mic"
+                id="restMic"
+                type="button"
+                aria-label="Bicara ke pelatih"
+                aria-pressed="false"
+              ></button>
               <input
                 class="restask__input"
                 id="restText"
@@ -314,25 +323,59 @@
                 autocomplete="off"
                 placeholder="atau ketik: habis ini apa?"
               />
-              <button class="restask__send" id="restSend" type="button" aria-label="Kirim">
-                Kirim
-              </button>
+              <button
+                class="restask__send"
+                id="restSend"
+                type="button"
+                aria-label="Kirim"
+              ></button>
             </div>
 
             <p class="restask__status" id="restStatus"></p>
             <p class="restask__answer" id="restAnswer" hidden></p>
 
+            <!--
+              Shown when the same part has been complained about repeatedly.
+              Decided on the device by `core/referral.ts`, not by the model, and
+              worded there — this is the one message where an improvised phrasing
+              could read as a diagnosis.
+            -->
+            <p class="restask__referral" id="restReferral" hidden></p>
+
+            <!--
+              A proposal until the user says so. Speech recognition mishears a
+              sentence spoken while out of breath, and "sakit" is the one word in
+              this box that can change the rest of the day's training — so the
+              swap is offered and confirmed rather than applied and explained.
+            -->
             <div class="restask__swap" id="restSwap" hidden>
               <div class="restask__swaphead" id="restSwapHead"></div>
               <p class="restask__swaphow" id="restSwapHow"></p>
               <p class="restask__swapnote">
                 Kamera belum bisa menghitung gerakan ini, jadi set-nya tidak dihitung otomatis.
               </p>
+              <div class="restask__swapactions" id="restSwapActions">
+                <button class="restask__swapyes" id="restSwapYes" type="button">Ya, ganti</button>
+                <button class="restask__swapno" id="restSwapNo" type="button">
+                  Tidak, lanjut saja
+                </button>
+              </div>
             </div>
 
-            <p class="restask__note" id="restDisclosure"></p>
+            <!--
+              Only carries the reason when speech is unavailable. The privacy
+              sentence it used to hold lives in the settings screen's privacy
+              section, which is the one place it is not competing with a rest
+              timer for attention.
+            -->
+            <p class="restask__note" id="restDisclosure" hidden></p>
           </div>
 
+          <!--
+            The rest countdown is the button's own label until it reaches zero.
+            It used to sit in the header, far from the control it was about, and
+            a primary button that is live during rest invites skipping it.
+          -->
           <div class="sheet__actions">
             <button class="btn btn--primary" id="feedbackNext" type="button">
               Lanjut ke set berikutnya

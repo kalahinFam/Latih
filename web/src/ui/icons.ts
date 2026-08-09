@@ -10,7 +10,9 @@
  *
  * So: the tab bar, where icons are the convention and the labels alone read as
  * a row of links; the two chrome buttons where the icon *is* the whole control;
- * and the onboarding choices, where a tick has to be unmistakable at a glance.
+ * the onboarding choices, where a tick has to be unmistakable at a glance; and
+ * the two round buttons on the rest sheet, where the labels were eating the
+ * width of the text field they sit beside.
  *
  * Nothing on the workout HUD. The design is explicit that one number and one
  * colour carry the signal there, and an icon would be a third thing competing
@@ -45,6 +47,14 @@ const PATHS: Record<string, string[]> = {
   chevron: ['M6 15l6-6 6 6'],
   centang: ['M5 12.5l4.5 4.5L19 7.5'],
   info: ['M12 11.5v5', 'M12 7.8v.01'],
+  // Soundwave rather than a microphone: the button is round and small, and five
+  // bars stay legible at that size where a capsule-on-a-stand turns to mush.
+  // It also reads as "sound happening" when it lights up, which is what the
+  // live state has to communicate.
+  suara: ['M4 10.5v3', 'M8 7.5v9', 'M12 5.5v13', 'M16 7.5v9', 'M20 10.5v3'],
+  // Paper plane. The label it replaces was "Kirim", and this is the one symbol
+  // for that which needs no learning.
+  kirim: ['M21.4 2.6L2.6 10.2l8 3.2 3.2 8z', 'M10.6 13.4L21.4 2.6'],
 };
 
 /** Icons that also need a circle drawn around them. */
