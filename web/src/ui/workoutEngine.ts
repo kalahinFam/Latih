@@ -595,7 +595,7 @@ export class WorkoutEngine {
       // Framing outranks low confidence: a cropped body is *why* confidence is
       // low, and "step back" is something the user can act on.
       this.setStatus(this.framingOrTrackingStatus(framing.issue, posture.issue));
-      this.showPostureCue(posture.issue, frameStart);
+      this.showPostureCue(posture.issue, posture.invalidatesRep, frameStart);
       // Only nag while framing still blocks the set. Once armed, a transient
       // issue is reported on screen and left alone.
       if (!this.armed) this.speakFraming(framing.issue, frameStart);
@@ -637,10 +637,14 @@ export class WorkoutEngine {
     const phaseBefore = this.counter.status.phase;
     // A support cheat discovered mid-descent must not let the rep count. Marked
     // before the counter consumes the frame so an attempt that ends on the very
-    // frame the cheat appears is rejected too.
+    // frame the cheat appears is rejected too. The amber lands on the same
+    // frame the gate is detected — the audio cue says it in the same breath —
+    // rather than waiting for the rep to end, exactly as the depth cue fires at
+    // the reversal.
     if (rejectedBy !== null && phaseBefore === 'down') {
       this.repInvalidatedThisRep = true;
       this.repInvalidatedIssue = rejectedBy;
+      this.showPostureRejection(rejectedBy, frameStart);
       this.counter.invalidateCurrentAttempt();
     }
     const rep = this.counter.update(angle, detection.frame.timestampMs);
@@ -785,8 +789,15 @@ export class WorkoutEngine {
 
   /* ------------------------------------------------------------------- cues */
 
-  /** Speak posture gates without turning them into a competing HUD correction. */
-  private showPostureCue(issue: PostureIssue | null, nowMs: number): void {
+  /**
+   * Speak a posture gate.
+   *
+   * Spoken-only gates (stance, a warning lean) clear any HUD correction so
+   * they do not compete with it. A gate that *rejects* the rep must not clear:
+   * the rep in flight already ambered it (`showPostureRejection`), and this
+   * speech is the audio half of that same signal.
+   */
+  private showPostureCue(issue: PostureIssue | null, rejectsRep: boolean, nowMs: number): void {
     if (issue === null || this.mode === 'idle') return;
 
     // One posture cue per interval, whether or not it is the same problem.
@@ -798,12 +809,29 @@ export class WorkoutEngine {
     if (nowMs < this.postureSpokenUntilMs) return;
 
     this.postureSpokenUntilMs = nowMs + POSTURE_SPEECH_INTERVAL_MS;
-    this.clearCue();
+    if (!rejectsRep) this.clearCue();
     // Remembered per rep so a rep the gate rejects is not told the same
     // thing twice — the live cue speaks it here, the rejection repeats it
     // only if this speech never happened.
     this.spokenThisRep.add(`posture:${issue}`);
     this.voice.playCue(postureCueFor(issue));
+  }
+
+  /**
+   * Amber a rep the posture gates are rejecting, live.
+   *
+   * The visual half of the posture cue for the gates that reject a rep: the
+   * count turns amber and the overlay points at the fault the frame it is
+   * detected, so the audio cue and the colour change land together — the
+   * same timing the depth cue already uses at the reversal. Re-fired every
+   * frame the gate holds, which is what keeps the amber on screen.
+   */
+  private showPostureRejection(issue: PostureIssue, nowMs: number): void {
+    this.el.repCaption.textContent = postureCueFor(issue);
+    this.el.hud.dataset.state = 'correction';
+    this.el.hudWash.classList.add('hud__wash--correction');
+    this.highlightJoints = postureHighlight(issue);
+    this.cueUntilMs = nowMs + CUE_VISIBLE_MS;
   }
 
   /**
