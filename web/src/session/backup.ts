@@ -15,20 +15,26 @@
  *
  * ## What is in it, and what is deliberately not
  *
- * The four keys below are the whole of it. `latih.reminder.id.v1` is left out
- * on purpose: it identifies a push subscription belonging to one browser on one
- * device, and restoring it elsewhere would point that phone's reminder switch
- * at a subscription it does not own. `latih.launched.v1` is left out because it
- * is derived — a restored profile already means onboarding is done.
+ * The keys below are the whole of it. The complaint log is included and matters
+ * most: it is the only health record this product keeps, and the one thing here
+ * somebody might want to show a person who makes medical judgements.
+ *
+ * `latih.substitutions.v1` is left out — every entry expires at midnight, so a
+ * restored one is either already dead or about to be. `latih.reminder.id.v1` is
+ * left out because it identifies a push subscription belonging to one browser on
+ * one device, and restoring it elsewhere would point that phone's reminder
+ * switch at a subscription it does not own. `latih.launched.v1` is left out
+ * because it is derived — a restored profile already means onboarding is done.
  */
 
+import { COMPLAINTS_KEY } from './complaints.ts';
 import { HISTORY_KEY } from './history.ts';
 import { EXTRAS_KEY, PREFERENCES_KEY, PROFILE_KEY } from './profile.ts';
 
 /** Bumped only if a future format cannot be read by this code. */
 const BACKUP_VERSION = 1;
 
-const KEYS = [HISTORY_KEY, PROFILE_KEY, PREFERENCES_KEY, EXTRAS_KEY] as const;
+const KEYS = [HISTORY_KEY, PROFILE_KEY, PREFERENCES_KEY, EXTRAS_KEY, COMPLAINTS_KEY] as const;
 
 export interface BackupEnvelope {
   app: 'latih';

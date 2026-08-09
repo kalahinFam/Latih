@@ -5,6 +5,7 @@ import { Router, formatRoute, parseHash, type Route } from './app/router.ts';
 import { WorkoutSession } from './app/workoutSession.ts';
 import { TrainingHistory, toSetRecord } from './session/history.ts';
 import { hasLaunched, loadPreferences, markLaunched } from './session/profile.ts';
+import { currentSplit, todaysMovements } from './session/planner.ts';
 import { explainTarget } from './core/sessionLoop.ts';
 import { WorkoutEngine, type Readiness } from './ui/workoutEngine.ts';
 import { createHomeScreen } from './ui/screens/homeScreen.ts';
@@ -215,6 +216,12 @@ const screens = {
     hasMoreSets: () => (workout ? !workout.isComplete : false),
     onNext: () => router.go('kamera'),
     onFinish: () => router.go('ringkasan'),
+    getMovement: () => exercise,
+    // Read from the same place the home screen and the picker read it, so
+    // "habis ini apa?" cannot be answered with a session none of them offer.
+    getTodaysMovements: () => todaysMovements(currentSplit()),
+    getSetsDone: () => workout?.setsDone ?? 0,
+    getSetsPlanned: () => workout?.plan.setsPlanned ?? 0,
   }),
 
   ringkasan: createSummaryScreen({

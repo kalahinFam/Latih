@@ -292,6 +292,47 @@
             <div class="bars" id="feedbackErrors"></div>
           </div>
 
+          <!--
+            Ask the coach during rest. Voice first, because the phone is on the
+            floor and the user is not; the text field is there because speech
+            recognition is missing or blocked on plenty of browsers and a
+            microphone that silently does nothing is worse than a keyboard.
+          -->
+          <div class="sheet__section restask" id="restAskWrap">
+            <div class="card__eyebrow">TANYA PELATIH</div>
+
+            <div class="restask__row">
+              <button class="restask__mic" id="restMic" type="button" aria-label="Bicara ke pelatih">
+                <span class="restask__micdot" aria-hidden="true"></span>
+                <span id="restMicLabel">Bicara</span>
+              </button>
+              <input
+                class="restask__input"
+                id="restText"
+                type="text"
+                maxlength="300"
+                autocomplete="off"
+                placeholder="atau ketik: habis ini apa?"
+              />
+              <button class="restask__send" id="restSend" type="button" aria-label="Kirim">
+                Kirim
+              </button>
+            </div>
+
+            <p class="restask__status" id="restStatus"></p>
+            <p class="restask__answer" id="restAnswer" hidden></p>
+
+            <div class="restask__swap" id="restSwap" hidden>
+              <div class="restask__swaphead" id="restSwapHead"></div>
+              <p class="restask__swaphow" id="restSwapHow"></p>
+              <p class="restask__swapnote">
+                Kamera belum bisa menghitung gerakan ini, jadi set-nya tidak dihitung otomatis.
+              </p>
+            </div>
+
+            <p class="restask__note" id="restDisclosure"></p>
+          </div>
+
           <div class="sheet__actions">
             <button class="btn btn--primary" id="feedbackNext" type="button">
               Lanjut ke set berikutnya

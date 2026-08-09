@@ -12,6 +12,8 @@
  */
 
 import { TrainingHistory } from '../../session/history.ts';
+import { substituteFor } from '../../session/complaints.ts';
+import { SUBSTITUTE_NAMES } from '../../core/restChat.ts';
 import { currentSplit, todaysMovements } from '../../session/planner.ts';
 import { loadPreferences } from '../../session/profile.ts';
 import { el, required } from '../dom.ts';
@@ -85,9 +87,20 @@ export function createPickerScreen(deps: PickerDeps): Screen {
           head.append(el('span', { class: 'pick__tag', text: 'HARI INI' }));
         }
 
-        const dose = isHold(movement.id)
-          ? `${prefs.setsPerExercise} set × ${deps.history.currentHoldTarget(movement.id).targetSeconds} detik`
-          : `${prefs.setsPerExercise} set × ${deps.history.currentTarget(movement.id).targetReps} repetisi`;
+        // A complaint during rest swaps a movement out for the rest of the day.
+        // Saying so on the card the user is about to tap is the only place it
+        // still matters — a swap they have to remember is a swap that gets
+        // ignored on the next set.
+        const substitute = substituteFor(movement.id);
+        if (substitute) {
+          head.append(el('span', { class: 'pick__tag pick__tag--swap', text: 'DIGANTI' }));
+        }
+
+        const dose = substitute
+          ? `${prefs.setsPerExercise} set — tidak dihitung kamera`
+          : isHold(movement.id)
+            ? `${prefs.setsPerExercise} set × ${deps.history.currentHoldTarget(movement.id).targetSeconds} detik`
+            : `${prefs.setsPerExercise} set × ${deps.history.currentTarget(movement.id).targetReps} repetisi`;
 
         const card = el(
           'button',
@@ -109,7 +122,9 @@ export function createPickerScreen(deps: PickerDeps): Screen {
             head,
             el('span', { class: 'pick__dose', text: dose }),
             el('span', {
-              class: 'pick__note',            }),
+              class: 'pick__note',
+              text: substitute ? `Ganti hari ini: ${SUBSTITUTE_NAMES[substitute]}` : '',
+            }),
           ),
         );
 

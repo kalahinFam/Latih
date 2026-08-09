@@ -104,7 +104,11 @@ function redisCommand() {
 var LIMITS = {
   coach: { bucket: "coach", perHour: 30 },
   nutrition: { bucket: "nutrition", perHour: 30 },
-  meals: { bucket: "meals", perHour: 30 }
+  meals: { bucket: "meals", perHour: 30 },
+  // Asked between sets, so several per set is normal — someone reporting pain
+  // will often follow up, and a limit that cuts that conversation off mid-way
+  // lands on the one exchange where being unhelpful matters most.
+  restChat: { bucket: "rest-chat", perHour: 60 }
 };
 var DAILY_QUOTA = Number(process.env.LLM_DAILY_QUOTA ?? 1500);
 var memory = /* @__PURE__ */ new Map();

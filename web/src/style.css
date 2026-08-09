@@ -733,6 +733,13 @@ body {
   border-color: var(--line);
 }
 
+/* A movement swapped out after a complaint. Amber, matching the plank's broken
+   line: both mean "this is not the thing you planned", not "this is wrong". */
+.pick__tag--swap {
+  color: var(--amber);
+  border-color: rgba(191, 138, 62, 0.45);
+}
+
 .pick__dose {
   display: block;
   margin-top: 0.45rem;
@@ -795,6 +802,118 @@ body {
   gap: 0.6rem;
   margin-top: 1.4rem;
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ------------------------------------------- tanya pelatih saat istirahat */
+
+.restask__row {
+  display: flex;
+  gap: 0.45rem;
+  align-items: stretch;
+  margin-top: 0.7rem;
+}
+
+.restask__mic,
+.restask__send {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.restask__micdot {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--grey);
+  border-radius: 50%;
+}
+
+/* Listening is a state with no other visual: the button label changes, and a
+   pulsing dot is what says the microphone is actually open right now. */
+.restask__mic--live {
+  border-color: rgba(191, 138, 62, 0.5);
+  color: var(--amber);
+}
+
+.restask__mic--live .restask__micdot {
+  background: var(--amber);
+  animation: restask-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes restask-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .restask__mic--live .restask__micdot {
+    animation: none;
+  }
+}
+
+.restask__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.restask__status,
+.restask__note {
+  margin: 0.55rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--grey);
+}
+
+.restask__answer {
+  margin: 0.7rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* The swap is the consequential part of the exchange, so it gets a box rather
+   than a sentence buried in the reply. */
+.restask__swap {
+  margin-top: 0.8rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(191, 138, 62, 0.35);
+  border-radius: 12px;
+}
+
+.restask__swaphead {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.restask__swaphow {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.restask__swapnote {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--grey);
 }
 
 .check__value {

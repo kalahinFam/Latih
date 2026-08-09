@@ -476,6 +476,13 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
           class: 'sheet__note',
           text: 'Berat, tinggi, dan usia tetap di perangkat. Yang sampai ke saran menu hanya angka kalori hasil hitungannya, bukan ukuran tubuh yang menghasilkannya.',
         }),
+        // The one exception, stated as an exception. An app whose argument is
+        // "the processing happens here" owes the user a plain sentence at the
+        // point where that stops being true.
+        el('p', {
+          class: 'sheet__note',
+          text: 'Satu pengecualian: kalau kamu memakai tombol bicara saat istirahat, suaramu dikirim ke layanan pengenal suara milik browser untuk diubah jadi teks. Ketik kalau tidak mau. Keluhan yang tercatat tetap tersimpan di perangkat dan tidak pernah dikirim.',
+        }),
         el('p', {
           class: 'card__foot',
           text: 'LATIH bukan alat medis dan tidak memberi diagnosis. Kalau ada nyeri atau kondisi kesehatan tertentu, tanyakan ke tenaga kesehatan sebelum mengikuti programnya.',

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { backupFilename, buildBackup, importBackup } from './backup.ts';
+import { COMPLAINTS_KEY, SUBSTITUTIONS_KEY } from './complaints.ts';
 import { HISTORY_KEY } from './history.ts';
 import { EXTRAS_KEY, PREFERENCES_KEY, PROFILE_KEY } from './profile.ts';
 
@@ -19,6 +20,7 @@ const SEED = {
   [PROFILE_KEY]: JSON.stringify({ weightKg: 70, heightCm: 175 }),
   [PREFERENCES_KEY]: JSON.stringify({ daysPerWeek: 3 }),
   [EXTRAS_KEY]: JSON.stringify({ experience: 'beginner' }),
+  [COMPLAINTS_KEY]: JSON.stringify([{ at: 1, part: 'lutut', side: 'kiri', said: 'lutut sakit' }]),
 };
 
 describe('buildBackup', () => {
@@ -27,8 +29,17 @@ describe('buildBackup', () => {
   it('carries every stored key', () => {
     const backup = buildBackup();
     expect(Object.keys(backup.data).sort()).toEqual(
-      [HISTORY_KEY, PROFILE_KEY, PREFERENCES_KEY, EXTRAS_KEY].sort(),
+      [HISTORY_KEY, PROFILE_KEY, PREFERENCES_KEY, EXTRAS_KEY, COMPLAINTS_KEY].sort(),
     );
+  });
+
+  it('carries the complaint log, the one health record kept here', () => {
+    expect(buildBackup().data[COMPLAINTS_KEY]).toBe(SEED[COMPLAINTS_KEY]);
+  });
+
+  it('leaves out substitutions, which expire at midnight anyway', () => {
+    installStorage({ ...SEED, [SUBSTITUTIONS_KEY]: '[{"from":"squat"}]' });
+    expect(buildBackup().data[SUBSTITUTIONS_KEY]).toBeUndefined();
   });
 
   it('leaves out the push subscription id', () => {
@@ -55,7 +66,7 @@ describe('importBackup', () => {
     const file = JSON.stringify(buildBackup());
     const store = installStorage();
 
-    expect(importBackup(file)).toEqual({ ok: true, restored: 4 });
+    expect(importBackup(file)).toEqual({ ok: true, restored: Object.keys(SEED).length });
     expect(Object.fromEntries(store)).toEqual(SEED);
   });
 

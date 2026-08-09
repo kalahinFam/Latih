@@ -34,6 +34,8 @@ set), dan session loop (adaptasi target dari riwayat latihan).
 | Rencana latihan mingguan | ✅ berjalan |
 | Target kalori + saran menu dari TKPI | ✅ berjalan |
 | Pengingat jam latihan (Web Push) | ✅ berjalan, butuh kunci VAPID |
+| Tanya pelatih saat istirahat (suara + ketik) | ✅ berjalan |
+| Substitusi gerakan dari keluhan + catatan keluhan | ✅ berjalan |
 | Batas belanja endpoint berbayar | ✅ berjalan, dua lapis |
 | Cadangan data (ekspor/impor file) | ✅ berjalan |
 | Klasifier form (ONNX) | ⬜ tidak dikerjakan (lihat di bawah) |
@@ -276,6 +278,46 @@ kehilangan satu sesi data.
 Target tampil di HUD selama set berjalan, bukan hanya di ringkasan sesudahnya —
 target yang baru diberitahu setelah selesai itu skor, target yang terlihat sambil
 bekerja itu yang mengubah perilaku.
+
+---
+
+## Tanya pelatih saat istirahat
+
+Di sela set, pengguna bisa bicara ke pelatih — "habis ini apa?", atau "lutut
+kiriku sakit". Yang pertama dijawab dari rencana yang sudah dipegang perangkat.
+Yang kedua **mengganti gerakan berikutnya dan mencatat keluhannya.**
+
+**Model membaca kalimatnya; kode yang memutuskan akibatnya.** Model
+mengembalikan bagian tubuh dari daftar tertutup, sisi, dan maksudnya — lalu tabel
+di `core/restChat.ts` yang menentukan penggantinya. Alasannya sama dengan
+`directivesFor()` di endpoint coach: model yang bebas memilih pada akhirnya akan
+menjawab keluhan lutut dengan lunge — yang membebani lutut yang sama, dan yang
+juga tidak bisa dihitung kamera. Prompt-nya melarang model menyebut gerakan
+pengganti sama sekali; kalimat yang menyebut penggantinya ditulis kode.
+
+**Penggantinya sengaja bukan `MovementKind`.** Glute bridge tidak bisa dinilai
+kamera, dan [types.ts](web/src/core/types.ts) sudah menyatakan harga dari
+melebarkan tipe itu: entri tak bermakna di setiap tabel ambang, setiap aturan,
+setiap jendela fitur. Jadi `SubstituteMovement` berdiri sendiri, setiapnya
+membawa `tracked: false`, dan layarnya berkata apa adanya — *"kamera belum bisa
+menghitung gerakan ini, jadi set-nya tidak dihitung otomatis"*. Produk yang
+mengklaim mengamati berutang kejujuran tentang set yang tidak diamatinya.
+
+**Substitusi berlaku sampai tengah malam, lalu hilang.** Lutut yang sakit hari
+Selasa bukan bukti tentang hari Kamis, dan aplikasi ini tidak punya cara tahu
+apakah sudah sembuh. Membawanya diam-diam ke besok berarti aplikasi mengambil
+keputusan medis yang bukan wewenangnya. Keluhannya sendiri tetap disimpan —
+itu catatan yang bisa dilihat pengguna, dan yang mungkin ingin ditunjukkan ke
+orang yang memang berwenang menilai.
+
+**Suara adalah satu-satunya jalur yang keluar dari perangkat.** Web Speech API
+tidak mentranskrip di perangkat: audionya dikirim ke layanan pengenal suara milik
+browser. Frame kamera tetap tidak pernah dikirim, dan klaim itu utuh — tapi
+keduanya tidak boleh digambarkan seolah bekerja dengan cara yang sama, jadi
+kalimatnya ditempel persis di sebelah tombol mikrofon, bukan di halaman
+pengaturan yang tak pernah dibuka. Ada kolom ketik di sebelahnya: Firefox tidak
+mendukung sama sekali, iOS berbeda-beda per versi, dan mikrofon yang diam-diam
+tidak melakukan apa-apa lebih buruk daripada papan ketik.
 
 ---
 
