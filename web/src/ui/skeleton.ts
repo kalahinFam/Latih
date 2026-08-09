@@ -11,6 +11,7 @@
  */
 
 import { POSE_CONNECTIONS } from '../pose/poseSource.ts';
+import type { PostureIssue } from '../core/posture.ts';
 import { LM, type Landmark, type MovementKind } from '../core/types.ts';
 
 /**
@@ -128,6 +129,26 @@ export const HIGHLIGHT_JOINTS: Record<string, readonly number[]> = {
 export function highlightFor(exercise: MovementKind, code: string | null): readonly number[] {
   if (!code) return [];
   return HIGHLIGHT_JOINTS[`${exercise}:${code}`] ?? [];
+}
+
+/**
+ * Which joints a posture gate rejection is about.
+ *
+ * A rep the squat gates reject is ambered like any correction, so the overlay
+ * answers the same "where" it answers for the rules — the lifted foot shows
+ * the ankle, the supporting hand shows the wrist, the lost torso shows both
+ * ends of the lean it was measured from.
+ */
+export const POSTURE_HIGHLIGHT: Record<PostureIssue, readonly number[]> = {
+  'not-upright': [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP],
+  'not-horizontal': [],
+  'squat-hands-on-floor': [LM.LEFT_WRIST, LM.RIGHT_WRIST],
+  'squat-feet-lifted': [LM.LEFT_ANKLE, LM.RIGHT_ANKLE, LM.LEFT_FOOT_INDEX, LM.RIGHT_FOOT_INDEX],
+  'squat-stance': [],
+};
+
+export function postureHighlight(issue: PostureIssue): readonly number[] {
+  return POSTURE_HIGHLIGHT[issue];
 }
 
 export function clearSkeleton(ctx: CanvasRenderingContext2D): void {

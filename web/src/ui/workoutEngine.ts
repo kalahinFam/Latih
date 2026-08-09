@@ -61,7 +61,13 @@ import {
 import { Voice } from '../audio/voice.ts';
 import { isHold, type ExerciseKind, type MovementKind } from '../core/types.ts';
 import { PoseSource, type ModelVariant } from '../pose/poseSource.ts';
-import { DEFAULT_SKELETON_STYLE, clearSkeleton, drawSkeleton, highlightFor } from './skeleton.ts';
+import {
+  DEFAULT_SKELETON_STYLE,
+  clearSkeleton,
+  drawSkeleton,
+  highlightFor,
+  postureHighlight,
+} from './skeleton.ts';
 
 /**
  * How long the person may be undetected before we prompt about framing.
@@ -202,8 +208,14 @@ export class WorkoutEngine {
    * live at the reversal is not repeated by the post-rep rules a moment later.
    */
   private readonly spokenThisRep = new Set<string>();
-  /** Prevents a support-form rejection from being narrated as shallow depth. */
+  /**
+   * The in-flight rep was rejected by a posture gate. Two consequences: it
+   * must not count, and it must not be narrated as shallow depth — its
+   * failure is the gate, not the depth.
+   */
   private repInvalidatedThisRep = false;
+  /** Which gate rejected the in-flight rep; shown in amber at the rep's end. */
+  private repInvalidatedIssue: PostureIssue | null = null;
   /**
    * Frames where the counting angle was unavailable. Surfaced because "reps are
    * being missed" is not actionable and "the angle was readable in 61% of
@@ -482,6 +494,7 @@ export class WorkoutEngine {
     this.hold.reset();
     this.spokenThisRep.clear();
     this.repInvalidatedThisRep = false;
+    this.repInvalidatedIssue = null;
     this.windows.clear();
     this.reps.length = 0;
     this.setStartedMs = 0;
@@ -567,7 +580,7 @@ export class WorkoutEngine {
             detection,
             angles,
             movementPlausible,
-            posture.invalidatesRep,
+            posture.invalidatesRep ? posture.issue : null,
             frameStart,
           );
       }
@@ -609,7 +622,8 @@ export class WorkoutEngine {
     detection: NonNullable<ReturnType<PoseSource['detect']>>,
     angles: ReturnType<typeof computeJointAngles>,
     movementPlausible: boolean,
-    invalidatesRep: boolean,
+    /** The posture gate rejecting the in-flight rep, if any. */
+    rejectedBy: PostureIssue | null,
     frameStart: number,
   ): void {
     // Feed null when the body is not in the movement, or before the set is
@@ -624,11 +638,19 @@ export class WorkoutEngine {
     // A support cheat discovered mid-descent must not let the rep count. Marked
     // before the counter consumes the frame so an attempt that ends on the very
     // frame the cheat appears is rejected too.
-    if (invalidatesRep && phaseBefore === 'down') {
+    if (rejectedBy !== null && phaseBefore === 'down') {
       this.repInvalidatedThisRep = true;
+      this.repInvalidatedIssue = rejectedBy;
       this.counter.invalidateCurrentAttempt();
     }
     const rep = this.counter.update(angle, detection.frame.timestampMs);
+
+    // Losing the person abandons the attempt without an event, so a rejection
+    // marked for it must not leak onto the next rep.
+    if (this.repInvalidatedThisRep && this.counter.status.phase === 'unknown') {
+      this.repInvalidatedThisRep = false;
+      this.repInvalidatedIssue = null;
+    }
 
     // Live depth check runs during the descent, so the correction lands as the
     // lifter starts back up rather than after the rep is already done.
@@ -645,12 +667,16 @@ export class WorkoutEngine {
       // progresses from.
       //
       // `liveCue` usually says this first, at the reversal, which is earlier
-      // and better; `spokenThisRep` stops it being said twice.
-      if (!this.repInvalidatedThisRep && !this.spokenThisRep.has('shallow_depth')) {
+      // and better; `spokenThisRep` stops it being said twice. A rep a posture
+      // gate rejected gets the gate's own correction in amber instead.
+      if (this.repInvalidatedThisRep && this.repInvalidatedIssue !== null) {
+        this.showRejectedRep(this.repInvalidatedIssue, frameStart);
+      } else if (!this.spokenThisRep.has('shallow_depth')) {
         this.showCue('shallow_depth', cueFor(this.exercise, 'shallow_depth'), frameStart);
       }
       this.spokenThisRep.clear();
       this.repInvalidatedThisRep = false;
+      this.repInvalidatedIssue = null;
     } else if (rep) {
       // A rep counted is a rep confirmed: the count pops and a short ping
       // lands alongside it, independent of any cue that may be speaking.
@@ -680,6 +706,7 @@ export class WorkoutEngine {
       this.showCue(cue?.code ?? null, cue?.cue ?? null, frameStart);
       this.spokenThisRep.clear();
       this.repInvalidatedThisRep = false;
+      this.repInvalidatedIssue = null;
 
       // The set has done what it set out to do. Announced here rather than
       // polled, so the transition lands on the frame the target was met.
@@ -772,6 +799,10 @@ export class WorkoutEngine {
 
     this.postureSpokenUntilMs = nowMs + POSTURE_SPEECH_INTERVAL_MS;
     this.clearCue();
+    // Remembered per rep so a rep the gate rejects is not told the same
+    // thing twice — the live cue speaks it here, the rejection repeats it
+    // only if this speech never happened.
+    this.spokenThisRep.add(`posture:${issue}`);
     this.voice.playCue(postureCueFor(issue));
   }
 
@@ -797,6 +828,29 @@ export class WorkoutEngine {
     // Pre-rendered clip: plays immediately, no network round trip. A cue that
     // arrives after the rep it describes is not a late cue, it is a wrong one.
     this.voice.playCue(cue);
+  }
+
+  /**
+   * Flag a rep the posture gates rejected.
+   *
+   * The rejection is a correction like any other — the count turns amber and
+   * the overlay points at the fault — but it narrates the gate's own failure
+   * (a lifted foot, a supporting hand, a lost torso) instead of shallow
+   * depth. The live posture cue has usually said it already, so
+   * `spokenThisRep` stops it being said twice.
+   */
+  private showRejectedRep(issue: PostureIssue, nowMs: number): void {
+    const cue = postureCueFor(issue);
+    this.el.repCaption.textContent = cue;
+    this.el.hud.dataset.state = 'correction';
+    this.el.hudWash.classList.add('hud__wash--correction');
+    this.highlightJoints = postureHighlight(issue);
+    this.cueUntilMs = nowMs + CUE_VISIBLE_MS;
+
+    if (!this.spokenThisRep.has(`posture:${issue}`)) {
+      this.spokenThisRep.add(`posture:${issue}`);
+      this.voice.playCue(cue);
+    }
   }
 
   private expireCue(nowMs: number): void {

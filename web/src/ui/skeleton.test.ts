@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { HIGHLIGHT_JOINTS, highlightFor } from './skeleton.ts';
+import { HIGHLIGHT_JOINTS, POSTURE_HIGHLIGHT, highlightFor, postureHighlight } from './skeleton.ts';
 import { CUE_TEXT } from '../core/rules.ts';
 import { LM } from '../core/types.ts';
 
@@ -38,5 +38,39 @@ describe('highlightFor', () => {
   it('highlights nothing when the form is clean', () => {
     expect(highlightFor('pushup', null)).toEqual([]);
     expect(highlightFor('pushup', 'not_a_rule')).toEqual([]);
+  });
+});
+
+describe('postureHighlight', () => {
+  it('points at the joints each squat gate measures', () => {
+    // A rejected rep is ambered like any correction, so the overlay must say
+    // where the gate found the fault: the lifted foot, the supporting hand,
+    // both ends of the trunk lean.
+    expect(postureHighlight('squat-feet-lifted')).toEqual([
+      LM.LEFT_ANKLE,
+      LM.RIGHT_ANKLE,
+      LM.LEFT_FOOT_INDEX,
+      LM.RIGHT_FOOT_INDEX,
+    ]);
+    expect(postureHighlight('squat-hands-on-floor')).toEqual([LM.LEFT_WRIST, LM.RIGHT_WRIST]);
+    expect(postureHighlight('not-upright')).toEqual([
+      LM.LEFT_SHOULDER,
+      LM.RIGHT_SHOULDER,
+      LM.LEFT_HIP,
+      LM.RIGHT_HIP,
+    ]);
+  });
+
+  it('maps every gate the engine can reject a rep with', () => {
+    // POSTURE_HIGHLIGHT is keyed by every PostureIssue. The engine only ever
+    // rejects with these, and an unmapped one would render a blank overlay
+    // under amber text.
+    expect(Object.keys(POSTURE_HIGHLIGHT).sort()).toEqual([
+      'not-horizontal',
+      'not-upright',
+      'squat-feet-lifted',
+      'squat-hands-on-floor',
+      'squat-stance',
+    ]);
   });
 });
