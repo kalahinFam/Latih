@@ -9,157 +9,135 @@ Universitas Indonesia.
 
 ## ▶ Try it now
 
-**[https://latih-sable.vercel.app/](https://latih-sable.vercel.app/)**
+**App — [https://latih-sable.vercel.app/](https://latih-sable.vercel.app/)**
+
+**Demo video — [drive.google.com](https://drive.google.com/file/d/1w5jnrktRLhgwTnC-VvskPk6fQWCZW7Kl/view)**
 
 Nothing to install and no account to create. Open the link on a phone, tap
-**Mulai latihan**, pick a movement, and allow camera access. The interface is in
-Indonesian, which is deliberate — see [Localization](#a-note-on-language).
-
-That URL is the whole product. Everything described in this README is reachable
-from it, including the parts a judge would want to verify: the offline
+**Mulai latihan**, pick a movement, and allow camera access. That URL is the
+whole product — including the parts a judge would want to verify: the offline
 correction loop, the TKPI-grounded nutrition answers with their source rows, and
-the privacy checks in [Privacy claims](#privacy-claims--how-to-verify-them-yourself).
+the checks in [Privacy claims](#privacy-claims--how-to-verify-them-yourself).
+
+The interface, the spoken cues, and the coach are in Indonesian throughout, and
+the food database is the Indonesian national composition table. That is the
+product localized for its users, not an unfinished translation.
 
 ---
 
 ## Using the deployed app
 
-### What you need
-
 | | |
 |---|---|
 | **Device** | Any Android phone. iOS works too, with the caveats below. |
-| **Browser** | Chrome or Edge on Android; Safari on iOS. **Not Firefox** — it does not implement the Web Speech API, so voice input is unavailable there (a text field is provided instead). |
-| **Permissions** | Camera. Notifications only if you want workout reminders. |
-| **Account** | None. There is no sign-up, and no data is associated with a person. |
+| **Browser** | Chrome or Edge on Android; Safari on iOS. **Not Firefox** — no Web Speech API, so voice input is unavailable (a text field is provided instead). |
+| **Permissions** | Camera. Notifications only for workout reminders. |
+| **Account** | None. No sign-up, and no data is associated with a person. |
 | **API key** | None on your side. The coach's key lives on the server. |
 
-The camera requires **HTTPS**, which the deployed URL provides. This is a
-functional requirement, not a deployment nicety: `getUserMedia` refuses to run
-on an insecure origin, so an IP address on your LAN will never work.
+**The camera requires HTTPS everywhere in this document.** `getUserMedia`
+refuses to run on an insecure origin, so a LAN address such as
+`http://192.168.x.x:5174` will never work — not locally, not on your own
+deployment. It is a functional requirement, not a deployment nicety.
 
 ### A five-minute walkthrough
 
-1. **Open the URL** on your phone and complete onboarding. Six questions, each
-   feeding a calculation — the closing screen shows the arithmetic rather than a
-   congratulation.
-2. **Start a set.** Pick push-up, squat, or plank, prop the phone against
-   something at roughly 30–45° for push-ups and squats (full side-on for plank),
-   and step back until your whole body is in frame. The setup screen tells you
-   when it is.
-3. **Train.** Repetitions are counted against a real depth standard. A
-   half-repetition is shown in amber and *not* counted — that is intended, and
-   the reason is in [design decision 3](#3-half-reps-are-seen-but-not-counted).
-   Exactly one spoken cue per repetition.
+1. **Complete onboarding.** Six questions, each feeding a calculation — the
+   closing screen shows the arithmetic rather than a congratulation.
+2. **Start a set.** Prop the phone at roughly 30–45° for push-ups and squats
+   (full side-on for plank) and step back until your whole body is in frame. The
+   setup screen tells you when it is.
+3. **Train.** Reps are counted against a real depth standard; a half-rep shows
+   in amber and is *not* counted (see
+   [design decision 3](#3-half-reps-are-seen-but-not-counted)). Exactly one
+   spoken cue per repetition.
 4. **Press STOP.** The set summary goes to the coach and comes back as two or
    three sentences plus one focus for the next set.
 5. **Ask something during rest.** Try *"habis ini apa?"* ("what's next?") or
-   *"lutut kiriku sakit"* ("my left knee hurts"). The second one changes the next
+   *"lutut kiriku sakit"* ("my left knee hurts"). The second changes the next
    movement and logs the complaint.
 
 ### Install it and pull the plug
 
-This is the single most convincing thing to try, and it takes a minute.
+The single most convincing thing to try, and it takes a minute. Accept Chrome's
+**"Install app"** prompt on Android, or use **Share → Add to Home Screen** on
+iOS. Then **turn off mobile data and Wi-Fi** and start a set: the repetition
+counter, the form rules, and the spoken cues all keep working, because none of
+them need the network.
 
-In Chrome on Android an **"Install app"** prompt appears; accept it. On iOS, use
-**Share → Add to Home Screen**. Then **turn off mobile data and Wi-Fi** and start
-a set. The repetition counter, the form rules, and the spoken cues all keep
-working, because none of them need the network. Only the between-set narrative
-is skipped, with a message saying so.
+Only four things do — the per-set coach narrative, nutrition answers, meal
+suggestions, and rest-chat replies. Each fails softly with a message, and the
+workout continues.
 
-### What needs connectivity
-
-Form correction and counting never do. These do: the per-set coach narrative,
-nutrition answers, meal suggestions, and rest-chat replies. Each fails softly —
-you get a message and the workout continues.
-
-### iOS caveats
-
-Push reminders reach an installed PWA only, never an ordinary Safari tab; the
-app reports this rather than showing a button that quietly does nothing. Web
-Speech support varies by iOS version, so the typing field next to the microphone
-is not decoration.
-
-### A note on language
-
-The interface, the spoken cues, and the coach are in Indonesian throughout. The
-food database is the Indonesian national composition table. This is the product
-being localized for its users, not an unfinished translation.
+**On iOS**, push reminders reach an installed PWA only, never an ordinary Safari
+tab, and the app reports this rather than showing a button that quietly does
+nothing. Web Speech support varies by iOS version, so the typing field next to
+the microphone is not decoration.
 
 ---
 
 ## Running it locally
 
-You do not need this to evaluate the product — the deployed URL above is the
-complete app. Follow this if you want to read the code as it runs, or change it.
-
-**Prerequisite:** Node.js 20 or newer.
+You do not need this to evaluate the product. Follow it to read the code as it
+runs, or to change it. **Prerequisite:** Node.js 20 or newer.
 
 ```bash
 git clone https://github.com/kalahinFam/Latih.git
 cd Latih
 npm install                 # OpenAI SDK for the serverless functions
-cd web && npm install
-npm run dev
+npm install --prefix web    # the browser app
+npm run dev                 # from the repository root → http://localhost:5174
 ```
 
 For the AI coach, copy `.env.example` to `.env` in the repository root and fill
-in `OPENAI_API_KEY`. **Without a key the fast loop still runs in full** — the
-repetition counter and the correction cues need no network at all; only the
-between-set narrative is skipped.
-
-Open **http://localhost:5174** (or whichever port is printed), press **Mulai
-latihan**, choose a movement, then allow camera access.
+in `OPENAI_API_KEY`. **Without a key the fast loop still runs in full** — only
+the between-set narrative is skipped.
 
 `npm install` does not download the models. The first `npm run dev` triggers
 `setup:assets`, which copies the WASM runtime out of `node_modules` and fetches
-two pose models (~48 MB total). It happens once; later runs skip it.
+two pose models (~48 MB total), once.
 
-### Testing on a phone
-
-The camera is only available over **HTTPS**. Opening a LAN address such as
-`http://192.168.x.x:5174` will be refused by the browser. Use a tunnel:
+**On a phone**, the camera needs HTTPS, so tunnel and open the printed
+`https://….trycloudflare.com` URL:
 
 ```bash
 npx cloudflared tunnel --url http://localhost:5174
 ```
 
-Open the printed `https://….trycloudflare.com` URL on the phone.
-
-### Testing PWA installation and offline mode
-
-The service worker is deliberately active only in production builds — in dev
-mode it fights with hot reload.
+**To test PWA installation and offline mode**, build first — the service worker
+is active only in production, because in dev it fights hot reload — then point
+the tunnel at the preview port and accept Chrome's "Install app".
 
 ```bash
 npm run build
-npm run preview
+npm run preview --prefix web
 ```
-
-Then point the tunnel at the preview port. Chrome on Android will offer
-**"Install app"**. Once installed, turn off the network: the repetition counter
-and the cues keep working in full.
 
 ---
 
 ## Commands
 
+Run from the **repository root**:
+
 | Command | What it does |
 |---|---|
-| `npm run dev` | Development server |
+| `npm run dev` | Development server on port 5174 |
 | `npm test` | Unit tests (627 of them) |
+| `npm run typecheck` | Type check without building |
+| `npm run build` | Production build into `web/dist/` |
+| `npm run build:api` | Bundle `server/` endpoints into `api/` |
 | `npm run gen:vapid` | Generate a Web Push key pair |
 | `npm run tts:lab` | Render coach voice samples for comparison (into `tts-lab/`) |
 | `npm run gen:cues -- --force` | Regenerate the cue clips after changing voice |
-| `npm run typecheck` | Type check without building |
-| `npm run build` | Production build into `dist/` |
-| `npm run preview` | Serve the build (for PWA testing) |
-| `npm run setup:assets` | Re-fetch models + WASM |
-| `npm run gen:icons` | Regenerate the PWA icons |
 | `npm run bench:fastloop` | Fast-loop compute cost per frame (**not** device latency) |
 | `npm run eval:reps` | Repetition-counting accuracy harness |
 | `npm run eval:grounding` | TKPI grounding battery (needs `npm run dev` + an API key) |
 | `npm run check:tkpi` | Validate the TKPI table (duplicate codes, bases, Atwater) |
+| `npm run fetch:tkpi` / `verify:tkpi` | Re-extract and re-check the table from panganku.org |
+
+Three scripts live in `web/` only and need the prefix:
+`npm run preview --prefix web` (serve the build), `setup:assets` (re-fetch
+models + WASM), `gen:icons` (regenerate the PWA icons).
 
 ---
 
@@ -187,6 +165,7 @@ and the cues keep working in full.
                      │  SLOW LOOP  /api/coach       │  per-set narrative
                      │  NUTRITION  /api/nutrition   │  TKPI + verifier
                      │  MEALS      /api/meals       │  options, totals in code
+                     │  REST CHAT  /api/rest-chat   │  between-set questions
                      │  REMINDERS  /api/push        │  Web Push subscriptions
                     └────────────────────────────┬─┘
                                                  │  cron every 15 minutes
@@ -197,59 +176,41 @@ and the cues keep working in full.
                                     └───────────────────────────┘
 ```
 
-### Directory structure
-
 ```
 web/src/
-├── core/          ← PURE LOGIC. No DOM, no MediaPipe.
-│   ├── angles.ts       landmarks → joint angles
-│   ├── repCounter.ts   hysteresis state machine
-│   ├── rules.ts        deterministic form checks
-│   ├── repWindow.ts    per-repetition frame buffer
-│   ├── features.ts     per-rep window → 32×12 tensor (classifier input)
-│   ├── setSummary.ts   per-set aggregation + the privacy contract
-│   ├── sessionLoop.ts  target adaptation from cross-session history
-│   ├── plan.ts         weekly plan from target + preferences
-│   ├── split.ts        movements per training day, from onboarding answers
-│   ├── energy.ts       Mifflin-St Jeor → calorie & protein targets
-│   ├── pantry.ts       curated foods, by TKPI code
-│   ├── meals.ts        meal option validation + total computation
-│   ├── metrics.ts      FPS & latency instrumentation
-│   └── quality.ts      quality score, day streaks, session aggregates
-├── app/           ← hash router + workout session state
-├── session/       ← on-device storage: history, profile, reminders
-├── pose/          ← the only file that knows MediaPipe exists
-└── ui/
-    ├── workoutEngine.ts  fast loop + camera, two modes
-    ├── skeleton.ts       overlay
-    ├── icons.ts          seven icons, hand-drawn
-    └── screens/          one module per screen
+├── core/       ← PURE LOGIC. No DOM, no MediaPipe.
+│                 angles · repCounter · rules · posture · holdTracker ·
+│                 repWindow · features · setSummary · sessionLoop · plan ·
+│                 split · energy · tkpi · grounding · restChat · pantry · meals
+├── app/        ← hash router + workout session state
+├── session/    ← on-device storage: history, profile, complaints, reminders
+├── pose/       ← the only file that knows MediaPipe exists
+├── ui/         ← workoutEngine (fast loop + camera), skeleton overlay,
+│                 fourteen hand-drawn icons, one module per screen
+└── coach/ meals/ nutrition/ audio/ annotate/   ← API clients & feature glue
 
-web/test/          ← integration tests against real data and server code.
-                     Outside src/ so that src/ stays pure browser code.
+web/test/       ← integration tests against real data and server code.
+                  Outside src/ so that src/ stays pure browser code.
 ```
 
 `core/` is kept pure on purpose: the Node evaluation scripts import **exactly
-the same modules** the application runs. There is no duplicated logic, so the
-numbers reported in the paper are guaranteed to come from the code the product
-actually uses.
-
-Two things make this work, and break it if changed:
+the same modules** the application runs, so the numbers reported in the paper
+come from the code the product actually uses. Two things make that work, and
+break it if changed:
 
 - **Every relative import carries an explicit `.ts` extension.** Node's ESM
-  resolver does not guess extensions the way bundlers do. Removing them makes
-  the evaluation scripts fail to resolve, even though the app still runs.
+  resolver does not guess extensions the way bundlers do; removing them makes
+  the evaluation scripts fail to resolve even though the app still runs.
 - **`erasableSyntaxOnly` is on in `tsconfig.json`.** It forbids TypeScript
   syntax that emits runtime code (enums, parameter properties), so Node can
-  simply strip types without compiling.
+  strip types without compiling.
 
 ---
 
 ## Slow loop — the per-set narrative
 
-Press **STOP** when you finish. The client posts a set summary to `/api/coach`,
-which returns two or three sentences of Indonesian plus one focus for the next
-set.
+Press **STOP** and the client posts a set summary to `/api/coach`, which returns
+two or three sentences of Indonesian plus one focus for the next set.
 
 **That summary is all that leaves the device:** repetition counts, joint angles
 in degrees, durations, and error codes. No frames, no landmark coordinates. The
@@ -265,25 +226,22 @@ that lost four repetitions and nine degrees of depth — all the same failure,
 namely asking a language model to evaluate a numeric threshold and remember a
 conditional.
 
-Every response carries `usage` and `latencyMs`, so the cost and latency figures
-in the paper come from real traffic rather than estimates.
-
-**Failure paths** (all degrade quality; none stop the workout): offline and a
-15-second timeout are skipped with a message; a missing key produces a concrete
-instruction; a zero-repetition set is answered without calling the model at all.
+Every response carries `usage` and `latencyMs`, so the paper's cost and latency
+figures come from real traffic rather than estimates. **Failure paths** all
+degrade quality and none stop the workout: offline and a 15-second timeout are
+skipped with a message, a missing key produces a concrete instruction, and a
+zero-repetition set is answered without calling the model at all.
 
 ---
 
 ## Session loop — targets that adapt
 
-The third and slowest loop: it looks across sessions and decides what to ask for
-next. `core/sessionLoop.ts` (pure logic) + `session/history.ts` (storage).
+The slowest loop looks across sessions and decides what to ask for next:
+`core/sessionLoop.ts` (pure logic) + `session/history.ts` (storage).
 
 **History never leaves the device.** It lives in `localStorage`, capped at 500
 sets. Only derived numbers — the target, the repetition delta, the depth delta —
 travel with the `/api/coach` request. Never the log.
-
-**Three rules shape it:**
 
 - **Quality gates progression, not volume alone.** If the target is met but more
   than 25% of repetitions were flagged, the target holds and the narrative
@@ -293,25 +251,22 @@ travel with the `/api/coach` request. Never the log.
 - **Two consecutive sessions are required**, because one good session is noise.
 - **The session's best set is judged, not its last.** Fatigue makes later sets
   lower; judging the last would read every normal workout as a regression.
-
-Sessions below 0.7 tracking quality are **skipped entirely** rather than counted
-as failures — the camera had the problem, not the person.
+- **Sessions below 0.7 tracking quality are skipped entirely** rather than
+  counted as failures — the camera had the problem, not the person.
 
 ---
 
 ## Asking the coach during rest
 
-Between sets you can talk to the coach — *"habis ini apa?"* ("what's next?") or
-*"lutut kiriku sakit"* ("my left knee hurts"). The first is answered from the
-plan the device already holds. The second **changes the next movement and logs
-the complaint.**
+*"Habis ini apa?"* is answered from the plan the device already holds. *"Lutut
+kiriku sakit"* **changes the next movement and logs the complaint.**
 
 **The model reads the sentence; code decides the consequence.** The model
-returns a body part from a closed set, a side, and an intent — then a table in
-`core/restChat.ts` determines the replacement. A model free to choose will
-eventually answer a knee complaint with a lunge, which loads the same knee and
-which the camera also cannot count. The prompt forbids naming a replacement
-movement at all.
+returns a body part from a closed set, a side, and an intent; a table in
+`core/restChat.ts` then determines the replacement, and the prompt forbids
+naming one at all. A model free to choose will eventually answer a knee
+complaint with a lunge, which loads the same knee and which the camera also
+cannot count.
 
 **Replacements are deliberately not `MovementKind`.** A glute bridge cannot be
 judged by this camera setup, so each `SubstituteMovement` carries
@@ -319,26 +274,25 @@ judged by this camera setup, so each `SubstituteMovement` carries
 movement, so the set is not counted automatically"*. A product that claims to
 watch owes honesty about the sets it does not watch.
 
-**The medical boundary is structural.** Substitutions expire at midnight,
+**The medical boundary is structural.** Substitutions expire at local midnight,
 because a knee that hurt on Tuesday is not evidence about Thursday and the app
-has no way to know whether it healed. The complaint itself is kept, as a record
-to show someone qualified to judge it. Three complaints about the same body part
-within 14 days add a fixed referral sentence, owned by code and never phrased by
-the model.
+cannot know whether it healed. The complaint itself is kept, as a record to show
+someone qualified to judge it. Three complaints about the same body part within
+14 days (`REFERRAL_WINDOW_DAYS`) add a fixed referral sentence, owned by code
+and never phrased by the model.
 
 **Voice is the one path that leaves the device.** The Web Speech API does not
-transcribe on-device: the audio goes to the browser vendor's recognition
-service. Camera frames still never leave, and that claim is intact — but the two
+transcribe on-device — the audio goes to the browser vendor's recognition
+service. Camera frames still never leave and that claim is intact, but the two
 must not be described as though they work alike, so the sentence saying so sits
 directly beside the microphone button rather than in a settings page nobody
-opens. A typing field sits next to it: Firefox does not support the API at all,
-and iOS varies by version.
+opens.
 
 ---
 
 ## Application flow
 
-Ten screens in a single document, with a hash router in `app/router.ts`:
+Twelve screens in a single document, with a hash router in `app/router.ts`:
 
 ```
 Splash ──► Onboarding (6 steps) ──┐
@@ -348,15 +302,15 @@ Home ──► Pick movement ──► Camera setup ──► Workout ──► 
   │                                            └── another set┤
   └──────────────── Session summary ◄────── finish ───────────┘
 
-Bottom nav: Workout · History · Nutrition        Settings from Home
+Bottom nav: Workout · History · Nutrition (+ Q&A)   Settings from Home
 ```
 
 **Why one document rather than several pages.** The camera has to survive every
 one of those transitions. Separate pages tear down `getUserMedia` and
 re-initialize MediaPipe on each navigation — a black screen for several seconds,
-mid-workout. The `<video>` element lives in its own layer outside the screens.
-Hash routing is used instead of the History API because the app is served as
-static files.
+mid-workout. The `<video>` element therefore lives in its own layer outside the
+screens. Hash routing is used instead of the History API because the app ships
+as static files.
 
 **Onboarding** is six steps (`STEPS` in `ui/screens/onboardingScreen.ts`), and
 every question exists because something computes with the answer: age, sex,
@@ -371,20 +325,19 @@ shrimp; with them, **zero violations across three scenarios**.
 
 **The camera setup screen ticks only what it measures:** whole body in frame,
 and approximate distance via `bodyFill`. Camera angle and height are not
-measured at all, so both appear as written guidance without a checkmark — a
-checkmark meaning "we assume so" would devalue the two that mean "we measured
-this".
+measured, so both appear as written guidance without a checkmark — a checkmark
+meaning "we assume so" would devalue the two that mean "we measured this".
 
 **The plank has its own machine** (`core/holdTracker.ts`): a repetition is an
-event, a hold is a state. A broken hip line **stops the clock rather than ending
-the set**, with a 300 ms grace. The camera angle differs too — push-ups and
-squats want 30–45° oblique, the plank wants full side-on.
+event, a hold is a state, so a broken hip line **stops the clock rather than
+ending the set**, with a 300 ms grace. The camera angle differs too — push-ups
+and squats want 30–45° oblique, the plank wants full side-on.
 
 **The workout screen** is read from about 2 m away at floor height: one large
-number with everything else at the edges; the number itself changes colour (sage
-for good form, amber for a correction) so the signal and the thing being watched
-are the same object; and the number sits in the lower third, because from the
-floor that is where your gaze falls.
+number with everything else at the edges, changing colour itself (sage for good
+form, amber for a correction) so the signal and the thing being watched are the
+same object, and sitting in the lower third because from the floor that is where
+your gaze falls.
 
 ---
 
@@ -408,25 +361,25 @@ metabolism, and **out-of-range input is rejected rather than extrapolated**.
 
 ## Meal suggestions — where the verifier is not enough
 
-This is the case the existing grounding verifier cannot catch. That verifier
-checks whether a number **appears** in a retrieved row. A meal's total appears
-in no row, because it is **derived** — so a wrong total assembled from
-ingredients whose individual numbers are all genuine would pass.
+This is the case the grounding verifier cannot catch. That verifier checks
+whether a number **appears** in a retrieved row, but a meal's total appears in
+no row because it is **derived** — so a wrong total assembled from ingredients
+whose individual numbers are all genuine would pass.
 
 So the division of labour shifts: **the model picks foods and portions**, and
 every number after that is computed by `core/meals.ts` from the TKPI rows those
 codes refer to. The pantry is curated **by TKPI code** rather than by keyword
-search — searching "ayam" returns fried chicken from three restaurant chains
-before it reaches plain chicken. A test asserts that every code resolves to a
-real row not flagged `suspect`, so a mistyped code fails the build.
+search, because searching "ayam" returns fried chicken from three restaurant
+chains before it reaches plain chicken. A test asserts that every code resolves
+to a real row not flagged `suspect`, so a mistyped code fails the build.
 
-**What was measured.** Tested against `gpt-4o-mini` over twelve meal slots: five
+**What was measured.** Against `gpt-4o-mini` over twelve meal slots, five
 options were rejected because their totals missed the target, **always by
-falling short**, with the error growing as the target rose. One more invented a
+falling short**, with the error growing as the target rose; one more invented a
 TKPI code that does not exist, caught by the pantry check. Adding arithmetic
 hints to the prompt and requesting a fourth option cut the rejection rate from
 **42% to 29%**. The remainder is the honest cost of asking a language model to
-satisfy an arithmetic constraint; it is absorbed rather than hidden — only
+satisfy an arithmetic constraint, and it is absorbed rather than hidden — only
 options that pass validation reach the user.
 
 ---
@@ -434,20 +387,19 @@ options that pass validation reach the user.
 ## Workout reminders
 
 Real Web Push: the server wakes the service worker at the chosen time, whether
-or not the app is open.
-
-**Payload-free push.** The server sends an empty wake-up; the text is composed
-in the service worker, on the device. The push service — Google or Mozilla,
-depending on the browser — relays a notification whose contents it never sees.
+or not the app is open. **The push is payload-free** — the server sends an empty
+wake-up and the text is composed in the service worker, on the device, so the
+push service (Google or Mozilla, depending on the browser) relays a notification
+whose contents it never sees.
 
 ```bash
 npm run gen:vapid          # → VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
 ```
 
-Put both into `.env` and into the Environment Variables on Vercel. Without them
+Put both into `.env` and into the Environment Variables on Vercel; without them
 the reminder button hides itself and the rest of the app runs normally.
 
-Subscriptions are stored in Upstash Redis over its REST API. If
+Subscriptions live in Upstash Redis over its REST API. If
 `UPSTASH_REDIS_REST_URL` is unset, storage falls back to memory — fine locally,
 lost on every redeploy, and the Plan screen says so. On iPhone, push only
 reaches a PWA added to the Home Screen, and `reminderSupport()` reports the
@@ -462,15 +414,13 @@ reason instead of showing a button that quietly does nothing.
 1,133 are citable; 11 are excluded because their numbers are inconsistent **in
 the source itself** (see [`data/tkpi/README.md`](data/tkpi/README.md)).
 
-**Nutrition Q&A** is its own screen, opened from Nutrition. Every answer appears
-**together with the TKPI rows it used**, numbers and provenance included, so
-anyone — a judge included — can check it without leaving the page.
-
-You can **type or pick**, because the two fail differently. Typing reaches the
-whole table but can miss — and if retrieval finds nothing, the answer is a
-refusal. The offered questions cannot miss: the catalogue is in
-`core/nutritionQuestions.ts`, and every question it can produce is tested
-against the real TKPI table in `test/nutritionQuestions.test.ts`, so a
+**Nutrition Q&A** is its own screen, and every answer appears **together with
+the TKPI rows it used**, numbers and provenance included, so anyone — a judge
+included — can check it without leaving the page. You can **type or pick**,
+because the two fail differently: typing reaches the whole table but can miss,
+and if retrieval finds nothing the answer is a refusal, whereas the offered
+questions cannot miss — every question `core/nutritionQuestions.ts` can produce
+is tested against the real table in `test/nutritionQuestions.test.ts`, so a
 suggestion that cannot be answered fails the build rather than the conversation.
 
 **The pipeline, and why each stage exists:**
@@ -478,10 +428,10 @@ suggestion that cannot be answered fails the build rather than the conversation.
 1. **Retrieval** finds the foods the question names. If nothing matches, the
    model is **not called at all** — without rows there is nothing for an answer
    to be grounded in, and asking anyway is precisely how a fabricated number is
-   produced. In conversation, follow-up questions often name no food at all
-   ("kalau tahu?"), so retrieval is retried together with the previous question
-   — only when needed, because every extra row widens the set of numbers the
-   verifier will accept, and that set is the guarantee.
+   produced. Follow-up questions often name no food ("kalau tahu?"), so
+   retrieval is retried together with the previous question — only when needed,
+   because every extra row widens the set of numbers the verifier will accept,
+   and that set is the guarantee.
 2. **The model sees only the retrieved rows**, explicitly forbidden to compute,
    multiply, or use its own knowledge.
 3. **The verifier checks every number** in the answer against those rows.
@@ -493,14 +443,12 @@ That last step is the point. A nutrition assistant that occasionally invents a
 plausible number is worse than one that occasionally refuses to write prose,
 because the user cannot tell the two apart. Refusing is an honest failure.
 
-Only **derived numbers** accompany the question: the daily energy and protein
-targets already computed on the device. Weight, height, age, and sex have no
-field in the request type.
-
-**Only numbers carrying a unit are checked.** Nutrition claims always have one —
-"20.8 grams of protein", "201 kcal". A bare number is a count ("two
-ingredients"), not a composition claim; checking those would reject correct
-answers, and the team would end up disabling the verifier. Indonesian numerals
+Only **derived numbers** accompany the question — the daily energy and protein
+targets already computed on the device; weight, height, age, and sex have no
+field in the request type. And **only numbers carrying a unit are checked**,
+because nutrition claims always have one ("20.8 grams of protein", "201 kcal")
+while a bare number is a count ("two ingredients"), and checking those would
+reject correct answers until the team disabled the verifier. Indonesian numerals
 are read by Indonesian convention — decimal comma, thousands point — since
 reading "20,8" as English yields 208 and fails every check.
 
@@ -532,115 +480,98 @@ Raw output is committed at [`eval/results/grounding.json`](eval/results/groundin
 
 This came out of measurement, not initial design. On a 10-row table every metric
 was green; once the full table was in, *"berapa protein daging unta"* ("how much
-protein is in camel meat") cited four unrelated meat rows — because "daging"
+protein is in camel meat") cited four unrelated meat rows, because "daging"
 (meat) matches hundreds of names while "unta" (camel) matches none. The answer
 was still correct ("no data available"), but four irrelevant foods appeared as
 its sources.
 
 The fix: a match is accepted only if at least one matching word is
-**distinctive** — appearing in at most 3% of food names. The first attempt was
-instructively wrong: requiring matches to explain *most* of the question
-rejected *"tempe tahu telur ayam"* outright, since with four foods named no
-single row can explain a majority.
+**distinctive**, appearing in at most 3% of food names
+(`MAX_COMMON_TOKEN_SHARE`). The first attempt was instructively wrong —
+requiring matches to explain *most* of the question rejected *"tempe tahu telur
+ayam"* outright, since with four foods named no single row can explain a
+majority.
 
 ### Validating the data
 
-```bash
-npm run check:tkpi
-```
-
-Checks for duplicate codes, non-100 g bases, and Atwater consistency
-(protein×4 + carbs×4 + fat×9 ≈ energy).
-
-It found **11 rows (0.96%) whose numbers contradict themselves in the official
-TKPI data** — confirmed directly against the source pages. Those rows are kept
-for provenance, flagged `suspect`, and excluded from retrieval. A system
-grounded in an external source still has to validate that source.
+`npm run check:tkpi` checks for duplicate codes, non-100 g bases, and Atwater
+consistency (protein×4 + carbs×4 + fat×9 ≈ energy). It found **11 rows (0.96%)
+whose numbers contradict themselves in the official TKPI data**, confirmed
+directly against the source pages. Those rows are kept for provenance, flagged
+`suspect`, and excluded from retrieval. A system grounded in an external source
+still has to validate that source.
 
 ---
 
 ## Audio — correction cues, pre-rendered MP3
 
-The set of corrective phrases is closed — seven sentences, listed in `CUE_TEXT`
-in `core/rules.ts`. All are rendered to MP3 at build time by
-`scripts/gen-cues.mjs` and played back with no network involved at all.
+The set of corrective phrases is closed: eight movement-and-fault entries in
+`CUE_TEXT` (`core/rules.ts`) resolving to six distinct sentences, since the
+plank shares its two hip cues with the push-up. All are rendered to MP3 at build
+time by `web/scripts/gen-cues.mjs` and played back with no network involved.
 
 The reason: a cue that arrives a second late **is not a late cue, it is a wrong
 one** — the repetition it describes is over. Calling a TTS service mid-set also
 costs money on every repetition and goes silent the moment the venue Wi-Fi
 misbehaves.
 
-Filenames are hashed from **the text**. Editing a phrase produces a new name, so
-the old recording stops being referenced rather than quietly playing a
+Filenames are hashed from **the text**, so editing a phrase produces a new name
+and the old recording stops being referenced rather than quietly playing a
 correction that no longer applies. The consequence: change the voice without
 `npm run gen:cues -- --force` and the old clips stay in use.
 
 If a clip fails to play — offline, no key, quota exhausted — playback falls back
-to the browser's built-in `speechSynthesis`. Which one you are hearing is
-readable in the device console:
-
-```js
-latih.engine.audioSource   // 'clip' | 'browser' | null
-```
-
-The between-set narrative is shown as text on the Feedback screen, not read
-aloud.
+to the browser's built-in `speechSynthesis`, and which one you are hearing is
+readable in the device console as `latih.engine.audioSource` (`'clip'` |
+`'browser'` | `null`). The between-set narrative is shown as text on the
+Feedback screen, not read aloud.
 
 ---
 
 ## Annotation tool
 
-Open **http://localhost:5174/annotate.html** after `npm run dev`.
-
-Flow: choose a video → extract keypoints → inspect the repetition segmentation →
-label fault classes → download JSON.
+Open **http://localhost:5174/annotate.html** after `npm run dev`: choose a video
+→ extract keypoints → inspect the repetition segmentation → label fault classes
+→ download JSON.
 
 **Extraction runs in the browser rather than in Python**, because the tool uses
 **exactly the same** `PoseSource` and `RepCounter` as the application. MediaPipe
 Python and MediaPipe JS are different implementation paths even with identical
-model weights; any numerical difference would make the evaluation numbers
+model weights, and any numerical difference would make the evaluation numbers
 describe the harness rather than the product.
 
-**Two rules keep the dataset valid:**
-
-1. **Rule outputs are never ticked automatically.** Guesses from `rules.ts`
-   appear in a separate `suggested` column and are never copied into `labels` —
-   a dataset seeded from rule output teaches a classifier to imitate the rules,
-   turning any later *rule-only* vs *rule+classifier* ablation into a comparison
-   of something against its own copy.
-2. **A subject ID is mandatory**, because the train/test split must be per
-   person. If repetitions from the same person leak across both sides, F1 looks
-   good for false reasons.
-
-Export is refused when the segmented and manual counts disagree, because that
-disagreement **is** the accuracy data.
+Two rules keep the dataset valid. **Rule outputs are never ticked
+automatically** — guesses from `rules.ts` appear in a separate `suggested`
+column, never copied into `labels`, because a dataset seeded from rule output
+teaches a classifier to imitate the rules, turning any later *rule-only* vs
+*rule+classifier* ablation into a comparison of something against its own copy.
+And **a subject ID is mandatory**, because the train/test split must be per
+person; if repetitions from the same person leak across both sides, F1 looks
+good for false reasons. Export is refused when the segmented and manual counts
+disagree, because that disagreement **is** the accuracy data.
 
 ---
 
 ## Evaluation
 
 ```bash
-npm run eval:reps
+npm run eval:reps        # repetition counting
+npm run bench:fastloop   # core/ compute cost per frame
 ```
 
-With no recorded data, the script runs a **synthetic self-check** and labels the
-result as *not* an accuracy figure — so a synthetic number can never be copied
+With no recorded data, `eval:reps` runs a **synthetic self-check** and labels the
+result as *not* an accuracy figure, so a synthetic number can never be copied
 into the paper as a measurement. Once annotations exist, run it with
 `--input eval/data`. Output goes to
 [`eval/results/rep_accuracy.json`](eval/results/rep_accuracy.json).
 
-### Fast-loop cost, separate from inference
-
-```bash
-npm run bench:fastloop
-```
-
-Replays a squat session through **exactly the same** `core/` modules the browser
-uses, in the same call order as `ui/workoutEngine.ts`: framing, joint angles,
-posture gate, median filter, counter, rep window, rules. Output goes to
+`bench:fastloop` replays a squat session through **exactly the same** `core/`
+modules the browser uses, in the same call order as `ui/workoutEngine.ts`:
+framing, joint angles, posture gate, median filter, counter, rep window, rules.
+Output goes to
 [`eval/results/fastloop_cost.json`](eval/results/fastloop_cost.json).
 
-**This is not a device latency figure and must not be reported as one.** It
+**That is not a device latency figure and must not be reported as one.** It
 measures only arithmetic over 33 points; MediaPipe inference cost depends on the
 GPU and thermal state and can only be measured on a real phone via
 `latih.engine.performance`. Its single purpose: the cue-budget derivation in the
@@ -658,17 +589,15 @@ mean it timed an early return rather than the loop.
 field testing.
 
 MediaPipe **does not drop** an occluded limb — it *guesses* it, and reports a
-visibility above any threshold you might sensibly set. The cost is measurable:
-from an oblique angle, a push-up at the bottom hides the far arm behind the
-torso and MediaPipe guesses it nearly straight. The near elbow read ~95°, the
-far one ~170°, the mean ~132° — just under the 135° gate on good frames and just
-over it on bad ones. The result was a counter that worked while the arms were
-open and stopped exactly when the movement became meaningful: testers reported
-push-ups "almost never" counting while a random hand wave counted smoothly. The
-same mechanism made squats read deeper than they were.
-
-The mean is still used when both sides are equally well observed. Otherwise,
-take the side you can see.
+visibility above any threshold you might sensibly set. From an oblique angle a
+push-up at the bottom hides the far arm behind the torso, which MediaPipe
+guesses nearly straight: near elbow ~95°, far elbow ~170°, mean ~132° — just
+under the 135° gate on good frames and just over it on bad ones. The result was
+a counter that worked while the arms were open and stopped exactly when the
+movement became meaningful: testers reported push-ups "almost never" counting
+while a random hand wave counted smoothly. The same mechanism made squats read
+deeper than they were. The mean is still used when both sides are equally well
+observed; otherwise, take the side you can see.
 
 ### 2. Joint angles cannot answer "is this movement happening"
 
@@ -678,9 +607,9 @@ you bend and straighten a leg". The distinguishing signal is trunk orientation,
 and it is not in the joint angles at all.
 
 The threshold is deliberately far looser than good form. This is **not** a form
-rule and must not reject real repetitions: a deep squat leans the torso well
-forward. Only unambiguous cases are rejected — lying down, sitting, standing
-still. When it cannot be sure, it allows.
+rule and must not reject real repetitions, since a deep squat leans the torso
+well forward. Only unambiguous cases are rejected — lying down, sitting,
+standing still. When it cannot be sure, it allows.
 
 ### 3. Half reps are seen, but not counted
 
@@ -706,12 +635,12 @@ reversal, **before** the rep is rejected.
 
 A pose estimator **does not** read a locked joint as 180°. It reads whatever the
 landmark placement gives, which depends on the person's build and the camera
-angle; the same person at 30° and 45° oblique produces different peaks for
+angle — the same person at 30° and 45° oblique produces different peaks for
 identical form. An absolute threshold therefore measures the tracker as much as
 the lifter, and field testing showed exactly that: *"straighten your arms fully"*
 fired on **every** repetition.
 
-Now each rep is compared against that person's own best peak, in that set, under
+Each rep is now compared against that person's own best peak, in that set, under
 that camera. The systematic offset cancels, and what remains is worth flagging:
 **reps getting shorter as the set goes on.** The absolute threshold stays as a
 backstop, and the cue is spoken **once per set** (`SPEAK_ONCE_PER_SET`) — lockout
@@ -720,21 +649,21 @@ actually change per rep.
 
 ### 5. The counter gate must be looser than the rule threshold
 
-The counter counts **attempts**; the rules judge **quality**. The rules only ever
+The counter counts **attempts**; the rules judge **quality**, and they only ever
 see repetitions the counter credited.
 
 If `downEnter` is set equal to `depthMax` (the rule threshold), every counted
 repetition automatically clears the threshold — and the `shallow_depth` rule
 becomes dead code that still looks correct when read on its own. This bug
 happened, and it passed the unit tests, because the tests build synthetic
-windows that can contain any angle. `rules.test.ts` now checks this relationship
+windows that can contain any angle. `rules.test.ts` now checks the relationship
 directly against `DEFAULT_CONFIGS`.
 
 ### 6. Angles come from world landmarks, not image coordinates
 
 MediaPipe returns two coordinate sets. `landmarks` is normalized to [0,1]
 **separately** for width and height, so equal steps in x and y are not equal
-physical distances. Computing angles from those gives wrong values, and the size
+physical distances: computing angles from those gives wrong values, and the size
 of the error changes with the camera's aspect ratio. `worldLandmarks` is metric
 and free of that distortion. Image coordinates are used only to draw the
 overlay.
@@ -743,84 +672,72 @@ overlay.
 
 ## Deploying your own instance
 
-Served as static files plus serverless functions on Vercel; `vercel.json`
-configures the build and the function runtime. The reminder scheduler is
-deliberately **not** there — see below.
-
-**The camera demands HTTPS.** `getUserMedia` refuses to run on an insecure
-origin, so a LAN address will never be enough. A TLS domain is not a nicety; it
-is a precondition for the app functioning at all.
+Static files plus serverless functions on Vercel; `vercel.json` configures the
+build and the function runtime. A TLS domain is a precondition, not a nicety —
+see the HTTPS note above.
 
 ### Functions are written in `server/`, shipped from `api/`
 
 `npm run build:api` bundles each endpoint in `server/` into one standalone file
-in `api/`. Vercel only sees the bundle; the source is what is worth reading and
-reviewing.
+in `api/`. Vercel only sees the bundle; the source is what is worth reading.
+Two non-obvious consequences:
 
-**`api/` is committed even though it is build output.** Vercel validates the
-`functions` patterns in `vercel.json` against a freshly cloned repository,
-before the build command runs. A directory that only appears at build time does
-not exist yet at that moment, and the deploy fails with *"doesn't match any
-Serverless Functions"*. The build regenerates it every time, so what actually
-ships is always built from the current `server/`.
+- **`api/` is committed even though it is build output.** Vercel validates the
+  `functions` patterns in `vercel.json` against a freshly cloned repository,
+  *before* the build command runs, so a directory that only appears at build
+  time fails the deploy with *"doesn't match any Serverless Functions"*. The
+  build regenerates it every time, so what ships is always current.
+- **Bundling settles the `.ts`-extension conflict.** Vercel compiles each file
+  separately and leaves specifiers alone, so a compiled `nutrition.js` still
+  asks for `'./_llm.ts'` and every request dies with `ERR_MODULE_NOT_FOUND`.
+  Two fixes were tried and rejected on evidence:
+  `rewriteRelativeImportExtensions` is honoured by `tsc` but **not by esbuild**,
+  which is what Vercel runs; and writing `.js` in the specifier satisfies
+  TypeScript and Vercel, then breaks Node.
 
-Bundling also settles a real conflict. Every relative import writes an explicit
-`.ts` extension for the sake of the evaluation harness, but Vercel compiles each
-file separately and leaves the specifier alone — so the compiled `nutrition.js`
-still asks for `'./_llm.ts'`, a file that no longer exists. The deploy succeeds
-and every request dies with `ERR_MODULE_NOT_FOUND`. Two obvious fixes were tried
-and rejected on evidence: `rewriteRelativeImportExtensions` is honoured by `tsc`
-but **not by esbuild**, and esbuild is what Vercel runs; while writing `.js` in
-the specifier satisfies TypeScript and Vercel and then breaks Node.
-
-`includeFiles` in `vercel.json` pulls in `data/tkpi/**`: those paths are
-computed at runtime, so dependency tracing cannot see them and the nutrition
+`includeFiles` in `vercel.json` pulls in `data/tkpi/**`, whose paths are
+computed at runtime — dependency tracing cannot see them, and the nutrition
 table would vanish from the bundle without it.
 
 ### Environment variables
 
 | Variable | Without it |
 |---|---|
-| `OPENAI_API_KEY` | narrative, nutrition, meal suggestions, and voice are dead; the fast loop is untouched |
+| `OPENAI_API_KEY` | narrative, nutrition, meal suggestions, and cue rendering are dead; the fast loop is untouched |
 | `ALLOWED_ORIGIN` | origin checking is skipped — set it in production |
 | `LLM_DAILY_QUOTA` | the daily ceiling uses the default of 1500 calls |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limiting and reminder subscriptions fall back to per-instance memory |
 | `VAPID_PUBLIC_KEY` / `_PRIVATE_KEY` / `VAPID_SUBJECT` | the reminder button hides itself |
 | `CRON_SECRET` | `/api/cron-reminders` is open to anyone |
 
-Each variable is explained in `.env.example`.
+Each is explained in `.env.example`, including the optional `TTS_*` voice
+settings.
 
 ### Spend limits on the billable endpoints
 
-The three endpoints that call the model — `/api/coach`, `/api/nutrition`,
-`/api/meals` — use no authentication, because the product has no accounts and
-adding them purely to protect a key is a large feature answering a small
-question. What replaces it is in `server/_ratelimit.ts`, in two layers that fail
-differently:
-
-- **Per client, per hour** stops the ordinary case: one person, one script, one
-  afternoon. It is generous toward real training — one set produces exactly one
-  coach call, so 30 per hour is roughly six full sessions.
-- **Global per day** caps the bill, because per-client limits mean nothing when
-  requests are spread across many addresses.
+The endpoints that call the model use no authentication, because the product has
+no accounts and adding them purely to protect a key is a large feature answering
+a small question. `server/_ratelimit.ts` replaces it with two layers that fail
+differently: **per client, per hour** stops one person with one script in one
+afternoon while staying generous toward real training (one set is exactly one
+coach call, so 30 per hour is roughly six full sessions), and **global per day**
+caps the bill, because per-client limits mean nothing when requests are spread
+across many addresses.
 
 IP addresses are hashed before being used as keys: the limiter needs to
 recognize the same visitor, not know who they are. If Redis is down, requests
 are **allowed** rather than refused — losing the limiter is a cost problem,
-refusing every request kills the product.
-
-**A third layer sits outside this repository and is the decisive one:** a hard
-budget limit on the OpenAI key. Code can be wrong; a provider-side ceiling
-cannot be talked around.
+refusing every request kills the product. **The decisive layer sits outside this
+repository:** a hard budget limit on the OpenAI key. Code can be wrong; a
+provider-side ceiling cannot be talked around.
 
 ### The reminder trigger lives outside Vercel
 
 `vercel.json` deliberately contains **no** `crons` block: the Hobby plan limits
-cron to once a day, while reminders have to hit a different hour for every user.
-Leaving it in means the deploy is rejected.
-
-Use any scheduler that can call a URL every 15 minutes —
-[cron-job.org](https://cron-job.org) is free and punctual enough:
+cron to once a day, while reminders have to hit a different hour for every user,
+and leaving it in means the deploy is rejected. Use any scheduler that can call
+a URL every 15 minutes — [cron-job.org](https://cron-job.org) is free and
+punctual enough:
 
 ```
 URL     : https://<your-domain>/api/cron-reminders
@@ -828,10 +745,10 @@ Interval: every 15 minutes
 Header  : Authorization: Bearer <CRON_SECRET>
 ```
 
-That header is mandatory. Without it `isAuthorized()` refuses with a 401 — and
+That header is mandatory: without it `isAuthorized()` refuses with a 401 — and
 if `CRON_SECRET` itself is unset, it lets everyone through. Fifteen minutes is
-not arbitrary: `isDue()` accepts a slot missed by up to twenty minutes, so a
-single late cron run does not drop a reminder entirely.
+not arbitrary either, since `isDue()` accepts a slot missed by up to twenty
+minutes, so a single late cron run does not drop a reminder entirely.
 
 ### Before sharing the URL
 
@@ -877,8 +794,8 @@ for this submission.** That is a deliberate decision, not an omission:
 
 - **Pose estimation** uses Google's **MediaPipe Pose Landmarker (BlazePose
   GHUM)**, taken as-is as a pre-trained model and fetched automatically by
-  `npm run setup:assets`. Those weights are Google's, not an artifact we
-  produced or may redistribute.
+  `setup:assets`. Those weights are Google's, not an artifact we produced or may
+  redistribute.
 - **The form classifier was not built.** The fast-loop architecture claimed in
   the paper is joint angles → deterministic rules + state machine, and that is
   what runs. A trained classifier was an extension in the implementation plan,
@@ -886,26 +803,12 @@ for this submission.** That is a deliberate decision, not an omission:
   `core/features.ts` (per-rep window → 32×12 tensor) remains as its entry point
   should it ever be trained.
 - **The only dataset is TKPI**, the official food composition table of the
-  Indonesian Ministry of Health. It is used as a **runtime grounding source**,
-  not training data — no model is trained, fine-tuned, or evaluated against its
+  Indonesian Ministry of Health, used as a **runtime grounding source** rather
+  than training data — no model is trained, fine-tuned, or evaluated against its
   distribution. The table is committed at `data/tkpi/tkpi.json` so the paper's
-  results can be reproduced straight from the repository with no external
-  download.
+  results reproduce straight from the repository with no external download.
 
 What we added on top of TKPI is in the repository and runnable: the extraction
 script, the extraction and exclusion notes in
 [`data/tkpi/README.md`](data/tkpi/README.md), and the Atwater validation that
 found 11 inconsistent rows — reproduce it with `npm run check:tkpi`.
-
----
-
-## License
-
-**Copyright © 2026 Team Kalahin Fam. All rights reserved.**
-
-This code is published for Datathon 2026 judging — so that judges can read,
-build, and verify every claim in this document themselves. No reuse license is
-granted: copying, modifying, redistributing, or using it for any other purpose
-requires written permission from the team.
-
-These terms may change once judging concludes.
