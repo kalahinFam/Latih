@@ -86,16 +86,6 @@ describe('recommendSplit', () => {
     expect(sessionFor(split, 1)).toBeNull();
     expect(movementsOn(split, 1)).toEqual([]);
   });
-
-  it('states the days, the frequency and the sets it actually chose', () => {
-    const split = recommendSplit(input({ trainingDays: [0, 2, 4], experience: 'pernah' }));
-
-    // The paragraph is generated from the same numbers, so it cannot drift from
-    // the plan it describes — this checks the wiring, not the prose.
-    expect(split.reason).toContain('Senin, Rabu, Jumat');
-    expect(split.reason).toContain(`${split.setsPerExercise} set`);
-    expect(split.reason).toContain(`Push-up ${split.weeklyFrequency.pushup}×`);
-  });
 });
 
 describe('recommendedSets', () => {

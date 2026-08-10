@@ -15,11 +15,6 @@
  * which matters for the one screen in the product that tells the user what to
  * do with their week.
  *
- * The reason paragraph is generated from the same numbers that produced the
- * split, for the reason stated in `onboardingScreen.ts`: an explanation
- * maintained separately from the thing it explains will eventually contradict
- * it.
- *
  * ## The rules, and what each is for
  *
  * - **Pattern.** Up to three well-spaced days, every session trains everything:
@@ -42,7 +37,7 @@
 
 import type { EnergyGoal } from './energy.ts';
 import type { ExperienceLevel } from './onboarding.ts';
-import { MAX_DAYS_PER_WEEK, WEEKDAY_LABELS, normaliseWeekdays } from './plan.ts';
+import { MAX_DAYS_PER_WEEK, normaliseWeekdays } from './plan.ts';
 import { MOVEMENT_NAMES, isHold, type MovementKind } from './types.ts';
 
 /**
@@ -75,8 +70,6 @@ export interface WorkoutSplit {
   restSeconds: number;
   /** Times each movement is trained per week. */
   weeklyFrequency: Record<MovementKind, number>;
-  /** Why the week looks like this, built from the numbers above. */
-  reason: string;
 }
 
 export interface SplitInput {
@@ -200,7 +193,6 @@ export function recommendSplit(input: SplitInput): WorkoutSplit {
     setsPerExercise,
     restSeconds,
     weeklyFrequency,
-    reason: explainSplit({ pattern, sessions, setsPerExercise, weeklyFrequency, days }),
   };
 }
 
@@ -220,46 +212,6 @@ export function sessionFor(split: WorkoutSplit, weekday: number): SplitSession |
 /** Movements the split puts on a weekday. Empty on a rest day. */
 export function movementsOn(split: WorkoutSplit, weekday: number): MovementKind[] {
   return sessionFor(split, weekday)?.movements ?? [];
-}
-
-/**
- * The split in one paragraph.
- *
- * Every number in the sentence is one of the numbers above, for the same
- * reason the onboarding summary computes its arithmetic rather than stating
- * it: a description kept in step by hand is a description that will eventually
- * be wrong, and this is the text the user reads to decide whether to trust the
- * plan.
- */
-function explainSplit(parts: {
-  pattern: SplitPattern;
-  sessions: SplitSession[];
-  setsPerExercise: number;
-  weeklyFrequency: Record<MovementKind, number>;
-  days: number[];
-}): string {
-  const { pattern, sessions, setsPerExercise, weeklyFrequency, days } = parts;
-  const dayNames = days.map((day) => WEEKDAY_LABELS[day]).join(', ');
-
-  const frequency = (['pushup', 'squat', 'plank'] as MovementKind[])
-    .filter((movement) => weeklyFrequency[movement] > 0)
-    .map((movement) => `${MOVEMENT_NAMES[movement]} ${weeklyFrequency[movement]}×`)
-    .join(', ');
-
-  if (pattern === 'full-body') {
-    return (
-      `${sessions.length} hari (${dayNames}), tiap sesi melatih seluruh tubuh: ` +
-      `${frequency} seminggu, ${setsPerExercise} set per gerakan. ` +
-      'Jaraknya cukup untuk pulih, jadi tidak ada alasan memecah sesi.'
-    );
-  }
-
-  return (
-    `${sessions.length} hari (${dayNames}) berarti ada sesi yang berdekatan, jadi dorongan dan ` +
-    `tungkai dipisah bergantian: ${frequency} seminggu, ${setsPerExercise} set per gerakan. ` +
-    'Plank masuk di tiap sesi karena tahan-badan paling cepat pulih — dan urutannya selalu ' +
-    'ditaruh terakhir, supaya inti yang sudah lelah tidak merusak garis badan saat push-up.'
-  );
 }
 
 /** One line for a session card: "Push-up · Squat · Plank". */

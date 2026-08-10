@@ -110,28 +110,24 @@ const ACTIVITY_CHOICES: { value: ActivityLevel; name: string; sub: string; facto
 ];
 
 /**
- * Goals, each stated with what it does.
+ * Goals, with the numbers each produces.
  *
- * Without the consequence a goal is a label and the user is guessing. The
- * percentages here are read from `GOAL_ADJUSTMENT` in `core/energy.ts` at
- * render time rather than written out, so the card cannot describe a deficit
- * the app is not applying.
+ * The calorie and protein tags are read from `GOAL_ADJUSTMENT` in
+ * `core/energy.ts` at render time rather than written out, so a card can never
+ * advertise an adjustment the app does not apply.
  */
-const GOAL_CHOICES: { value: EnergyGoal; name: string; why: string }[] = [
+const GOAL_CHOICES: { value: EnergyGoal; name: string }[] = [
   {
     value: 'lose',
     name: 'Turunkan berat badan',
-    why: 'Kalori di bawah kebutuhan, protein dijaga tinggi supaya massa otot tidak ikut turun.',
   },
   {
     value: 'maintain',
     name: 'Jaga berat, tambah kekuatan',
-    why: 'Kalori setara kebutuhan; target repetisi naik lebih cepat.',
   },
   {
     value: 'gain',
     name: 'Naikkan massa otot',
-    why: 'Kalori di atas kebutuhan, porsi karbohidrat sekitar latihan diperbesar.',
   },
 ];
 
@@ -340,9 +336,14 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
   /* --------------------------------------------------------------- steps */
 
+  /** The picker shows the food's base name, without TKPI's state descriptors. */
+  function shortFoodName(label: string): string {
+    return label.split(',')[0];
+  }
+
   function renderName(): void {
     title.textContent = 'Siapa nama panggilanmu?';
-    sub.textContent = 'Dipakai untuk menyapa di layar dan lewat suara saat latihan.';
+    sub.textContent = '';
 
     const input = el('input', {
       class: 'nameinput',
@@ -358,10 +359,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
       next.disabled = input.value.trim().length === 0;
     });
 
-    body.replaceChildren(
-      input,
-      el('p', { class: 'onboard__sub', text: 'Boleh nama panggilan saja.' }),
-    );
+    body.replaceChildren(input);
     next.disabled = extras.name.trim().length === 0;
     // Focus, so the keyboard is already up: this screen has exactly one thing
     // to do and making the user tap the field first is a wasted tap.
@@ -370,8 +368,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
   function renderBody(): void {
     title.textContent = 'Data dasar';
-    sub.textContent =
-      'Dipakai menghitung kebutuhan kalori harian. Disimpan di ponsel ini, tidak dikirim ke mana pun.';
+    sub.textContent = '';
 
     const profile = bodyProfile();
     const index = profile ? bmi(profile.weightKg, profile.heightCm) : null;
@@ -414,10 +411,6 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
               : `${index.toString().replace('.', ',')} · ${bmiLabel(index)}`,
         },
       ),
-      el('p', {
-        class: 'notebox',
-        text: 'Berat bisa diperbarui kapan saja lewat Pengaturan.',
-      }),
     );
     // Nothing to compute with until the figures are real.
     next.disabled = !bodyComplete();
@@ -425,7 +418,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
 
   function renderGoal(): void {
     title.textContent = 'Apa yang ingin dicapai?';
-    sub.textContent = 'Menentukan arah kalori dan komposisi menu.';
+    sub.textContent = '';
 
     // Reachable only with a complete body (the next button says so), but the
     // computation below cannot run on a draft with an unanswered figure.
@@ -452,7 +445,6 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
             el('span', { class: 'choice__name', text: choice.name }),
             el('span', { class: 'choice__tick' }, icon('centang', 13, 2.6)),
           ),
-          el('p', { class: 'choice__why', text: choice.why }),
           el(
             'div',
             { class: 'choice__tags' },
@@ -466,18 +458,15 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
         });
         return card;
       }),
-      el('p', {
-        class: 'notebox',
-        text: 'Tujuan bisa diganti nanti. Yang tersimpan tetap riwayat latihannya, bukan diulang dari nol.',
-      }),
     );
     next.disabled = false;
   }
 
   function renderActivity(): void {
     title.textContent = 'Seberapa aktif harimu?';
-    sub.textContent = 'Di luar latihan LATIH.';
+    sub.textContent = '';
 
+    const note = daysNote();
     body.replaceChildren(
       ...ACTIVITY_CHOICES.map((choice) => {
         const card = el(
@@ -524,10 +513,6 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
           }),
         ),
       ),
-      el('p', {
-        class: 'onboard__sub',
-        text: 'Menentukan target repetisi sesi pertama. Setelah itu targetnya diatur dari hasil, bukan dari jawaban ini.',
-      }),
 
       el('div', { class: 'fieldlabel', text: 'HARI LATIHAN' }),
       el(
@@ -551,23 +536,22 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
           return chip;
         }),
       ),
-      el('p', { class: 'onboard__sub', text: daysNote() }),
+      ...(note ? [el('p', { class: 'onboard__sub', text: note })] : []),
     );
     // The plan needs a week it can actually be built from: below two sessions
     // the progression rules have nothing to read, and seven leaves no rest day.
     next.disabled = !daysComplete();
   }
 
-  /** What the picked week says — or what is still wrong with it. */
-  function daysNote(): string {
+  /** What is still wrong with the picked week, or `null` once it is valid. */
+  function daysNote(): string | null {
     if (trainingDays.length < MIN_DAYS_PER_WEEK) {
       return `Pilih minimal ${MIN_DAYS_PER_WEEK} hari. Di bawah itu belum cukup untuk menaikkan target.`;
     }
     if (trainingDays.length > MAX_DAYS_PER_WEEK) {
       return 'Sisakan minimal satu hari istirahat — pemulihan terjadi di antara sesi, bukan setelahnya.';
     }
-    const names = trainingDays.map((day) => WEEKDAY_LABELS[day]).join(', ');
-    return `${trainingDays.length}× seminggu — ${names}. Bisa diubah kapan saja lewat Pengaturan.`;
+    return null;
   }
 
   function renderFood(): void {
@@ -628,7 +612,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
                 type: 'button',
                 'aria-pressed': String(chosen),
               },
-              el('span', { class: 'fooditem__name', text: PANTRY_LABELS[code] }),
+              el('span', { class: 'fooditem__name', text: shortFoodName(PANTRY_LABELS[code]) }),
               el('span', { class: 'fooditem__check' }, icon('centang', 13, 2.6)),
             );
             row.addEventListener('click', () => {
@@ -653,10 +637,6 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
       el('div', { class: 'fieldlabel', text: 'BAHAN YANG BIASA ADA DI RUMAH' }),
       search,
       list,
-      el('p', {
-        class: 'notebox',
-        text: 'Bahan yang dipilih diutamakan saat menyusun menu; bahan lain tetap tersedia. Semua takaran menu dihitung dari Tabel Komposisi Pangan Indonesia.',
-      }),
     );
     renderFoods();
     next.disabled = false;
@@ -677,9 +657,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
     const profile = bodyProfile();
     if (!profile) return;
 
-    const goalLabel = GOAL_CHOICES.find((g) => g.value === draft.goal)?.name ?? '';
-    const dayNames = trainingDays.map((day) => WEEKDAY_SHORT[day]).join(', ');
-    sub.textContent = `${goalLabel} · ${trainingDays.length}× seminggu — ${dayNames}`;
+    sub.textContent = '';
 
     const target = energyTarget(profile, false);
     const macros = macroTargets(target);
@@ -737,10 +715,6 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
           el('span', { class: 'card__unit', text: `repetisi × ${sets} set` }),
         ),
         el('div', { class: 'card__accent', text: 'Push-up' }),
-        el('p', {
-          class: 'card__foot',
-          text: `Angka awal untuk tingkat "${EXPERIENCE_LABELS[extras.experience].toLowerCase()}". Naik atau turun setelah sesi pertama, tergantung berapa repetisi yang formnya bersih.`,
-        }),
       ),
 
       // What the week looks like. Built from the days just picked, the
@@ -771,15 +745,7 @@ export function createOnboardingScreen(deps: OnboardingDeps): Screen {
             ),
           ),
         ),
-        el('p', { class: 'card__foot', text: split.reason }),
       ),
-
-      el('p', {
-        class: 'notebox',
-        // The exit next to the primary button, explained: nobody should have to
-        // guess whether leaving now throws the answers away.
-        text: 'Semua ini sudah tersimpan. Kalau belum sempat latihan sekarang, pilih "Nanti dulu" — menu dan jadwal tetap jalan, dan sesi pertama bisa dimulai kapan saja dari Beranda.',
-      }),
     );
 
     next.textContent = 'Mulai sesi pertama';

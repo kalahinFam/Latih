@@ -165,7 +165,8 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: max(2.4rem, env(safe-area-inset-top)) 1.6rem 0;
+  padding: max(2.4rem, env(safe-area-inset-top)) 1.6rem 1.2rem;
+  box-shadow: 0 4px 14px rgb(21 29 40 / 8%);
 }
 
 .screen__bar--home .screen__date {
@@ -182,6 +183,7 @@ body {
   padding-top: calc(max(2.4rem, env(safe-area-inset-top)) + 1.4rem);
   padding-bottom: 1.4rem;
   background: linear-gradient(to bottom, rgba(13, 18, 24, 0.72), transparent);
+  box-shadow: none;
 }
 
 .screen__bar--onDark .hud__movement,
@@ -242,6 +244,16 @@ body {
  */
 .screen[data-screen='onboarding'] .screen__actions {
   box-shadow: var(--bar-shadow);
+}
+
+/* The one-line reassurance under the action buttons: everything asked so far
+   can be changed later, so answering is not a commitment. */
+.screen__actions-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--grey);
 }
 
 /*
@@ -2167,13 +2179,6 @@ body {
   display: flex;
 }
 
-.choice__why {
-  margin: 0.6rem 0 0;
-  font-size: 0.81rem;
-  line-height: 1.5;
-  color: var(--grey-deep);
-}
-
 .choice__tags {
   display: flex;
   flex-wrap: wrap;
@@ -2203,6 +2208,8 @@ body {
 }
 
 .choice__body {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
 }

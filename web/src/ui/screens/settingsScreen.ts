@@ -152,7 +152,6 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
     // full-body, and finding that out on the home screen tomorrow would be a
     // surprise rather than a decision.
     const splitList = el('div', { class: 'splitlist' });
-    const splitReason = el('p', { class: 'card__foot' });
 
     const refreshPlanSummary = () => {
       const saved = loadPreferences();
@@ -175,7 +174,6 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
           ),
         ),
       );
-      splitReason.textContent = split.reason;
     };
     refreshPlanSummary();
 
@@ -218,7 +216,6 @@ export function createSettingsScreen(deps: SettingsDeps): Screen {
         planSummary,
         el('div', { class: 'fieldlabel', text: 'ISI TIAP SESI' }),
         splitList,
-        splitReason,
       ),
     );
 
