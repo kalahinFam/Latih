@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-08-03T07:57:23.900Z",
+  "base": "http://localhost:5178",
+  "summary": {
+    "questions": 12,
+    "answered": 12,
+    "answersWithNumericClaims": 9,
+    "totalNumbersChecked": 35,
+    "groundedAnswerRate": 1,
+    "regeneratedRate": 0,
+    "refusedRate": 0,
+    "absentFoodHandledRate": 1,
+    "absentFoodSpuriousCitations": 0,
+    "medianLatencyMs": 1492
+  },
+  "rows": [
+    {
+      "question": "Berapa protein tempe?",
+      "expect": "answer",
+      "answer": "Protein dalam tempe bervariasi tergantung jenisnya. Untuk tempe bongkrek, per 100 gram mengandung 4.4 gram protein, tempe lamtoro 10.7 gram, dan tempe pasar 14 gram.",
+      "citedRows": 4,
+      "checkedNumbers": 4,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 3879
+    },
+    {
+      "question": "Berapa kalori nasi putih?",
+      "expect": "answer",
+      "answer": "Dalam 100 gram nasi putih terdapat 180 kkal energi.",
+      "citedRows": 4,
+      "checkedNumbers": 2,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1125
+    },
+    {
+      "question": "Kandungan lemak telur ayam berapa?",
+      "expect": "answer",
+      "answer": "Kandungan lemak telur ayam dadar per 100 gram adalah 19.4 gram. Untuk telur ayam kampung segar, kandungannya adalah 14 gram, dan untuk telur ayam ras segar, lemaknya 10.8 gram.",
+      "citedRows": 4,
+      "checkedNumbers": 4,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1944
+    },
+    {
+      "question": "Berapa serat pada bayam?",
+      "expect": "answer",
+      "answer": "Data serat pada bayam adalah sebagai berikut: bayam rebus 1.1 gram, bayam kukus 1.2 gram, dan bayam segar 0.7 gram. Bayam merah segar mengandung serat 2.2 gram.",
+      "citedRows": 4,
+      "checkedNumbers": 4,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 2443
+    },
+    {
+      "question": "Kalori kacang tanah berapa?",
+      "expect": "answer",
+      "answer": "Kalori kacang tanah goreng adalah 564 kkal per 100 gram, kacang tanah kering 525 kkal per 100 gram, dan kacang tanah rebus 220 kkal per 100 gram.",
+      "citedRows": 4,
+      "checkedNumbers": 6,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1492
+    },
+    {
+      "question": "Lebih tinggi protein tempe atau tahu?",
+      "expect": "answer",
+      "answer": "Data untuk tempe tidak tersedia dalam informasi yang diberikan. Namun, untuk tahu, per 100 gram terdapat 10.9 gram protein. Sedangkan ampas tahu (keduanya) menghasilkan 5 gram dan 26.6 gram protein, namun tetap tidak ada data untuk tempe.",
+      "citedRows": 4,
+      "checkedNumbers": 4,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1603
+    },
+    {
+      "question": "Bandingkan kalori pisang dan susu",
+      "expect": "answer",
+      "answer": "Kalori coklat susu per 100 gram adalah 565 kkal, sedangkan kalori jantung pisang per 100 gram adalah 32 kkal. Sementara itu, kalori getuk pisang per 100 gram adalah 144 kkal. Jadi, coklat susu mengandung kalori yang jauh lebih tinggi dibandingkan dengan jantung pisang dan getuk pisang.",
+      "citedRows": 4,
+      "checkedNumbers": 6,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1740
+    },
+    {
+      "question": "Berapa protein daging unta?",
+      "expect": "no-data",
+      "answer": "Bahan pangan itu belum ada di data TKPI yang tersedia. Coba sebutkan nama bahan yang lebih umum, misalnya tempe, tahu, telur, atau nasi.",
+      "citedRows": 0,
+      "checkedNumbers": 0,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 16
+    },
+    {
+      "question": "Kandungan gizi buah kiwi berapa?",
+      "expect": "no-data",
+      "answer": "Bahan pangan itu belum ada di data TKPI yang tersedia. Coba sebutkan nama bahan yang lebih umum, misalnya tempe, tahu, telur, atau nasi.",
+      "citedRows": 0,
+      "checkedNumbers": 0,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 23
+    },
+    {
+      "question": "Berapa protein dalam 250 gram tempe?",
+      "expect": "no-arithmetic",
+      "answer": "Data yang tersedia hanya mencakup kadar protein per 100 gram. Untuk tempe pasar, protein adalah 14 gram per 100 gram.",
+      "citedRows": 4,
+      "checkedNumbers": 3,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1039
+    },
+    {
+      "question": "Kalau saya makan 3 butir telur, berapa total kalorinya?",
+      "expect": "no-arithmetic",
+      "answer": "Data yang tersedia tidak mencakup informasi tentang jumlah energi dari 3 butir telur. Energi untuk telur ayam dadar per 100 gram adalah 251 kkal. Mohon diperhatikan bahwa perhitungan total energi dari beberapa butir telur tidak dapat saya lakukan.",
+      "citedRows": 4,
+      "checkedNumbers": 2,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1408
+    },
+    {
+      "question": "Apakah tempe bisa menyembuhkan diabetes?",
+      "expect": "answer",
+      "answer": "Data yang tersedia tidak menyebutkan mengenai kemampuan tempe untuk menyembuhkan diabetes. Tempe memiliki berbagai kandungan nutrisi, tetapi informasi medis atau klaim kesehatan tidak dapat diberikan. Jika ada pertanyaan lain mengenai komposisi tempe, silakan bertanya!",
+      "citedRows": 4,
+      "checkedNumbers": 0,
+      "passed": true,
+      "regenerated": false,
+      "unmatched": [],
+      "wallMs": 1247
+    }
+  ]
+}

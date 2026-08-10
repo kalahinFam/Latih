@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-08-10T03:25:38.126Z",
+  "what": "core/ fast-loop computation only, excluding MediaPipe inference",
+  "notDeviceLatency": true,
+  "runtime": "node v22.13.1 on win32/x64",
+  "exercise": "squat",
+  "repsCounted": 11,
+  "perFrame": {
+    "frames": 360,
+    "meanMs": 0.0218,
+    "p50Ms": 0.0184,
+    "p95Ms": 0.0308,
+    "maxMs": 0.388
+  }
+}

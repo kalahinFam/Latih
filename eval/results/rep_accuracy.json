@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-08-01T16:40:26.309Z",
+  "mode": "synthetic-self-check",
+  "overall": {
+    "sessions": 4,
+    "totalExpectedReps": 29,
+    "totalPredictedReps": 29,
+    "mae": 0,
+    "meanSignedError": 0,
+    "exactMatchRate": 1,
+    "worstAbsError": 0
+  },
+  "byExercise": {
+    "pushup": {
+      "sessions": 2,
+      "totalExpectedReps": 15,
+      "totalPredictedReps": 15,
+      "mae": 0,
+      "meanSignedError": 0,
+      "exactMatchRate": 1,
+      "worstAbsError": 0
+    },
+    "squat": {
+      "sessions": 2,
+      "totalExpectedReps": 14,
+      "totalPredictedReps": 14,
+      "mae": 0,
+      "meanSignedError": 0,
+      "exactMatchRate": 1,
+      "worstAbsError": 0
+    }
+  },
+  "rows": [
+    {
+      "name": "push-up dalam",
+      "exercise": "pushup",
+      "expected": 10,
+      "predicted": 10
+    },
+    {
+      "name": "push-up dangkal (tetap dihitung)",
+      "exercise": "pushup",
+      "expected": 5,
+      "predicted": 5
+    },
+    {
+      "name": "squat dalam",
+      "exercise": "squat",
+      "expected": 8,
+      "predicted": 8
+    },
+    {
+      "name": "squat dangkal (tetap dihitung)",
+      "exercise": "squat",
+      "expected": 6,
+      "predicted": 6
+    }
+  ]
+}

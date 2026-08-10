@@ -48,6 +48,16 @@ eval/results/*.png
 !eval/results/.gitkeep
 tts-lab/
 
+# ...except these three. The paper cites each as the source of a
+# measured number, so a judge cloning this repo has to find them.
+# Two are reproducible with `npm run bench:fastloop` and
+# `npm run eval:reps`; grounding.json is NOT -- it needs a live
+# endpoint and an API key, so excluding it would leave the paper's
+# strongest result with no evidence anyone else can reach.
+!eval/results/fastloop_cost.json
+!eval/results/rep_accuracy.json
+!eval/results/grounding.json
+
 # Paper sources. The deliverable is the exported PDF, not the LaTeX.
 # These carry working comments (cut lists, [VERIFY] notes, page-count
 # workings) that are invisible in the PDF but readable in a public repo.
