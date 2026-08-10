@@ -241,9 +241,11 @@ paper.
 - **Satu take tanpa cut** dari menarik panel notifikasi → tap mode pesawat →
   balik ke app → push-up → angka bertambah. Cut di tengah bikin bagian ini
   kehilangan seluruh kekuatannya.
-- Lalu potongan singkat (boleh dari laptop, tampil sebagai inset): konsol
-  menjalankan `latih.summarizeCurrentSet()` — tampilkan objeknya, zoom, tahan
-  3 detik.
+- Lalu potongan singkat (boleh dari laptop, tampil sebagai inset): **DevTools →
+  Network**, klik POST `/api/coach` yang menutup set, buka tab payload —
+  tampilkan isinya, zoom, tahan 3 detik. Ini lebih kuat daripada memanggil
+  fungsi apa pun di konsol: yang terlihat adalah apa yang benar-benar lewat
+  kabel, bukan apa yang dikembalikan sebuah helper.
 - **Uji dulu sebelum direkam.** Kalau ada yang gagal saat mode pesawat, lebih
   baik ketahuan sekarang daripada di depan kamera.
 
@@ -313,7 +315,7 @@ paper.
 | 5 | Layar umpan balik + narasi pelatih | Zoom ke kalimat fokus |
 | 6 | Beranda/Riwayat dengan target baru | Idealnya setelah 2 sesi nyata |
 | 7 | **Mode pesawat → push-up** | Satu take tanpa cut |
-| 8 | Konsol: `latih.summarizeCurrentSet()` | Boleh dari laptop, dipakai sebagai inset |
+| 8 | DevTools → Network: payload POST `/api/coach` | Boleh dari laptop, dipakai sebagai inset |
 | 9 | Tanya Gizi + sitiran TKPI | Pakai pertanyaan yang memancing |
 
 ## Checklist teknis

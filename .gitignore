@@ -47,3 +47,8 @@ eval/results/*.json
 eval/results/*.png
 !eval/results/.gitkeep
 tts-lab/
+
+# Paper sources. The deliverable is the exported PDF, not the LaTeX.
+# These carry working comments (cut lists, [VERIFY] notes, page-count
+# workings) that are invisible in the PDF but readable in a public repo.
+docs/*.tex
