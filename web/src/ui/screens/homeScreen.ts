@@ -2,9 +2,7 @@
  * 1 · Beranda.
  *
  * One decision per screen: start, or not. Everything else is context for that
- * decision, which is why the target carries its own reason — a number that
- * rises without explanation reads as an app making demands rather than a coach
- * making a call.
+ * decision.
  *
  * ## Why the week is here
  *
@@ -21,9 +19,8 @@
  */
 
 import { buildWeeklyPlan, WEEKDAY_SHORT, type PlanDay } from '../../core/plan.ts';
-import { currentStreak, formatDuration, latestQuality, latestSession } from '../../core/quality.ts';
-import { explainReason } from '../../core/sessionLoop.ts';
-import { estimatedMinutes, sessionFor } from '../../core/split.ts';
+import { currentStreak, latestQuality } from '../../core/quality.ts';
+import { sessionFor } from '../../core/split.ts';
 import { TrainingHistory } from '../../session/history.ts';
 import { currentSplit } from '../../session/planner.ts';
 import { loadExtras, loadPreferences } from '../../session/profile.ts';
@@ -46,13 +43,11 @@ export interface HomeDeps {
 export function createHomeScreen(deps: HomeDeps): Screen {
   const date = required('#homeDate');
   const greeting = required('#homeGreeting');
-  const lastSession = required('#homeLastSession');
   const week = required('#homeWeek');
   const eyebrow = required('#homeTargetEyebrow');
   const targetReps = required('#homeTargetReps');
   const targetSets = required('#homeTargetSets');
   const targetExercise = required('#homeTargetExercise');
-  const targetReason = required('#homeTargetReason');
   const sessionRest = required('#homeSessionRest');
   const streak = required('#homeStreak');
   const quality = required('#homeQuality');
@@ -96,11 +91,6 @@ export function createHomeScreen(deps: HomeDeps): Screen {
       const name = loadExtras().name.trim();
       greeting.textContent = name ? `${greetingFor(now)}, ${name}` : greetingFor(now);
 
-      const last = latestSession(history);
-      lastSession.textContent = last
-        ? `Sesi terakhir ${formatDate(last.startedAt)}, ${last.reps} repetisi dalam ${formatDuration(last.elapsedMs)}.`
-        : 'Belum ada sesi tercatat. Mulai yang pertama.';
-
       renderWeek(plan.days);
 
       const first = today?.exercises[0] ?? null;
@@ -121,11 +111,7 @@ export function createHomeScreen(deps: HomeDeps): Screen {
         eyebrow.textContent = 'HARI ISTIRAHAT';
         targetReps.textContent = '—';
         targetSets.textContent = '';
-        targetExercise.textContent = next
-          ? `Sesi berikutnya ${next.label}${next.focusLabel ? ` · ${next.focusLabel}` : ''}`
-          : 'Belum ada jadwal';
-        targetReason.textContent =
-          'Pemulihan terjadi di hari istirahat, bukan di sesinya. Tetap boleh latihan hari ini kalau mau — jadwalnya tidak ikut bergeser.';
+        targetExercise.textContent = '';
         sessionRest.replaceChildren();
         streak.textContent = String(currentStreak(history, now));
         const restScore = latestQuality(history);
@@ -140,7 +126,6 @@ export function createHomeScreen(deps: HomeDeps): Screen {
       targetReps.textContent = String(first.amount);
       targetSets.textContent = `${first.unit === 'seconds' ? 'detik' : 'repetisi'} × ${first.sets} set`;
       targetExercise.textContent = MOVEMENT_NAMES[first.movement];
-      targetReason.textContent = explainReason(first.reason, first.unit === 'seconds');
 
       // Everything after the first movement, stated in its own unit.
       sessionRest.replaceChildren();
@@ -157,14 +142,6 @@ export function createHomeScreen(deps: HomeDeps): Screen {
           ),
         ),
       );
-      if (session) {
-        sessionRest.append(
-          el('p', {
-            class: 'sessionlist__foot',
-            text: `Sekitar ${estimatedMinutes(split, session)} menit · istirahat ${split.restSeconds} detik antar set.`,
-          }),
-        );
-      }
 
       streak.textContent = String(currentStreak(history, now));
       // An em dash rather than a zero: no sessions yet is not a score of nought.

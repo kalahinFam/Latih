@@ -461,6 +461,10 @@ body {
   color: var(--sage);
 }
 
+.card__accent:empty {
+  display: none;
+}
+
 .card__foot {
   margin: 1rem 0 0;
   padding-top: 1rem;
